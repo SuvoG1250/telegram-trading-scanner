@@ -1,9 +1,11 @@
-"""Telegram alert delivery."""
+"""Professional Telegram trade alerts (HTML format)."""
 
 from __future__ import annotations
 
+import html
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
 
 import requests
 
@@ -11,6 +13,8 @@ from config import TELEGRAM_TOKEN, telegram_chat_ids
 from risk import TradeLevels
 
 logger = logging.getLogger(__name__)
+
+SignalKind = Literal["ENTRY", "EXIT"]
 
 
 @dataclass
@@ -20,34 +24,65 @@ class Signal:
     side: str  # BUY or SELL
     levels: TradeLevels
     note: str = ""
-
-
-def _escape_md(text: str) -> str:
-    for ch in ("_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"):
-        text = text.replace(ch, f"\\{ch}")
-    return text
+    kind: SignalKind = "ENTRY"
+    timeframe: str = "Intraday"
+    timestamp: str = ""
 
 
 def format_signal_message(signal: Signal) -> str:
+    """Professional trader-style alert: Stock, Entry, SL, Best Target."""
+    sym = html.escape(signal.symbol)
+    strat = html.escape(signal.strategy)
+    ts = html.escape(signal.timestamp or "")
     lv = signal.levels
-    side_emoji = "🟢" if signal.side == "BUY" else "🔴"
+
+    if signal.kind == "EXIT":
+        side_label = "EXIT / BOOK PROFIT" if signal.side == "SELL" else "EXIT POSITION"
+        emoji = "🏁"
+        return (
+            f"{emoji} <b>{side_label}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"📌 <b>Stock:</b> {sym} <i>(NSE)</i>\n"
+            f"📊 <b>Strategy:</b> {strat}\n"
+            f"🕐 <b>Time:</b> {ts}\n\n"
+            f"💵 <b>Exit near:</b> ₹{lv.entry:,.2f}\n\n"
+            f"📋 <b>Action:</b> {html.escape(signal.note or 'Close the open position.')}\n"
+            f"━━━━━━━━━━━━━━━━━━━━"
+        )
+
+    is_buy = signal.side == "BUY"
+    emoji = "🟢" if is_buy else "🔴"
+    action = "BUY (LONG)" if is_buy else "SELL (SHORT)"
+    best = lv.primary_target
+
     lines = [
-        f"{side_emoji} *{_escape_md(signal.side)} Signal*",
+        f"{emoji} <b>INTRADAY {action}</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
         "",
-        f"*Stock:* `{_escape_md(signal.symbol)}`",
-        f"*Strategy:* {_escape_md(signal.strategy)}",
-        f"*Entry:* `{lv.entry}`",
-        f"*Stop Loss:* `{lv.stop_loss}`",
+        f"📌 <b>Stock:</b> {sym} <i>(NSE)</i>",
+        f"📊 <b>Strategy:</b> {strat}",
+        f"⏱ <b>Timeframe:</b> {html.escape(signal.timeframe)}",
+        f"🕐 <b>Time:</b> {ts}",
         "",
-        "*Targets*",
-        f"• T1 \\(1:1\\.5 RR\\): `{lv.target_1}`",
-        f"• T2 \\(1:2 RR\\): `{lv.target_2}`",
-        f"• T3: {_escape_md(lv.trailing_note)}",
+        f"💰 <b>ENTRY:</b> ₹{lv.entry:,.2f}",
+        f"🛑 <b>STOP LOSS:</b> ₹{lv.stop_loss:,.2f}",
+        f"🎯 <b>BEST TARGET:</b> ₹{best:,.2f} <i>(1:{lv.rr_best} R:R)</i>",
+        f"📈 <b>T1:</b> ₹{lv.target_1:,.2f}",
+        f"📈 <b>T2:</b> ₹{lv.target_2:,.2f}",
         "",
-        f"_Risk:_ `{lv.risk}` | _R1:_ `{lv.reward_1}` | _R2:_ `{lv.reward_2}`",
+        f"⚖️ <b>Risk:</b> ₹{lv.risk:,.2f} ({lv.risk_pct}%)",
+        f"✅ <b>Reward (best):</b> ₹{abs(best - lv.entry):,.2f}",
+        f"📐 <b>R:R</b> = 1 : {lv.risk_reward_best}",
+        "",
+        "<b>📋 Trade plan</b>",
+        "• Honor stop loss — no averaging down",
+        "• Book 40–50% at T1, rest toward best target",
+        f"• {html.escape(lv.trailing_note)}",
+        "• <b>Square off ALL intraday positions by 3:30 PM IST</b>",
     ]
     if signal.note:
-        lines.extend(["", f"_{_escape_md(signal.note)}_"])
+        lines.extend(["", f"<b>Setup:</b> {html.escape(signal.note)}"])
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
     return "\n".join(lines)
 
 
@@ -78,30 +113,34 @@ def _send_to_all(payload: dict) -> bool:
             if resp.ok:
                 ok_any = True
             else:
-                err = _api_error(resp)
-                logger.error("Telegram send to %s failed: %s", chat_id, err)
+                logger.error("Telegram send to %s failed: %s", chat_id, _api_error(resp))
         except requests.RequestException:
             logger.exception("Telegram send to %s failed", chat_id)
     return ok_any
 
 
-def send_telegram(message: str) -> bool:
+def send_telegram(message: str, *, html_mode: bool = True) -> bool:
     if not TELEGRAM_TOKEN or not telegram_chat_ids():
         logger.warning("Telegram credentials missing; message not sent.")
-        logger.info("Message preview:\n%s", message)
         return False
-
-    return _send_to_all(
-        {
-            "text": message,
-            "parse_mode": "MarkdownV2",
-            "disable_web_page_preview": True,
-        }
-    )
+    payload: dict = {"text": message, "disable_web_page_preview": True}
+    if html_mode:
+        payload["parse_mode"] = "HTML"
+    return _send_to_all(payload)
 
 
 def send_signal(signal: Signal) -> bool:
-    return send_telegram(format_signal_message(signal))
+    body = format_signal_message(signal)
+    logger.info(
+        "Signal | %s | %s | %s | Entry=%s SL=%s Target=%s",
+        signal.strategy,
+        signal.symbol,
+        signal.side,
+        signal.levels.entry,
+        signal.levels.stop_loss,
+        signal.levels.primary_target,
+    )
+    return send_telegram(body, html_mode=True)
 
 
 def send_plain(text: str) -> bool:

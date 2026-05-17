@@ -1,4 +1,4 @@
-"""Part 2: Intraday strategy scanners."""
+"""Part 2: Intraday strategy scanners — all return validated professional signals."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ from typing import Literal
 import pandas as pd
 
 from config import GAP_THRESHOLD_PCT, SUPERTREND_LENGTH, SUPERTREND_MULTIPLIER
-from indicators import ema, supertrend_direction
-from data_fetcher import fetch_daily, fetch_intraday, today_session_df
 from consolidation import (
     check_3m_breakout_entry,
     check_9ema_trail_exit,
@@ -17,7 +15,8 @@ from consolidation import (
     is_consolidation_candidate,
     strong_sectors,
 )
-from sector_map import sector_for
+from data_fetcher import fetch_daily, fetch_intraday, today_session_df
+from indicators import ema, supertrend_direction
 from market_time import (
     is_consolidation_entry_window,
     is_market_open,
@@ -26,7 +25,8 @@ from market_time import (
     now_ist,
 )
 from momentum_screener import analyze_multi_timeframe, first_two_15m_candles, format_breakdown
-from risk import TradeLevels, levels_for_long, levels_for_short
+from sector_map import sector_for
+from signal_builder import entry_long, entry_short, exit_signal
 from state import (
     clear_consolidation_active,
     is_consolidation_active,
@@ -37,6 +37,8 @@ from telegram_client import Signal
 logger = logging.getLogger(__name__)
 
 Side = Literal["BUY", "SELL"]
+
+STANDARD_EXIT = "Square off ALL positions by 3:30 PM IST."
 
 
 def _ema_cross_up(fast: pd.Series, slow: pd.Series) -> bool:
@@ -52,6 +54,7 @@ def _ema_cross_down(fast: pd.Series, slow: pd.Series) -> bool:
 
 
 def winning_combination(symbol: str) -> Signal | None:
+    """5 EMA x 20 EMA + Supertrend(7,3) on 5-minute chart."""
     df = fetch_intraday(symbol, "5m")
     session = today_session_df(df, now_ist().date())
     if len(session) < 25:
@@ -63,24 +66,33 @@ def winning_combination(symbol: str) -> Signal | None:
     session["ST_DIR"] = supertrend_direction(
         session, length=SUPERTREND_LENGTH, multiplier=SUPERTREND_MULTIPLIER
     )
-
     fast, slow, direction = session["EMA5"], session["EMA20"], session["ST_DIR"]
     last = session.iloc[-1]
     entry = float(last["Close"])
 
     if _ema_cross_up(fast, slow) and direction.iloc[-1] > 0:
-        levels = levels_for_long(entry, float(last["Low"]))
-        return Signal(symbol, "The Winning Combination", "BUY", levels)
+        return entry_long(
+            symbol,
+            "The Winning Combination",
+            entry,
+            float(last["Low"]),
+            note="5m: 5 EMA crossed above 20 EMA + Supertrend turned GREEN.",
+            timeframe="5 Min",
+        )
 
     if _ema_cross_down(fast, slow) and direction.iloc[-1] < 0:
-        levels = levels_for_short(entry, float(last["High"]))
-        return Signal(symbol, "The Winning Combination", "SELL", levels)
-
+        return entry_short(
+            symbol,
+            "The Winning Combination",
+            entry,
+            float(last["High"]),
+            note="5m: 5 EMA crossed below 20 EMA + Supertrend turned RED.",
+            timeframe="5 Min",
+        )
     return None
 
 
 def _orb_range(session_15m: pd.DataFrame) -> tuple[float, float] | None:
-    """High/Low of 2nd (9:30-9:45) and 3rd (9:45-10:00) 15-min candles."""
     segment = session_15m.between_time("09:30", "10:00")
     if len(segment) < 2:
         after_open = session_15m.between_time("09:15", "10:00")
@@ -93,104 +105,95 @@ def _orb_range(session_15m: pd.DataFrame) -> tuple[float, float] | None:
 
 
 def orb_15min(symbol: str) -> Signal | None:
+    """15m ORB: breakout of 9:30–10:00 range after 10:00 AM."""
     if not is_orb_allowed():
         return None
 
-    df = fetch_intraday(symbol, "15m")
-    session = today_session_df(df, now_ist().date())
+    session = today_session_df(fetch_intraday(symbol, "15m"), now_ist().date())
     orb = _orb_range(session)
     if orb is None:
         return None
     combined_high, combined_low = orb
-    last_close = float(session.iloc[-1]["Close"])
     last = session.iloc[-1]
+    close = float(last["Close"])
 
-    if last_close > combined_high:
-        levels = levels_for_long(last_close, float(last["Low"]))
-        note = f"ORB break above {combined_high:.2f}"
-        return Signal(symbol, "15-Min ORB", "BUY", levels, note=note)
+    if close > combined_high:
+        return entry_long(
+            symbol,
+            "15-Min ORB",
+            close,
+            float(last["Low"]),
+            note=f"15m close above ORB high ₹{combined_high:.2f} (9:30–10:00 range).",
+            timeframe="15 Min",
+        )
 
-    if last_close < combined_low:
-        levels = levels_for_short(last_close, float(last["High"]))
-        note = f"ORB break below {combined_low:.2f}"
-        return Signal(symbol, "15-Min ORB", "SELL", levels, note=note)
-
+    if close < combined_low:
+        return entry_short(
+            symbol,
+            "15-Min ORB",
+            close,
+            float(last["High"]),
+            note=f"15m close below ORB low ₹{combined_low:.2f} (9:30–10:00 range).",
+            timeframe="15 Min",
+        )
     return None
 
 
 def _gap_type(daily: pd.DataFrame) -> Literal["gap_up", "gap_down", "none"]:
     if len(daily) < 3:
         return "none"
-    yday = daily.iloc[-2]
-    prev = daily.iloc[-3]
+    yday, prev = daily.iloc[-2], daily.iloc[-3]
     y_open = float(yday["Open"])
-    prev_close = float(prev["Close"])
-    prev_high = float(prev["High"])
-    prev_low = float(prev["Low"])
+    prev_close, prev_high, prev_low = float(prev["Close"]), float(prev["High"]), float(prev["Low"])
     gap_pct = abs(y_open - prev_close) / prev_close * 100 if prev_close else 0
     if gap_pct < GAP_THRESHOLD_PCT:
         return "none"
-    if y_open > prev_high:
+    if y_open > prev_high or y_open > prev_close:
         return "gap_up"
-    if y_open < prev_low:
-        return "gap_down"
-    if y_open > prev_close:
-        return "gap_up"
-    if y_open < prev_close:
+    if y_open < prev_low or y_open < prev_close:
         return "gap_down"
     return "none"
 
 
 def gap_day_breakout(symbol: str) -> Signal | None:
+    """Gap reversal breakout on 5-minute chart."""
     daily = fetch_daily(symbol, period="3mo")
-    if len(daily) < 3:
-        return None
     gap = _gap_type(daily)
     if gap == "none":
         return None
 
     yday = daily.iloc[-2]
-    y_high = float(yday["High"])
-    y_low = float(yday["Low"])
-
-    df5 = fetch_intraday(symbol, "5m")
-    session = today_session_df(df5, now_ist().date())
+    y_high, y_low = float(yday["High"]), float(yday["Low"])
+    session = today_session_df(fetch_intraday(symbol, "5m"), now_ist().date())
     if session.empty:
         return None
     last = session.iloc[-1]
     close = float(last["Close"])
 
     if gap == "gap_down" and close > y_high:
-        levels = levels_for_long(close, float(last["Low"]))
-        return Signal(
+        return entry_long(
             symbol,
             "Gap Day Breakout",
-            "BUY",
-            levels,
-            note="Gap down yesterday; reclaim above prior day high.",
+            close,
+            float(last["Low"]),
+            note=f"Gap-down day prior; 5m reclaim above yesterday high ₹{y_high:.2f}.",
+            timeframe="5 Min",
         )
 
     if gap == "gap_up" and close < y_low:
-        levels = levels_for_short(close, float(last["High"]))
-        return Signal(
+        return entry_short(
             symbol,
             "Gap Day Breakout",
-            "SELL",
-            levels,
-            note="Gap up yesterday; break below prior day low.",
+            close,
+            float(last["High"]),
+            note=f"Gap-up day prior; 5m break below yesterday low ₹{y_low:.2f}.",
+            timeframe="5 Min",
         )
-
     return None
 
 
 def screener_momentum_930(symbol: str) -> Signal | None:
-    """
-    Investing.com-style 5-timeframe momentum entry (9:30–9:45 AM IST).
-
-    Long: Strong Buying on most timeframes; entry at 2nd 15m candle, SL = low of 1st.
-    Short: Strong Selling on most timeframes; SL = high of 1st.
-    Target: 1:1 RR; exit by 3:30 PM IST.
-    """
+    """5-TF momentum (Investing.com style) — entry 9:30–9:45 AM."""
     if not is_momentum_entry_window():
         return None
 
@@ -198,54 +201,47 @@ def screener_momentum_930(symbol: str) -> Signal | None:
     if not mtf or mtf["consensus"] == "mixed":
         return None
 
-    df15 = fetch_intraday(symbol, "15m")
-    session = today_session_df(df15, now_ist().date())
+    session = today_session_df(fetch_intraday(symbol, "15m"), now_ist().date())
     candles = first_two_15m_candles(session)
     if candles is None:
         return None
 
     first, second = candles
     entry = float(second["Open"])
-    breakdown_note = format_breakdown(mtf["breakdown"])
-    exit_note = "Exit by 3:30 PM IST. T1 = 1:1 RR."
+    note = f"{format_breakdown(mtf['breakdown'])}. {STANDARD_EXIT}"
 
     if mtf["consensus"] == "strong_buy":
-        sl = float(first["Low"])
-        if entry <= sl:
-            return None
-        levels = levels_for_long(entry, sl, rr1=1.0, rr2=1.5)
-        levels.trailing_note = "Book partial at T1 (1:1). Exit remainder by 3:30 PM IST."
-        return Signal(
+        return entry_long(
             symbol,
             "Screener Momentum (5 TF)",
-            "BUY",
-            levels,
-            note=f"{breakdown_note}. {exit_note}",
+            entry,
+            float(first["Low"]),
+            rr1=1.0,
+            rr2=1.5,
+            best_rr=1.0,
+            note=note,
+            timeframe="15 Min + MTF",
+            trailing_note="Book 50% at T1 (1:1). Trail remainder; exit by 3:30 PM IST.",
         )
 
     if mtf["consensus"] == "strong_sell":
-        sl = float(first["High"])
-        if entry >= sl:
-            return None
-        levels = levels_for_short(entry, sl, rr1=1.0, rr2=1.5)
-        levels.trailing_note = "Book partial at T1 (1:1). Exit remainder by 3:30 PM IST."
-        return Signal(
+        return entry_short(
             symbol,
             "Screener Momentum (5 TF)",
-            "SELL",
-            levels,
-            note=f"{breakdown_note}. {exit_note}",
+            entry,
+            float(first["High"]),
+            rr1=1.0,
+            rr2=1.5,
+            best_rr=1.0,
+            note=note,
+            timeframe="15 Min + MTF",
+            trailing_note="Book 50% at T1 (1:1). Trail remainder; exit by 3:30 PM IST.",
         )
-
     return None
 
 
 def consolidation_breakout_3m(symbol: str) -> Signal | None:
-    """
-    Sector uptrend + 4H consolidation. Buy on 3m resistance breakout (9:18–9:36 AM IST).
-    SL: prior day low, or 1st 3m low if risk > MAX_SL_RISK_PCT.
-  Trail exit via 9 EMA on 3m (separate scanner).
-    """
+    """Sector SuperTrend + 4H consolidation + 3m breakout (9:18–9:36 AM)."""
     if not is_consolidation_entry_window():
         return None
 
@@ -253,52 +249,50 @@ def consolidation_breakout_3m(symbol: str) -> Signal | None:
     if not is_consolidation_candidate(symbol, sectors):
         return None
 
-    levels = consolidation_levels(symbol)
-    if not levels:
+    lv = consolidation_levels(symbol)
+    if not lv:
         return None
 
-    entry_data = check_3m_breakout_entry(symbol, levels)
-    if not entry_data:
+    data = check_3m_breakout_entry(symbol, lv)
+    if not data:
         return None
-
-    entry = entry_data["entry"]
-    sl = entry_data["stop_loss"]
-    lv = levels_for_long(entry, sl, rr1=1.5, rr2=2.0)
-    lv.trailing_note = "Trail: exit when 3m candle closes below 9 EMA."
 
     mark_consolidation_active(symbol)
-    note = (
-        f"Sector: {sector_for(symbol)} | 4H R={entry_data['resistance']:.2f} "
-        f"S={entry_data['support']:.2f} | Break 1st 3m high {entry_data['first_3m_high']:.2f}"
+    sig = entry_long(
+        symbol,
+        "Consolidation Breakout (3m)",
+        data["entry"],
+        data["stop_loss"],
+        rr1=1.0,
+        rr2=2.0,
+        best_rr=2.0,
+        note=(
+            f"Sector {sector_for(symbol)} | 4H R ₹{data['resistance']:.2f} "
+            f"S ₹{data['support']:.2f} | 3m broke 1st candle high ₹{data['first_3m_high']:.2f}."
+        ),
+        timeframe="3 Min / 4H",
+        trailing_note="Trail: exit 3m close below 9 EMA. " + STANDARD_EXIT,
     )
-    return Signal(symbol, "Consolidation Breakout (3m)", "BUY", lv, note=note)
+    return sig
 
 
 def consolidation_trail_exit_9ema(symbol: str) -> Signal | None:
-    """Trailing exit: 3m close below 9 EMA (after consolidation entry)."""
-    if not is_market_open():
-        return None
-    if not is_consolidation_active(symbol):
+    """Book profits when 3m closes below 9 EMA after consolidation entry."""
+    if not is_market_open() or not is_consolidation_active(symbol):
         return None
 
-    exit_data = check_9ema_trail_exit(symbol)
-    if not exit_data:
+    data = check_9ema_trail_exit(symbol)
+    if not data:
         return None
 
     clear_consolidation_active(symbol)
-    price = exit_data["exit_price"]
-    note = f"Trail exit: 3m closed below 9 EMA ({exit_data['ema9']:.2f}). Book profits."
-    levels = TradeLevels(
-        entry=price,
-        stop_loss=price,
-        target_1=price,
-        target_2=price,
-        trailing_note="Position exit signal.",
-        risk=0.0,
-        reward_1=0.0,
-        reward_2=0.0,
+    return exit_signal(
+        symbol,
+        "Consolidation Trail Exit (9 EMA)",
+        data["exit_price"],
+        f"3m closed below 9 EMA (₹{data['ema9']:.2f}). Book remaining profits now.",
+        side="SELL",
     )
-    return Signal(symbol, "Consolidation Trail Exit (9 EMA)", "SELL", levels, note=note)
 
 
 STRATEGY_SCANNERS = [
@@ -309,3 +303,5 @@ STRATEGY_SCANNERS = [
     consolidation_breakout_3m,
     consolidation_trail_exit_9ema,
 ]
+
+STRATEGY_NAMES = [fn.__name__ for fn in STRATEGY_SCANNERS]
