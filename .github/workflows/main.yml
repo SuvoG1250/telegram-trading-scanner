@@ -5,6 +5,12 @@ on:
     # Mon–Fri: every 5 min during UTC 3–10 (~8:30–15:30 IST)
     - cron: "*/5 3-10 * * 1-5"
   workflow_dispatch:
+    inputs:
+      send_test_signal:
+        description: "Send test Telegram signal only (skip scanner)"
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: trading-scanner-${{ github.ref }}
@@ -49,4 +55,8 @@ jobs:
         run: |
           mkdir -p data
           touch data/.gitkeep
-          python scanner.py
+          if [ "${{ github.event.inputs.send_test_signal }}" = "true" ]; then
+            python send_test_signal.py
+          else
+            python scanner.py
+          fi
