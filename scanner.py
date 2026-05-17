@@ -14,6 +14,7 @@ import sys
 
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist
+from session_alerts import handle_session_alerts
 from state import already_sent, load_watchlist, mark_sent, save_watchlist
 from strategies import STRATEGY_SCANNERS
 from telegram_client import send_plain, send_signal
@@ -69,6 +70,10 @@ def main() -> int:
 
     ist_now = now_ist()
     logger.info("Scanner run at %s IST", ist_now.strftime("%Y-%m-%d %H:%M:%S"))
+
+    if handle_session_alerts():
+        logger.info("Session ended for today. Exiting.")
+        return 0
 
     if is_premarket_window():
         run_premarket()

@@ -38,6 +38,7 @@ SUPERTREND_MULTIPLIER = 3.0
 DATA_DIR = Path(os.environ.get("SCANNER_DATA_DIR", "data"))
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 SIGNALS_FILE = DATA_DIR / "signals_sent.json"
+SESSION_FILE = DATA_DIR / "session.json"
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")

@@ -66,3 +66,17 @@ def is_orb_allowed(dt: datetime | None = None) -> bool:
 
 def today_key(dt: datetime | None = None) -> str:
     return (dt or now_ist()).strftime("%Y-%m-%d")
+
+
+def is_active_session(dt: datetime | None = None) -> bool:
+    """Pre-market or regular market hours (scanner should be running)."""
+    return is_premarket_window(dt) or is_market_open(dt)
+
+
+def is_session_stop_window(dt: datetime | None = None) -> bool:
+    """First run after 3:30 PM IST sends the daily stop alert (until 10 PM)."""
+    dt = dt or now_ist()
+    if not is_weekday(dt):
+        return False
+    t = ist_time_tuple(dt)
+    return _after((MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE), t) and _before((22, 0), t)

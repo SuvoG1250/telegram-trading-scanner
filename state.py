@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from config import DATA_DIR, SIGNALS_FILE, WATCHLIST_FILE
+from config import DATA_DIR, SESSION_FILE, SIGNALS_FILE, WATCHLIST_FILE
 from market_time import today_key
 
 logger = logging.getLogger(__name__)
@@ -72,3 +72,45 @@ def mark_sent(symbol: str, strategy: str, side: str) -> None:
     keys.add(key)
     data["keys"] = sorted(keys)
     _save_signals(data)
+
+
+def _load_session() -> dict[str, Any]:
+    ensure_data_dir()
+    if not SESSION_FILE.exists():
+        return {"date": today_key(), "start_sent": False, "stop_sent": False}
+    try:
+        return json.loads(SESSION_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"date": today_key(), "start_sent": False, "stop_sent": False}
+
+
+def _save_session(data: dict[str, Any]) -> None:
+    ensure_data_dir()
+    SESSION_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _session_today() -> dict[str, Any]:
+    data = _load_session()
+    if data.get("date") != today_key():
+        data = {"date": today_key(), "start_sent": False, "stop_sent": False}
+    return data
+
+
+def session_start_sent() -> bool:
+    return bool(_session_today().get("start_sent"))
+
+
+def session_stop_sent() -> bool:
+    return bool(_session_today().get("stop_sent"))
+
+
+def mark_session_start() -> None:
+    data = _session_today()
+    data["start_sent"] = True
+    _save_session(data)
+
+
+def mark_session_stop() -> None:
+    data = _session_today()
+    data["stop_sent"] = True
+    _save_session(data)
