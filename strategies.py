@@ -10,7 +10,8 @@ import pandas as pd
 from config import GAP_THRESHOLD_PCT, SUPERTREND_LENGTH, SUPERTREND_MULTIPLIER
 from indicators import ema, supertrend_direction
 from data_fetcher import fetch_daily, fetch_intraday, today_session_df
-from market_time import is_orb_allowed, now_ist
+from market_time import is_momentum_entry_window, is_orb_allowed, now_ist
+from momentum_screener import analyze_multi_timeframe, first_two_15m_candles, format_breakdown
 from risk import TradeLevels, levels_for_long, levels_for_short
 from telegram_client import Signal
 
@@ -163,8 +164,66 @@ def gap_day_breakout(symbol: str) -> Signal | None:
     return None
 
 
+def screener_momentum_930(symbol: str) -> Signal | None:
+    """
+    Investing.com-style 5-timeframe momentum entry (9:30–9:45 AM IST).
+
+    Long: Strong Buying on most timeframes; entry at 2nd 15m candle, SL = low of 1st.
+    Short: Strong Selling on most timeframes; SL = high of 1st.
+    Target: 1:1 RR; exit by 3:30 PM IST.
+    """
+    if not is_momentum_entry_window():
+        return None
+
+    mtf = analyze_multi_timeframe(symbol)
+    if not mtf or mtf["consensus"] == "mixed":
+        return None
+
+    df15 = fetch_intraday(symbol, "15m")
+    session = today_session_df(df15, now_ist().date())
+    candles = first_two_15m_candles(session)
+    if candles is None:
+        return None
+
+    first, second = candles
+    entry = float(second["Open"])
+    breakdown_note = format_breakdown(mtf["breakdown"])
+    exit_note = "Exit by 3:30 PM IST. T1 = 1:1 RR."
+
+    if mtf["consensus"] == "strong_buy":
+        sl = float(first["Low"])
+        if entry <= sl:
+            return None
+        levels = levels_for_long(entry, sl, rr1=1.0, rr2=1.5)
+        levels.trailing_note = "Book partial at T1 (1:1). Exit remainder by 3:30 PM IST."
+        return Signal(
+            symbol,
+            "Screener Momentum (5 TF)",
+            "BUY",
+            levels,
+            note=f"{breakdown_note}. {exit_note}",
+        )
+
+    if mtf["consensus"] == "strong_sell":
+        sl = float(first["High"])
+        if entry >= sl:
+            return None
+        levels = levels_for_short(entry, sl, rr1=1.0, rr2=1.5)
+        levels.trailing_note = "Book partial at T1 (1:1). Exit remainder by 3:30 PM IST."
+        return Signal(
+            symbol,
+            "Screener Momentum (5 TF)",
+            "SELL",
+            levels,
+            note=f"{breakdown_note}. {exit_note}",
+        )
+
+    return None
+
+
 STRATEGY_SCANNERS = [
     winning_combination,
     orb_15min,
     gap_day_breakout,
+    screener_momentum_930,
 ]

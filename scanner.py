@@ -4,7 +4,7 @@ Intraday NSE stock scanner with Telegram alerts.
 
 Designed for scheduled runs (e.g. GitHub Actions every 5 minutes).
 Part 1 runs in the pre-market window (~9:10–9:25 IST).
-Part 2 scans the watchlist with three parallel strategies during market hours.
+Part 2 scans the watchlist with parallel strategies during market hours.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import logging
 import sys
 
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
-from premarket import build_watchlist
+from premarket import build_watchlist, format_watchlist_message
 from session_alerts import handle_session_alerts
 from state import already_sent, load_watchlist, mark_sent, save_watchlist
 from strategies import STRATEGY_SCANNERS
@@ -28,13 +28,12 @@ logger = logging.getLogger("scanner")
 
 
 def run_premarket() -> list[str]:
-    watchlist = build_watchlist()
+    watchlist, ranked = build_watchlist()
+    if not watchlist:
+        return []
     if watchlist:
         save_watchlist(watchlist)
-        send_plain(
-            f"📋 Pre-Market Watchlist ({now_ist().strftime('%d %b %Y %H:%M IST')})\n"
-            + "\n".join(f"• {s}" for s in watchlist)
-        )
+        send_plain(format_watchlist_message(ranked))
     return watchlist
 
 
@@ -86,7 +85,7 @@ def main() -> int:
     watchlist = load_watchlist()
     if not watchlist:
         logger.info("No watchlist for today; building from pre-market filters.")
-        watchlist = build_watchlist()
+        watchlist, _ = build_watchlist()
         if watchlist:
             save_watchlist(watchlist)
 

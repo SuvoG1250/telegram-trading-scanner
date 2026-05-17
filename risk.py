@@ -21,10 +21,15 @@ def _round_price(value: float) -> float:
     return round(value, 2)
 
 
-def levels_for_long(entry: float, trigger_low: float) -> TradeLevels:
+def levels_for_long(
+    entry: float,
+    trigger_low: float,
+    rr1: float = 1.5,
+    rr2: float = 2.0,
+) -> TradeLevels:
     risk = max(entry - trigger_low, 0.01)
-    t1 = entry + risk * 1.5
-    t2 = entry + risk * 2.0
+    t1 = entry + risk * rr1
+    t2 = entry + risk * rr2
     return TradeLevels(
         entry=_round_price(entry),
         stop_loss=_round_price(trigger_low),
@@ -37,10 +42,15 @@ def levels_for_long(entry: float, trigger_low: float) -> TradeLevels:
     )
 
 
-def levels_for_short(entry: float, trigger_high: float) -> TradeLevels:
+def levels_for_short(
+    entry: float,
+    trigger_high: float,
+    rr1: float = 1.5,
+    rr2: float = 2.0,
+) -> TradeLevels:
     risk = max(trigger_high - entry, 0.01)
-    t1 = entry - risk * 1.5
-    t2 = entry - risk * 2.0
+    t1 = entry - risk * rr1
+    t2 = entry - risk * rr2
     return TradeLevels(
         entry=_round_price(entry),
         stop_loss=_round_price(trigger_high),

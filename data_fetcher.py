@@ -12,7 +12,16 @@ from stocks import to_yfinance_symbol
 
 logger = logging.getLogger(__name__)
 
-Interval = Literal["5m", "15m", "1d"]
+Interval = Literal["5m", "15m", "1h", "1d", "1wk", "1mo"]
+
+_PERIOD_BY_INTERVAL: dict[str, str] = {
+    "5m": "5d",
+    "15m": "10d",
+    "1h": "60d",
+    "1d": "1y",
+    "1wk": "2y",
+    "1mo": "5y",
+}
 
 
 def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -34,8 +43,9 @@ def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
 def fetch_history(
     symbol: str,
     interval: Interval,
-    period: str = "60d",
+    period: str | None = None,
 ) -> pd.DataFrame:
+    period = period or _PERIOD_BY_INTERVAL.get(interval, "60d")
     ticker = to_yfinance_symbol(symbol)
     try:
         df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
@@ -50,8 +60,7 @@ def fetch_daily(symbol: str, period: str = "1y") -> pd.DataFrame:
 
 
 def fetch_intraday(symbol: str, interval: Interval) -> pd.DataFrame:
-    period = "5d" if interval == "5m" else "10d"
-    return fetch_history(symbol, interval, period=period)
+    return fetch_history(symbol, interval)
 
 
 def today_session_df(df: pd.DataFrame, session_date) -> pd.DataFrame:

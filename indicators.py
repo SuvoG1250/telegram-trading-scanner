@@ -9,6 +9,14 @@ def ema(series: pd.Series, length: int) -> pd.Series:
     return series.ewm(span=length, adjust=False).mean()
 
 
+def rsi(series: pd.Series, length: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0).rolling(length).mean()
+    loss = (-delta.clip(upper=0)).rolling(length).mean()
+    rs = gain / loss.replace(0, 1e-10)
+    return 100 - (100 / (1 + rs))
+
+
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int) -> pd.Series:
     prev_close = close.shift(1)
     tr = pd.concat(

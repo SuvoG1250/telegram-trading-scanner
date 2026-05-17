@@ -14,6 +14,7 @@ from config import (
 )
 from data_fetcher import fetch_daily
 from market_time import now_ist
+from momentum_screener import analyze_multi_timeframe
 from stocks import NIFTY_50_SYMBOLS
 
 logger = logging.getLogger(__name__)
@@ -50,12 +51,19 @@ def score_stock(symbol: str) -> dict | None:
         return None
 
     momentum = float(last["Close"]) / float(prev["Close"]) - 1.0
+
+    mtf = analyze_multi_timeframe(symbol)
+    mtf_score = int(mtf["mtf_score"]) if mtf else 0
+    consensus = mtf["consensus"] if mtf else "mixed"
+
     return {
         "symbol": symbol,
         "price": current_price,
         "dist_from_52w_high_pct": dist_pct,
         "volume_ratio": vol_ratio,
         "momentum": momentum,
+        "mtf_score": mtf_score,
+        "mtf_consensus": consensus,
     }
 
 
@@ -72,19 +80,40 @@ def build_watchlist(symbols: list[str] | None = None) -> list[str]:
 
     if not candidates:
         logger.warning("No stocks passed pre-market filters.")
-        return []
+        return [], []
 
     ranked = sorted(
         candidates,
-        key=lambda x: (x["volume_ratio"], -x["dist_from_52w_high_pct"], x["momentum"]),
+        key=lambda x: (
+            x["mtf_score"],
+            x["volume_ratio"],
+            -x["dist_from_52w_high_pct"],
+            x["momentum"],
+        ),
         reverse=True,
     )
     count = min(WATCHLIST_MAX, max(WATCHLIST_MIN, len(ranked)))
     count = min(count, len(ranked))
-    selected = [r["symbol"] for r in ranked[:count]]
+    top = ranked[:count]
+    selected = [r["symbol"] for r in top]
     logger.info(
         "Premarket watchlist (%s IST): %s",
         now_ist().strftime("%H:%M"),
         ", ".join(selected),
     )
-    return selected
+    return selected, top
+
+
+def format_watchlist_message(rows: list[dict]) -> str:
+    lines = [f"📋 Pre-Market Watchlist ({now_ist().strftime('%d %b %Y %H:%M IST')})"]
+    lines.append("_(5 TF momentum: 15m | 1h | Daily | Weekly | Monthly)_\n")
+    for row in rows:
+        tag = row.get("mtf_consensus", "mixed")
+        if tag == "strong_buy":
+            label = "🟢 Strong Buying"
+        elif tag == "strong_sell":
+            label = "🔴 Strong Selling"
+        else:
+            label = "⚪ Mixed"
+        lines.append(f"• {row['symbol']} — {label} ({row['mtf_score']}/5)")
+    return "\n".join(lines)
