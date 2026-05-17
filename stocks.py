@@ -1,4 +1,4 @@
-"""Nifty 50 constituents (NSE tickers without suffix)."""
+"""Nifty 50 / Nifty 100 universe (NSE tickers without suffix)."""
 
 NIFTY_50_SYMBOLS: list[str] = [
     "ADANIENT",
@@ -52,9 +52,64 @@ NIFTY_50_SYMBOLS: list[str] = [
     "HDFCAMC",
 ]
 
+# Additional liquid large-caps (Nifty Next 50 style universe)
+NIFTY_100_EXTRA: list[str] = [
+    "ABB",
+    "ADANIGREEN",
+    "AMBUJACEM",
+    "AUROPHARMA",
+    "BANKBARODA",
+    "BEL",
+    "BERGEPAINT",
+    "BOSCHLTD",
+    "CANBK",
+    "CHOLAFIN",
+    "COLPAL",
+    "DABUR",
+    "DLF",
+    "GAIL",
+    "GODREJCP",
+    "HAVELLS",
+    "HDFCAMC",
+    "ICICIPRULI",
+    "INDIGO",
+    "IOC",
+    "JINDALSTEL",
+    "LICI",
+    "LTIM",
+    "MOTHERSON",
+    "NAUKRI",
+    "PIDILITIND",
+    "PNB",
+    "SHREECEM",
+    "SIEMENS",
+    "TATAPOWER",
+    "TORNTPHARM",
+    "TRENT",
+    "VEDL",
+    "ZOMATO",
+    "DMART",
+    "HAL",
+    "IRCTC",
+    "JIOFIN",
+    "MAXHEALTH",
+    "NHPC",
+    "NYKAA",
+    "PAYTM",
+    "POLYCAB",
+    "SRF",
+    "TVSMOTOR",
+    "VBL",
+    "YESBANK",
+    "INDHOTEL",
+    "PIIND",
+    "MANKIND",
+]
+
+NIFTY_100_SYMBOLS: list[str] = sorted(set(NIFTY_50_SYMBOLS + NIFTY_100_EXTRA))
+
 
 def to_yfinance_symbol(symbol: str) -> str:
-    """Map NSE symbol to yfinance ticker."""
     from config import YFINANCE_SUFFIX
 
     return f"{symbol}{YFINANCE_SUFFIX}"

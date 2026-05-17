@@ -20,7 +20,7 @@ def send_session_start_alert() -> bool:
         "🟢 Trading Scanner STARTED\n\n"
         f"📅 {_fmt_now()}\n"
         "⏰ Session: Pre-market (9:10–9:25) + Intraday (9:15 AM–3:30 PM IST)\n"
-        "📊 Strategies: Winning Combo | 15m ORB | Gap Breakout | Screener Momentum (5 TF)\n\n"
+        "📊 Strategies: Winning Combo | ORB | Gap | 5TF Screener | Consolidation 3m\n\n"
         "Trade signal alerts will be sent to this chat when conditions match."
     )
     if send_plain(text):

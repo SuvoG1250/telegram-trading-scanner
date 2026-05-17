@@ -10,9 +10,28 @@ import pandas as pd
 from config import GAP_THRESHOLD_PCT, SUPERTREND_LENGTH, SUPERTREND_MULTIPLIER
 from indicators import ema, supertrend_direction
 from data_fetcher import fetch_daily, fetch_intraday, today_session_df
-from market_time import is_momentum_entry_window, is_orb_allowed, now_ist
+from consolidation import (
+    check_3m_breakout_entry,
+    check_9ema_trail_exit,
+    consolidation_levels,
+    is_consolidation_candidate,
+    strong_sectors,
+)
+from sector_map import sector_for
+from market_time import (
+    is_consolidation_entry_window,
+    is_market_open,
+    is_momentum_entry_window,
+    is_orb_allowed,
+    now_ist,
+)
 from momentum_screener import analyze_multi_timeframe, first_two_15m_candles, format_breakdown
 from risk import TradeLevels, levels_for_long, levels_for_short
+from state import (
+    clear_consolidation_active,
+    is_consolidation_active,
+    mark_consolidation_active,
+)
 from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
@@ -221,9 +240,72 @@ def screener_momentum_930(symbol: str) -> Signal | None:
     return None
 
 
+def consolidation_breakout_3m(symbol: str) -> Signal | None:
+    """
+    Sector uptrend + 4H consolidation. Buy on 3m resistance breakout (9:18–9:36 AM IST).
+    SL: prior day low, or 1st 3m low if risk > MAX_SL_RISK_PCT.
+  Trail exit via 9 EMA on 3m (separate scanner).
+    """
+    if not is_consolidation_entry_window():
+        return None
+
+    sectors = strong_sectors()
+    if not is_consolidation_candidate(symbol, sectors):
+        return None
+
+    levels = consolidation_levels(symbol)
+    if not levels:
+        return None
+
+    entry_data = check_3m_breakout_entry(symbol, levels)
+    if not entry_data:
+        return None
+
+    entry = entry_data["entry"]
+    sl = entry_data["stop_loss"]
+    lv = levels_for_long(entry, sl, rr1=1.5, rr2=2.0)
+    lv.trailing_note = "Trail: exit when 3m candle closes below 9 EMA."
+
+    mark_consolidation_active(symbol)
+    note = (
+        f"Sector: {sector_for(symbol)} | 4H R={entry_data['resistance']:.2f} "
+        f"S={entry_data['support']:.2f} | Break 1st 3m high {entry_data['first_3m_high']:.2f}"
+    )
+    return Signal(symbol, "Consolidation Breakout (3m)", "BUY", lv, note=note)
+
+
+def consolidation_trail_exit_9ema(symbol: str) -> Signal | None:
+    """Trailing exit: 3m close below 9 EMA (after consolidation entry)."""
+    if not is_market_open():
+        return None
+    if not is_consolidation_active(symbol):
+        return None
+
+    exit_data = check_9ema_trail_exit(symbol)
+    if not exit_data:
+        return None
+
+    clear_consolidation_active(symbol)
+    price = exit_data["exit_price"]
+    note = f"Trail exit: 3m closed below 9 EMA ({exit_data['ema9']:.2f}). Book profits."
+    levels = TradeLevels(
+        entry=price,
+        stop_loss=price,
+        target_1=price,
+        target_2=price,
+        trailing_note="Position exit signal.",
+        risk=0.0,
+        reward_1=0.0,
+        reward_2=0.0,
+    )
+    return Signal(symbol, "Consolidation Trail Exit (9 EMA)", "SELL", levels, note=note)
+
+
 STRATEGY_SCANNERS = [
     winning_combination,
     orb_15min,
     gap_day_breakout,
     screener_momentum_930,
+    consolidation_breakout_3m,
+    consolidation_trail_exit_9ema,
 ]

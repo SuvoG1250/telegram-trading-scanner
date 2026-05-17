@@ -12,9 +12,10 @@ from stocks import to_yfinance_symbol
 
 logger = logging.getLogger(__name__)
 
-Interval = Literal["5m", "15m", "1h", "1d", "1wk", "1mo"]
+Interval = Literal["3m", "5m", "15m", "1h", "1d", "1wk", "1mo"]
 
 _PERIOD_BY_INTERVAL: dict[str, str] = {
+    "3m": "5d",
     "5m": "5d",
     "15m": "10d",
     "1h": "60d",

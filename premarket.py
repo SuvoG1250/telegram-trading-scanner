@@ -15,7 +15,9 @@ from config import (
 from data_fetcher import fetch_daily
 from market_time import now_ist
 from momentum_screener import analyze_multi_timeframe
-from stocks import NIFTY_50_SYMBOLS
+from consolidation import is_consolidation_candidate, strong_sectors
+from market_sentiment import format_sentiment_block
+from stocks import NIFTY_100_SYMBOLS
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ def _pct_from_high(current: float, high_52w: float) -> float:
     return ((high_52w - current) / high_52w) * 100.0
 
 
-def score_stock(symbol: str) -> dict | None:
+def score_stock(symbol: str, sectors: set[str] | None = None) -> dict | None:
     daily = fetch_daily(symbol, period="1y")
     if daily.empty or len(daily) < 25:
         return None
@@ -56,6 +58,10 @@ def score_stock(symbol: str) -> dict | None:
     mtf_score = int(mtf["mtf_score"]) if mtf else 0
     consensus = mtf["consensus"] if mtf else "mixed"
 
+    sectors = sectors if sectors is not None else strong_sectors()
+    cons = is_consolidation_candidate(symbol, sectors)
+    cons_bonus = 2 if cons else 0
+
     return {
         "symbol": symbol,
         "price": current_price,
@@ -64,15 +70,18 @@ def score_stock(symbol: str) -> dict | None:
         "momentum": momentum,
         "mtf_score": mtf_score,
         "mtf_consensus": consensus,
+        "consolidation": bool(cons),
+        "rank_score": mtf_score + cons_bonus,
     }
 
 
-def build_watchlist(symbols: list[str] | None = None) -> list[str]:
-    universe = symbols or NIFTY_50_SYMBOLS
+def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[dict]]:
+    universe = symbols or NIFTY_100_SYMBOLS
+    sectors = strong_sectors()
     candidates: list[dict] = []
     for sym in universe:
         try:
-            row = score_stock(sym)
+            row = score_stock(sym, sectors)
             if row:
                 candidates.append(row)
         except Exception:
@@ -85,7 +94,7 @@ def build_watchlist(symbols: list[str] | None = None) -> list[str]:
     ranked = sorted(
         candidates,
         key=lambda x: (
-            x["mtf_score"],
+            x["rank_score"],
             x["volume_ratio"],
             -x["dist_from_52w_high_pct"],
             x["momentum"],
@@ -105,8 +114,12 @@ def build_watchlist(symbols: list[str] | None = None) -> list[str]:
 
 
 def format_watchlist_message(rows: list[dict]) -> str:
-    lines = [f"📋 Pre-Market Watchlist ({now_ist().strftime('%d %b %Y %H:%M IST')})"]
-    lines.append("_(5 TF momentum: 15m | 1h | Daily | Weekly | Monthly)_\n")
+    lines = [
+        f"📋 Pre-Market Watchlist ({now_ist().strftime('%d %b %Y %H:%M IST')})",
+        format_sentiment_block(),
+        "",
+        "_Universe: Nifty 100 large-cap | Quality + sector SuperTrend + consolidation_\n",
+    ]
     for row in rows:
         tag = row.get("mtf_consensus", "mixed")
         if tag == "strong_buy":
@@ -115,5 +128,6 @@ def format_watchlist_message(rows: list[dict]) -> str:
             label = "🔴 Strong Selling"
         else:
             label = "⚪ Mixed"
-        lines.append(f"• {row['symbol']} — {label} ({row['mtf_score']}/5)")
+        cons = " 📐4H consolidation" if row.get("consolidation") else ""
+        lines.append(f"• {row['symbol']} — {label} ({row['mtf_score']}/5){cons}")
     return "\n".join(lines)

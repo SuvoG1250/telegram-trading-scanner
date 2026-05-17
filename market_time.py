@@ -11,6 +11,8 @@ from config import (
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
+    CONSOLIDATION_ENTRY_END,
+    CONSOLIDATION_ENTRY_START,
     MOMENTUM_ENTRY_END,
     MOMENTUM_ENTRY_START,
     ORB_MIN_TIME,
@@ -73,6 +75,15 @@ def today_key(dt: datetime | None = None) -> str:
 def is_active_session(dt: datetime | None = None) -> bool:
     """Pre-market or regular market hours (scanner should be running)."""
     return is_premarket_window(dt) or is_market_open(dt)
+
+
+def is_consolidation_entry_window(dt: datetime | None = None) -> bool:
+    """9:18–9:36 AM IST — 3m breakout entry window after first candles form."""
+    dt = dt or now_ist()
+    if not is_weekday(dt):
+        return False
+    t = ist_time_tuple(dt)
+    return _after(CONSOLIDATION_ENTRY_START, t) and _before(CONSOLIDATION_ENTRY_END, t)
 
 
 def is_momentum_entry_window(dt: datetime | None = None) -> bool:

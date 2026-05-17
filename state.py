@@ -114,3 +114,34 @@ def mark_session_stop() -> None:
     data = _session_today()
     data["stop_sent"] = True
     _save_session(data)
+
+
+def _consolidation_key(symbol: str) -> str:
+    return f"consolidation_active|{symbol}"
+
+
+def mark_consolidation_active(symbol: str) -> None:
+    data = _load_signals()
+    if data.get("date") != today_key():
+        data = {"date": today_key(), "keys": []}
+    keys = set(data.get("keys", []))
+    keys.add(_consolidation_key(symbol))
+    data["keys"] = sorted(keys)
+    _save_signals(data)
+
+
+def is_consolidation_active(symbol: str) -> bool:
+    data = _load_signals()
+    if data.get("date") != today_key():
+        return False
+    return _consolidation_key(symbol) in data.get("keys", [])
+
+
+def clear_consolidation_active(symbol: str) -> None:
+    data = _load_signals()
+    if data.get("date") != today_key():
+        return
+    keys = set(data.get("keys", []))
+    keys.discard(_consolidation_key(symbol))
+    data["keys"] = sorted(keys)
+    _save_signals(data)
