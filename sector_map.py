@@ -54,7 +54,7 @@ STOCK_SECTOR: dict[str, str] = {
     "CHOLAFIN": "Finance",
     "JIOFIN": "Finance",
     "MARUTI": "Auto",
-    "TATAMOTORS": "Auto",
+    "TMPV": "Auto",
     "M&M": "Auto",
     "BAJAJ-AUTO": "Auto",
     "HEROMOTOCO": "Auto",

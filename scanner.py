@@ -108,7 +108,6 @@ def main() -> int:
 
     if is_premarket_window():
         run_premarket()
-        return 0
 
     if not is_market_open():
         logger.info("Outside market hours. Exiting.")

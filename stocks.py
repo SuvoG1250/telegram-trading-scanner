@@ -43,7 +43,7 @@ NIFTY_50_SYMBOLS: list[str] = [
     "SUNPHARMA",
     "TCS",
     "TATACONSUM",
-    "TATAMOTORS",
+    "TMPV",
     "TATASTEEL",
     "TECHM",
     "TITAN",
