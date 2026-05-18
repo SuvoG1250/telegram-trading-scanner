@@ -148,7 +148,8 @@ def main() -> int:
     args = parser.parse_args()
 
     github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("GITHUB_TOKEN", "")
-    if not github_pat:
+
+    def _gh_cli_token() -> str:
         try:
             import subprocess
 
@@ -159,11 +160,33 @@ def main() -> int:
                 timeout=10,
                 check=False,
             )
-            if out.returncode == 0 and out.stdout.strip():
-                github_pat = out.stdout.strip()
-                print("Using GitHub token from: gh auth login")
+            if out.returncode == 0:
+                return out.stdout.strip()
         except (OSError, subprocess.SubprocessError):
             pass
+        return ""
+
+    if not github_pat or github_pat.startswith("ghp_") and len(github_pat) < 40:
+        gh_tok = _gh_cli_token()
+        if gh_tok:
+            github_pat = gh_tok
+            print("Using GitHub token from: gh auth login")
+    elif github_pat:
+        test = requests.post(
+            DISPATCH_URL,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {github_pat}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+            json={"ref": "main", "inputs": {"mode": "scan_once"}},
+            timeout=15,
+        )
+        if test.status_code == 401:
+            gh_tok = _gh_cli_token()
+            if gh_tok:
+                github_pat = gh_tok
+                print("GITHUB_PAT invalid — using gh auth login instead")
     cron_key = os.environ.get("CRONJOB_API_KEY", "")
 
     if args.test:
@@ -200,7 +223,7 @@ def main() -> int:
 
     print()
     print("Schedule: every 5 min, Mon-Fri, 9:00-15:55 IST (Asia/Kolkata)")
-    print("Each run triggers GitHub → scanner → Telegram signal or 'no signal'")
+    print("Each run triggers GitHub -> scanner -> Telegram signal or 'no signal'")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0
