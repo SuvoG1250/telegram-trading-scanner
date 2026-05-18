@@ -162,6 +162,16 @@ def mark_automation_boot() -> None:
     _save_session(data)
 
 
+def long_term_picks_sent() -> bool:
+    return bool(_session_today().get("long_term_picks_sent"))
+
+
+def mark_long_term_picks_sent() -> None:
+    data = _session_today()
+    data["long_term_picks_sent"] = True
+    _save_session(data)
+
+
 def _consolidation_key(symbol: str) -> str:
     return f"consolidation_active|{symbol}"
 

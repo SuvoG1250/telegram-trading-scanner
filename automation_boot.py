@@ -49,7 +49,7 @@ def main() -> int:
         f"📅 {now_ist().strftime('%d %b %Y, %H:%M IST')}",
         f"⚙️ <b>Trigger:</b> {trigger_label}",
         "🔄 Scans every 5 min until market close.",
-        "📋 Full Nifty 50 scan | 2+ strategies → one BUY/SELL alert.",
+        "📋 Nifty 100 + sectors | 2 of 6 strategies → BUY/SELL.",
     ]
     if link:
         lines.extend(["", f"🔗 <a href=\"{link}\">View GitHub run</a>"])

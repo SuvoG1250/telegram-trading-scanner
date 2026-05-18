@@ -22,7 +22,7 @@ def send_session_start_alert() -> bool:
         "⏰ Session: Pre-market (9:10–9:25) + Intraday (9:15 AM–3:30 PM IST)\n"
         "📊 Strategies: Winning Combo | ORB | Gap | 5TF Screener | Consolidation 3m\n\n"
         "Today's watchlist will be set once. All 6 strategies run on each stock — "
-        "Full Nifty 50 scan — BUY/SELL when at least 2 strategies agree, one combined alert."
+        "Nifty 100 + all sectors — BUY/SELL when 2 of 6 strategies agree."
     )
     if send_plain(text):
         mark_session_start()

@@ -1,4 +1,6 @@
-"""Nifty 50 / Nifty 100 universe (NSE tickers without suffix)."""
+"""NSE universes: Nifty 50, Nifty 100, and extended sector coverage."""
+
+from __future__ import annotations
 
 NIFTY_50_SYMBOLS: list[str] = [
     "ADANIENT",
@@ -52,7 +54,6 @@ NIFTY_50_SYMBOLS: list[str] = [
     "HDFCAMC",
 ]
 
-# Additional liquid large-caps (Nifty Next 50 style universe)
 NIFTY_100_EXTRA: list[str] = [
     "ABB",
     "ADANIGREEN",
@@ -70,7 +71,6 @@ NIFTY_100_EXTRA: list[str] = [
     "GAIL",
     "GODREJCP",
     "HAVELLS",
-    "HDFCAMC",
     "ICICIPRULI",
     "INDIGO",
     "IOC",
@@ -87,15 +87,12 @@ NIFTY_100_EXTRA: list[str] = [
     "TORNTPHARM",
     "TRENT",
     "VEDL",
-    "ZOMATO",
     "DMART",
     "HAL",
     "IRCTC",
     "JIOFIN",
     "MAXHEALTH",
     "NHPC",
-    "NYKAA",
-    "PAYTM",
     "POLYCAB",
     "SRF",
     "TVSMOTOR",
@@ -104,9 +101,74 @@ NIFTY_100_EXTRA: list[str] = [
     "INDHOTEL",
     "PIIND",
     "MANKIND",
+    "CGPOWER",
+    "DIXON",
+    "ETERNAL",
+    "HUDCO",
+    "IRFC",
+    "RECLTD",
+    "PFC",
+    "UNIONBANK",
+    "IDFCFIRSTB",
+    "FEDERALBNK",
+    "AUBANK",
+    "MARICO",
+    "PAGEIND",
+    "PERSISTENT",
+    "COFORGE",
+    "MPHASIS",
+    "OFSS",
+    "TATAELXSI",
+    "LUPIN",
+    "BIOCON",
+    "ALKEM",
+    "ZYDUSLIFE",
+    "ICICIGI",
+    "MUTHOOTFIN",
+    "SHRIRAMFIN",
+    "GODREJPROP",
+    "OBEROIRLTY",
+    "PHOENIXLTD",
+    "PRESTIGE",
+    "BHEL",
+    "CONCOR",
+    "SAIL",
+    "NMDC",
+    "NATIONALUM",
+    "HINDZINC",
+    "OIL",
+    "PETRONET",
+    "IGL",
+    "MGL",
 ]
 
 NIFTY_100_SYMBOLS: list[str] = sorted(set(NIFTY_50_SYMBOLS + NIFTY_100_EXTRA))
+
+# All sectors represented (used for reports)
+ALL_SECTORS: list[str] = [
+    "Banking",
+    "IT",
+    "Energy",
+    "Metal",
+    "Pharma",
+    "Finance",
+    "Auto",
+    "FMCG",
+    "Infra",
+    "Telecom",
+    "Realty",
+    "Aviation",
+    "Chemicals",
+    "Consumer",
+    "Healthcare",
+    "PSU",
+    "Services",
+]
+
+
+def get_scan_universe() -> list[str]:
+    """Full liquid universe for sector scan + intraday (Nifty 100)."""
+    return list(NIFTY_100_SYMBOLS)
 
 
 def to_yfinance_symbol(symbol: str) -> str:

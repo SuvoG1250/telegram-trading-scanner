@@ -41,9 +41,11 @@ CONSOLIDATION_RANGE_PCT = 8.0
 SECTOR_ST_MIN_BULLISH_PCT = 0.5
 
 WATCHLIST_MIN = 1
-WATCHLIST_MAX = 50
-# Scan full Nifty 50 daily list (all that pass filters), not just top 5
+WATCHLIST_MAX = 100
+# Scan full Nifty 100 universe (all that pass filters)
 SCAN_FULL_UNIVERSE = True
+# Long-term picks + sector report once per day at pre-market
+SEND_LONG_TERM_PICKS_DAILY = True
 # Minimum entry strategies that must agree before BUY/SELL alert is sent
 MIN_STRATEGIES_TO_CONFIRM = 2
 # After morning watchlist is set, do not add new stocks during the session

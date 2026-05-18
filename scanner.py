@@ -134,8 +134,8 @@ def _send_scan_summary(signals: list[Signal]) -> None:
 
 
 def _needs_full_universe_refresh(watchlist: list[str]) -> bool:
-    """Upgrade old small watchlists to full Nifty 50 scan."""
-    return SCAN_FULL_UNIVERSE and len(watchlist) < 15
+    """Upgrade old small watchlists to full Nifty 100 scan."""
+    return SCAN_FULL_UNIVERSE and len(watchlist) < 40
 
 
 def _get_daily_watchlist() -> list[str]:
@@ -143,13 +143,13 @@ def _get_daily_watchlist() -> list[str]:
     watchlist = load_watchlist()
 
     if _needs_full_universe_refresh(watchlist):
-        logger.info("Expanding watchlist to full Nifty 50 scan (%s stocks now).", len(watchlist))
+        logger.info("Expanding watchlist to full Nifty 100 scan (%s stocks now).", len(watchlist))
         watchlist, ranked = build_watchlist()
         if watchlist:
             save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
             send_plain(
                 f"📌 <b>Scan list updated</b> — now monitoring <b>{len(watchlist)}</b> stocks "
-                f"(full Nifty 50 filter). 2+ strategies required for signals.\n\n"
+                f"(Nifty 100 + all sectors). 2 of 6 strategies for signals.\n\n"
                 + "\n".join(f"• {s}" for s in watchlist[:15])
                 + (f"\n<i>…and {len(watchlist) - 15} more</i>" if len(watchlist) > 15 else "")
             )
