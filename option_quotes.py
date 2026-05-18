@@ -1,0 +1,28 @@
+"""Unified live Nifty option quote (Upstox preferred, then Dhan)."""
+
+from __future__ import annotations
+
+from config import OPTION_DATA_PROVIDER
+
+
+def fetch_nifty_option_quote(strike: int, option_type: str, expiry: str | None = None):
+    provider = OPTION_DATA_PROVIDER.lower()
+
+    if provider in ("upstox", "auto"):
+        from upstox_client import fetch_nifty_option_quote as upstox_quote
+        from upstox_client import upstox_configured
+
+        if upstox_configured():
+            q = upstox_quote(strike, option_type, expiry)
+            if q:
+                return q, "upstox"
+
+    if provider in ("dhan", "auto"):
+        from dhan_client import dhan_option_chain_available, fetch_nifty_option_quote as dhan_quote
+
+        if dhan_option_chain_available():
+            q = dhan_quote(strike, option_type, expiry)
+            if q:
+                return q, "dhan"
+
+    return None, "estimate"

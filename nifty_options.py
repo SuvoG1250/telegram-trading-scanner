@@ -27,7 +27,9 @@ from data_fetcher import today_session_df
 from indicators import atr, compute_supertrend, supertrend_flip_pine
 from market_sentiment import NIFTY_TICKER
 from market_time import is_chaitu_session, is_market_open, now_ist
-from dhan_client import dhan_configured, fetch_nifty_option_quote
+from option_quotes import fetch_nifty_option_quote as get_option_quote
+from risk import TradeLevels
+from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
 
@@ -117,13 +119,12 @@ def scan_nifty_supertrend_option() -> Signal | None:
     opt_type = "CE" if flip == "CALL" else "PE"
 
     premium_source = "estimate"
-    quote = fetch_nifty_option_quote(strike, opt_type) if dhan_configured() else None
+    quote, src = get_option_quote(strike, opt_type)
     if quote:
         premium = quote.last_price
-        premium_source = "dhan"
+        premium_source = src
         if quote.spot:
             spot = quote.spot
-        expiry_iso = quote.expiry
         expiry = datetime.strptime(quote.expiry, "%Y-%m-%d").strftime("%d %b %Y")
     else:
         expiry = _weekly_expiry_label()

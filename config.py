@@ -119,8 +119,19 @@ NIFTY_OPTION_PREMIUM_ATR_FACTOR = float(os.environ.get("NIFTY_OPTION_PREMIUM_ATR
 # Dhan HQ v2 — live Nifty option premium (optional; falls back to ATR estimate)
 DHAN_ACCESS_TOKEN = os.environ.get("DHAN_ACCESS_TOKEN", "")
 DHAN_CLIENT_ID = os.environ.get("DHAN_CLIENT_ID", "")
+# true = token from developer.dhanhq.co (Sandbox); false = token from web.dhan.co (Live)
+DHAN_SANDBOX = os.environ.get("DHAN_SANDBOX", "false").lower() in ("1", "true", "yes")
 NIFTY_UNDERLYING_SCRIP = int(os.environ.get("NIFTY_UNDERLYING_SCRIP", "13"))
 NIFTY_UNDERLYING_SEG = os.environ.get("NIFTY_UNDERLYING_SEG", "IDX_I")
+# Upstox — option chain (free with account; use Analytics → Generate Token)
+UPSTOX_API_KEY = os.environ.get("UPSTOX_API_KEY", "")
+UPSTOX_API_SECRET = os.environ.get("UPSTOX_API_SECRET", "")
+UPSTOX_ACCESS_TOKEN = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
+UPSTOX_NIFTY_INSTRUMENT_KEY = os.environ.get(
+    "UPSTOX_NIFTY_INSTRUMENT_KEY", "NSE_INDEX|Nifty 50"
+)
+# upstox | dhan | auto (tries upstox then dhan)
+OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "auto").lower()
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 
