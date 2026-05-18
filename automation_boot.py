@@ -17,12 +17,19 @@ logger = logging.getLogger("automation_boot")
 
 def main() -> int:
     event = os.environ.get("GITHUB_EVENT_NAME", "local")
-    if not is_weekday() and event == "schedule":
-        logger.info("Weekend — scheduled run skipped.")
+    if not is_weekday():
+        if event == "schedule":
+            logger.info("Weekend — scheduled run skipped.")
         return 0
 
     if automation_boot_sent():
         logger.info("Automation boot already sent today.")
+        return 0
+
+    from market_time import is_market_open, is_premarket_window
+
+    if event == "schedule" and not is_premarket_window() and not is_market_open():
+        logger.info("Outside market hours — skip boot message.")
         return 0
 
     run_id = os.environ.get("GITHUB_RUN_ID", "")
