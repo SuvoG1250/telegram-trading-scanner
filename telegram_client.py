@@ -60,7 +60,7 @@ def format_signal_message(signal: Signal) -> str:
         "━━━━━━━━━━━━━━━━━━━━",
         "",
         f"📌 <b>Stock:</b> {sym} <i>(NSE)</i>",
-        f"📊 <b>Strategy:</b> {strat}",
+        f"📊 <b>Setup:</b> {strat}",
         f"⏱ <b>Timeframe:</b> {html.escape(signal.timeframe)}",
         f"🕐 <b>Time:</b> {ts}",
         "",

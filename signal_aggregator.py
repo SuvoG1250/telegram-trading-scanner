@@ -1,0 +1,170 @@
+"""
+Combine all strategy signals per stock, confirm, then send ONE alert per stock/side/day.
+"""
+
+from __future__ import annotations
+
+import logging
+import statistics
+from dataclasses import dataclass, field
+
+from config import MIN_STRATEGIES_TO_CONFIRM
+from market_time import now_ist
+from risk import TradeLevels
+from telegram_client import Signal
+
+logger = logging.getLogger(__name__)
+
+ENTRY_STRATEGIES = {
+    "The Winning Combination",
+    "15-Min ORB",
+    "Gap Day Breakout",
+    "Screener Momentum (5 TF)",
+    "Consolidation Breakout (3m)",
+}
+
+
+@dataclass
+class ConfirmedSignal:
+    symbol: str
+    side: str
+    levels: TradeLevels
+    strategies: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    confidence: str = "MEDIUM"
+    kind: str = "ENTRY"
+
+    def to_telegram_signal(self) -> Signal:
+        strat_label = " + ".join(self.strategies)
+        note_parts = [f"Confirmed by {len(self.strategies)} strategy(s): {strat_label}."]
+        if self.confidence == "HIGH":
+            note_parts.insert(0, "HIGH confidence — multiple strategies agree.")
+        note_parts.extend(self.notes[:3])
+        return Signal(
+            symbol=self.symbol,
+            strategy=f"Combined Alert ({len(self.strategies)} strategies)",
+            side=self.side,
+            levels=self.levels,
+            note=" ".join(note_parts),
+            kind=self.kind,  # type: ignore[arg-type]
+            timeframe="Multi-strategy",
+            timestamp=now_ist().strftime("%d %b %Y, %H:%M IST"),
+        )
+
+
+def _merge_levels(signals: list[Signal], side: str) -> TradeLevels | None:
+    """Conservative merge: best R:R among agreeing strategies."""
+    if not signals:
+        return None
+
+    best = max(signals, key=lambda s: s.levels.risk_reward_best)
+    entries = [s.levels.entry for s in signals]
+    sls = [s.levels.stop_loss for s in signals]
+    t1s = [s.levels.target_1 for s in signals]
+    t2s = [s.levels.target_2 for s in signals]
+
+    if side == "BUY":
+        entry = statistics.median(entries)
+        stop_loss = min(sls)
+        target_1 = statistics.median(t1s)
+        target_2 = max(t2s)
+        best_target = max(s.levels.primary_target for s in signals)
+    else:
+        entry = statistics.median(entries)
+        stop_loss = max(sls)
+        target_1 = statistics.median(t1s)
+        target_2 = min(t2s)
+        best_target = min(s.levels.primary_target for s in signals)
+
+    risk = abs(entry - stop_loss)
+    if risk < 0.01:
+        return None
+
+    return TradeLevels(
+        entry=round(entry, 2),
+        stop_loss=round(stop_loss, 2),
+        target_1=round(target_1, 2),
+        target_2=round(target_2, 2),
+        best_target=round(best_target, 2),
+        rr_best=best.levels.rr_best,
+        trailing_note=best.levels.trailing_note,
+        risk=round(risk, 2),
+        reward_1=round(abs(target_1 - entry), 2),
+        reward_2=round(abs(target_2 - entry), 2),
+    )
+
+
+def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
+    """
+    Merge strategy outputs for one symbol into a single confirmed trade.
+    - EXIT signals pass through immediately (one per symbol).
+    - ENTRY: same side only; need MIN_STRATEGIES_TO_CONFIRM agreeing.
+    """
+    if not raw:
+        return None
+
+    exits = [s for s in raw if s.kind == "EXIT"]
+    if exits:
+        s = exits[0]
+        return ConfirmedSignal(
+            symbol=s.symbol,
+            side=s.side,
+            levels=s.levels,
+            strategies=[s.strategy],
+            notes=[s.note] if s.note else [],
+            confidence="EXIT",
+            kind="EXIT",
+        )
+
+    entries = [s for s in raw if s.kind == "ENTRY" and s.strategy in ENTRY_STRATEGIES]
+    if not entries:
+        entries = [s for s in raw if s.kind == "ENTRY"]
+    if not entries:
+        return None
+
+    buys = [s for s in entries if s.side == "BUY"]
+    sells = [s for s in entries if s.side == "SELL"]
+
+    if buys and sells:
+        logger.info("Skip %s — conflicting BUY and SELL from strategies.", entries[0].symbol)
+        return None
+
+    group = buys if buys else sells
+    side = "BUY" if buys else "SELL"
+
+    if len(group) < MIN_STRATEGIES_TO_CONFIRM:
+        logger.info(
+            "Skip %s %s — only %s strategy (need %s).",
+            group[0].symbol,
+            side,
+            len(group),
+            MIN_STRATEGIES_TO_CONFIRM,
+        )
+        return None
+
+    levels = _merge_levels(group, side)
+    if levels is None:
+        return None
+
+    confidence = "HIGH" if len(group) >= 2 else "MEDIUM"
+    return ConfirmedSignal(
+        symbol=group[0].symbol,
+        side=side,
+        levels=levels,
+        strategies=[s.strategy for s in group],
+        notes=[s.note for s in group if s.note][:4],
+        confidence=confidence,
+        kind="ENTRY",
+    )
+
+
+def collect_raw_signals(symbol: str, scanners: list, names: list[str]) -> list[Signal]:
+    raw: list[Signal] = []
+    for fn, name in zip(scanners, names):
+        try:
+            sig = fn(symbol)
+            if sig:
+                raw.append(sig)
+        except Exception:
+            logger.exception("Strategy %s failed for %s", name, symbol)
+    return raw

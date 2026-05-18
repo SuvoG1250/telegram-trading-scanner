@@ -31,10 +31,23 @@ def load_watchlist() -> list[str]:
         return []
 
 
-def save_watchlist(symbols: list[str]) -> None:
+def save_watchlist(symbols: list[str], *, locked: bool = False) -> None:
     ensure_data_dir()
-    payload = {"date": today_key(), "symbols": symbols}
+    payload = {"date": today_key(), "symbols": symbols, "locked": locked}
     WATCHLIST_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def is_watchlist_locked() -> bool:
+    ensure_data_dir()
+    if not WATCHLIST_FILE.exists():
+        return False
+    try:
+        payload = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
+        if payload.get("date") != today_key():
+            return False
+        return bool(payload.get("locked", False))
+    except (json.JSONDecodeError, OSError):
+        return False
 
 
 def _load_signals() -> dict[str, Any]:
@@ -56,6 +69,11 @@ def signal_key(symbol: str, strategy: str, side: str) -> str:
     return f"{today_key()}|{symbol}|{strategy}|{side}"
 
 
+def symbol_side_key(symbol: str, side: str) -> str:
+    """One combined alert per stock per side per day."""
+    return f"{today_key()}|{symbol}|combined|{side}"
+
+
 def already_sent(symbol: str, strategy: str, side: str) -> bool:
     data = _load_signals()
     if data.get("date") != today_key():
@@ -63,13 +81,31 @@ def already_sent(symbol: str, strategy: str, side: str) -> bool:
     return signal_key(symbol, strategy, side) in data.get("keys", [])
 
 
+def already_sent_combined(symbol: str, side: str) -> bool:
+    data = _load_signals()
+    if data.get("date") != today_key():
+        return False
+    return symbol_side_key(symbol, side) in data.get("keys", [])
+
+
 def mark_sent(symbol: str, strategy: str, side: str) -> None:
     data = _load_signals()
     if data.get("date") != today_key():
         data = {"date": today_key(), "keys": []}
-    key = signal_key(symbol, strategy, side)
     keys = set(data.get("keys", []))
-    keys.add(key)
+    keys.add(signal_key(symbol, strategy, side))
+    data["keys"] = sorted(keys)
+    _save_signals(data)
+
+
+def mark_sent_combined(symbol: str, side: str, strategies: list[str]) -> None:
+    data = _load_signals()
+    if data.get("date") != today_key():
+        data = {"date": today_key(), "keys": []}
+    keys = set(data.get("keys", []))
+    keys.add(symbol_side_key(symbol, side))
+    for strat in strategies:
+        keys.add(signal_key(symbol, strat, side))
     data["keys"] = sorted(keys)
     _save_signals(data)
 

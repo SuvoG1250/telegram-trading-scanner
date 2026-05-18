@@ -140,10 +140,12 @@ def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[d
 
 def format_watchlist_message(rows: list[dict]) -> str:
     lines = [
-        f"📋 Pre-Market Watchlist ({now_ist().strftime('%d %b %Y %H:%M IST')})",
+        f"📋 <b>Today's Stocks</b> ({now_ist().strftime('%d %b %Y %H:%M IST')})",
+        "<i>Locked for the day — only these names are scanned. No new picks later.</i>",
+        "",
         format_sentiment_block(),
         "",
-        "_Universe: Nifty 100 large-cap | Quality + sector SuperTrend + consolidation_\n",
+        "_All 6 strategies run on each stock → confirmed → one combined alert._\n",
     ]
     for row in rows:
         tag = row.get("mtf_consensus", "mixed")
