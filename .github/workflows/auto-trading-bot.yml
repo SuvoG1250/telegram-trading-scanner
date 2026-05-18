@@ -1,44 +1,44 @@
-# Automatic intraday scanner — runs every 5 min during NSE hours (Mon–Fri).
-# Short jobs are more reliable than one 6-hour GitHub job.
+# Scans every 5 min until NSE close. GitHub schedule often does NOT fire — use
+# scripts/install_windows_autoscan.ps1 on your PC OR cron-job.org (AUTOMATION.txt).
 
 name: Auto Trading Bot
 
 on:
   schedule:
-    # Every 5 min, 03:00–10:55 UTC ≈ 8:30 AM–4:25 PM IST (covers 9:15–3:30 market)
-    - cron: "*/5 3-10 * * 1-5"
+    - cron: "0,5,10,15,20,25,30,35,40,45,50,55 3-10 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:
-        description: "scan_once = one scan | full_session = loop until max_minutes"
+        description: "full_session = loop every 5 min | scan_once = single scan"
         required: false
         default: "full_session"
         type: choice
         options:
-          - scan_once
           - full_session
+          - scan_once
       max_minutes:
-        description: "Full session length (only if mode=full_session)"
+        description: "Loop length (full_session only); 0 = until market close"
         required: false
-        default: "275"
+        default: "0"
 
 permissions:
   contents: read
 
 concurrency:
   group: intraday-scan
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 400
     env:
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
       SCANNER_DATA_DIR: data
       GITHUB_EVENT_NAME: ${{ github.event_name }}
+      GITHUB_ACTIONS: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +46,6 @@ jobs:
         run: |
           echo "Trigger: ${{ github.event_name }}"
           echo "IST: $(TZ=Asia/Kolkata date '+%A %Y-%m-%d %H:%M:%S %Z')"
-          echo "Mode: ${{ github.event.inputs.mode || 'scan_once (scheduled)' }}"
 
       - name: IST date for cache
         id: ist_date
@@ -65,18 +64,33 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Minutes until market close (IST)
+        id: duration
+        run: |
+          NOW=$(TZ=Asia/Kolkata date +%s)
+          CLOSE=$(TZ=Asia/Kolkata date -d "15:30" +%s 2>/dev/null || TZ=Asia/Kolkata date -d "$(TZ=Asia/Kolkata date +%Y-%m-%d) 15:30:00" +%s)
+          DIFF=$(( (CLOSE - NOW) / 60 ))
+          if [ "$DIFF" -lt 30 ]; then DIFF=30; fi
+          if [ "$DIFF" -gt 390 ]; then DIFF=390; fi
+          echo "mins=$DIFF" >> "$GITHUB_OUTPUT"
+          echo "Minutes until 15:30 IST: $DIFF"
+
       - name: Automation boot (once per day)
-        if: github.event_name == 'schedule' || github.event.inputs.mode != 'full_session'
         run: python automation_boot.py
 
-      - name: Single scan (automatic every 5 min)
-        if: github.event_name == 'schedule' || github.event.inputs.mode == 'scan_once'
+      - name: Single scan
+        if: github.event.inputs.mode == 'scan_once'
         run: |
           mkdir -p data
           python scanner.py
 
-      - name: Full session loop (manual only)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'full_session'
+      - name: Scan loop every 5 min until market close
+        if: github.event_name == 'schedule' || github.event.inputs.mode != 'scan_once'
         run: |
           mkdir -p data
-          python session_runner.py --max-minutes "${{ github.event.inputs.max_minutes }}"
+          MINS="${{ github.event.inputs.max_minutes }}"
+          if [ -z "$MINS" ] || [ "$MINS" = "0" ]; then
+            MINS="${{ steps.duration.outputs.mins }}"
+          fi
+          echo "Running session loop for $MINS minutes"
+          python session_runner.py --max-minutes "$MINS"

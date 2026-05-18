@@ -1,33 +1,41 @@
-AUTOMATIC TRADING BOT
-=====================
+AUTOMATIC TRADING BOT — IMPORTANT
+==================================
 
-STATUS: Repo is PUBLIC + GitHub schedule enabled (Mon–Fri).
+GitHub "schedule" cron has NEVER fired on this repo (0 automatic runs).
+You MUST use ONE of these for real every-5-min scans:
 
-AUTOMATIC RUNS (no button clicks)
----------------------------------
-GitHub starts the bot automatically on trading days:
+OPTION 1 — Windows PC (easiest if PC is on during market)
+---------------------------------------------------------
+1. Install GitHub CLI: https://cli.github.com/
+2. Run: gh auth login
+3. Right-click PowerShell → Run as Administrator:
+   cd "g:\Code\Telegram Trading bot"
+   .\scripts\install_windows_autoscan.ps1
 
-  • 9:05 AM IST  — full session (~6.5 hours, scans every 5 min)
-  • 2:50 PM IST  — backup session if morning was missed
+This triggers a scan every 5 min Mon-Fri 9:10-15:40 IST.
 
-You will see in Actions:
-  • Event = "schedule" (not "workflow_dispatch")
-  • Telegram: "Auto Trading Bot — RUNNING"
+OPTION 2 — cron-job.org (works when PC is off)
+----------------------------------------------
+1. GitHub token: https://github.com/settings/tokens (scope: repo)
+2. https://cron-job.org → Create job:
+   URL: https://api.github.com/repos/SuvoG1250/telegram-trading-scanner/actions/workflows/278548320/dispatches
+   Method: POST
+   Schedule: Every 5 min, Mon-Fri, 09:10-15:35, timezone Asia/Kolkata
+   Headers:
+     Accept: application/vnd.github+json
+     Authorization: Bearer YOUR_TOKEN
+     X-GitHub-Api-Version: 2022-11-28
+   Body: {"ref":"main","inputs":{"mode":"scan_once"}}
 
-WEEKENDS: No runs (Saturday/Sunday). This is correct.
+TELEGRAM MESSAGES
+-----------------
+• Signal found (3+ strategies) → BUY/SELL alert
+• No signal → "No signal right now" (each automatic scan)
+• Once per day → "Auto Trading Bot — RUNNING"
 
-WHY YOU SAW "workflow_dispatch" ONLY
-------------------------------------
-That label appears on runs YOU started with "Run workflow".
-Automatic runs show event = schedule on the next trading day morning.
+MANUAL ONE-DAY SESSION (GitHub Actions tab)
+-------------------------------------------
+Run workflow → mode: full_session → max_minutes: 0
+(Runs loop until 3:30 PM IST in one job)
 
-MANUAL TEST (optional)
-----------------------
-Actions → Auto Trading Bot → Run workflow → max_minutes: 390
-
-BACKUP (if schedule ever skips)
--------------------------------
-cron-job.org → POST dispatch (see GitHub workflow ID 278548320)
-Or run: powershell -File scripts\trigger_auto_session.ps1
-
-REPO: https://github.com/SuvoG1250/telegram-trading-scanner
+WORKFLOW ID: 278548320

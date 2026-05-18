@@ -143,8 +143,11 @@ def send_signal(signal: Signal) -> bool:
     return send_telegram(body, html_mode=True)
 
 
-def send_plain(text: str) -> bool:
+def send_plain(text: str, *, html_mode: bool = True) -> bool:
     if not TELEGRAM_TOKEN or not telegram_chat_ids():
         logger.warning("Telegram credentials missing. Run: python telegram_setup.py")
         return False
-    return _send_to_all({"text": text})
+    payload: dict = {"text": text, "disable_web_page_preview": True}
+    if html_mode:
+        payload["parse_mode"] = "HTML"
+    return _send_to_all(payload)

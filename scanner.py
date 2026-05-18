@@ -92,7 +92,8 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
 
 
 def _is_automatic_run() -> bool:
-    return os.environ.get("GITHUB_EVENT_NAME") == "schedule"
+    """Any GitHub Actions scan (schedule or task scheduler dispatch)."""
+    return os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
 
 
 def _send_no_signal_status(watchlist: list[str]) -> None:
