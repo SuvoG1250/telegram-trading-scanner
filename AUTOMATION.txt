@@ -1,41 +1,49 @@
-AUTOMATIC TRADING BOT — IMPORTANT
-==================================
+OPTION B — cron-job.org (ACTIVE SETUP)
+=====================================
 
-GitHub "schedule" cron has NEVER fired on this repo (0 automatic runs).
-You MUST use ONE of these for real every-5-min scans:
+One-time setup (5 minutes):
 
-OPTION 1 — Windows PC (easiest if PC is on during market)
----------------------------------------------------------
-1. Install GitHub CLI: https://cli.github.com/
-2. Run: gh auth login
-3. Right-click PowerShell → Run as Administrator:
+1. cron-job.org account (free)
+   https://cron-job.org/en/signup/
+
+2. API key
+   https://console.cron-job.org/settings → Create API key
+
+3. GitHub Personal Access Token (classic)
+   https://github.com/settings/tokens/new
+   Scope: repo (full control of private repositories)
+
+4. Add to .env in this folder:
+
+   CRONJOB_API_KEY=paste_cron_job_api_key
+   GITHUB_PAT=ghp_paste_github_token
+
+5. Run setup (PowerShell):
+
    cd "g:\Code\Telegram Trading bot"
-   .\scripts\install_windows_autoscan.ps1
+   .\scripts\setup_cron_job_org.ps1
 
-This triggers a scan every 5 min Mon-Fri 9:10-15:40 IST.
+   This creates job: "Telegram Trading Bot — NSE every 5 min"
+   Schedule: Mon-Fri, every 5 min, 9:00-15:55 IST
 
-OPTION 2 — cron-job.org (works when PC is off)
-----------------------------------------------
-1. GitHub token: https://github.com/settings/tokens (scope: repo)
-2. https://cron-job.org → Create job:
-   URL: https://api.github.com/repos/SuvoG1250/telegram-trading-scanner/actions/workflows/278548320/dispatches
-   Method: POST
-   Schedule: Every 5 min, Mon-Fri, 09:10-15:35, timezone Asia/Kolkata
-   Headers:
-     Accept: application/vnd.github+json
-     Authorization: Bearer YOUR_TOKEN
-     X-GitHub-Api-Version: 2022-11-28
-   Body: {"ref":"main","inputs":{"mode":"scan_once"}}
+6. Verify
 
-TELEGRAM MESSAGES
------------------
-• Signal found (3+ strategies) → BUY/SELL alert
-• No signal → "No signal right now" (each automatic scan)
-• Once per day → "Auto Trading Bot — RUNNING"
+   python scripts/setup_cron_job_org.py --test
 
-MANUAL ONE-DAY SESSION (GitHub Actions tab)
--------------------------------------------
-Run workflow → mode: full_session → max_minutes: 0
-(Runs loop until 3:30 PM IST in one job)
+   → GitHub Actions run starts
+   → Telegram: scan result or "No signal right now"
 
-WORKFLOW ID: 278548320
+COMMANDS
+--------
+  python scripts/setup_cron_job_org.py --list   # list cron-job.org jobs
+  python scripts/setup_cron_job_org.py --test   # one scan now
+
+TELEGRAM
+--------
+  • 3+ strategies agree → BUY/SELL alert
+  • No setup → "No signal right now"
+  • Once per day → "Auto Trading Bot — RUNNING"
+
+NOTE: cron-job.org free tier = 100 API calls/day (~78 scans/day fits).
+
+OPTION A (Windows Task Scheduler): scripts/install_windows_autoscan.ps1
