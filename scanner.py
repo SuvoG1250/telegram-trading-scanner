@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from config import LOCK_WATCHLIST_FOR_DAY
+from config import LOCK_WATCHLIST_FOR_DAY, MIN_STRATEGIES_TO_CONFIRM
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
 from session_alerts import handle_session_alerts, send_session_start_alert
@@ -137,7 +137,10 @@ def main() -> int:
         return 0
 
     logger.info("Scanner run at %s IST", now_ist().strftime("%Y-%m-%d %H:%M:%S"))
-    logger.info("Mode: daily watchlist → all strategies → confirm → one alert")
+    logger.info(
+        "Mode: daily watchlist → all strategies → min %s agree → one alert",
+        MIN_STRATEGIES_TO_CONFIRM,
+    )
 
     if handle_session_alerts():
         logger.info("Session ended for today. Exiting.")

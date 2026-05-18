@@ -21,8 +21,8 @@ def send_session_start_alert() -> bool:
         f"📅 {_fmt_now()}\n"
         "⏰ Session: Pre-market (9:10–9:25) + Intraday (9:15 AM–3:30 PM IST)\n"
         "📊 Strategies: Winning Combo | ORB | Gap | 5TF Screener | Consolidation 3m\n\n"
-        "Today's watchlist will be set once. All strategies run together — "
-        "you get ONE confirmed alert per stock (not separate messages per strategy)."
+        "Today's watchlist will be set once. All 6 strategies run on each stock — "
+        "BUY/SELL only when at least 3 strategies agree, then one combined alert."
     )
     if send_plain(text):
         mark_session_start()

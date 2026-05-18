@@ -38,7 +38,7 @@ class ConfirmedSignal:
         strat_label = " + ".join(self.strategies)
         note_parts = [f"Confirmed by {len(self.strategies)} strategy(s): {strat_label}."]
         if self.confidence == "HIGH":
-            note_parts.insert(0, "HIGH confidence — multiple strategies agree.")
+            note_parts.insert(0, f"HIGH confidence — {len(self.strategies)} strategies agree.")
         note_parts.extend(self.notes[:3])
         return Signal(
             symbol=self.symbol,
@@ -134,7 +134,7 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
 
     if len(group) < MIN_STRATEGIES_TO_CONFIRM:
         logger.info(
-            "Skip %s %s — only %s strategy (need %s).",
+            "Skip %s %s — only %s/%s strategies agree.",
             group[0].symbol,
             side,
             len(group),
@@ -146,7 +146,7 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
     if levels is None:
         return None
 
-    confidence = "HIGH" if len(group) >= 2 else "MEDIUM"
+    confidence = "HIGH" if len(group) >= MIN_STRATEGIES_TO_CONFIRM else "MEDIUM"
     return ConfirmedSignal(
         symbol=group[0].symbol,
         side=side,

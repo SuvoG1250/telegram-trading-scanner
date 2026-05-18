@@ -42,8 +42,8 @@ SECTOR_ST_MIN_BULLISH_PCT = 0.5
 
 WATCHLIST_MIN = 3
 WATCHLIST_MAX = 5
-# Strategies required to agree (1 = any one strategy after validation; 2 = stricter)
-MIN_STRATEGIES_TO_CONFIRM = 1
+# Minimum entry strategies that must agree before BUY/SELL alert is sent
+MIN_STRATEGIES_TO_CONFIRM = 3
 # After morning watchlist is set, do not add new stocks during the session
 LOCK_WATCHLIST_FOR_DAY = True
 NEAR_52W_HIGH_PCT = 3.0
