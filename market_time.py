@@ -11,6 +11,8 @@ from config import (
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
+    NO_NEW_TRADES_AFTER_HOUR,
+    NO_NEW_TRADES_AFTER_MINUTE,
     CONSOLIDATION_ENTRY_END,
     CONSOLIDATION_ENTRY_START,
     MOMENTUM_ENTRY_END,
@@ -104,13 +106,22 @@ def is_morning_1m_playbook_window(dt: datetime | None = None) -> bool:
     return _after((9, 16), t) and _before((10, 30), t)
 
 
-def is_chaitu_session(dt: datetime | None = None) -> bool:
-    """Setup 3 (Chaitu50c): Pine session 09:15–15:25 IST."""
+def is_new_trade_window(dt: datetime | None = None) -> bool:
+    """New entry signals allowed 9:15 AM – before 3:00 PM IST."""
     dt = dt or now_ist()
     if not is_weekday(dt) or not is_market_open(dt):
         return False
     t = ist_time_tuple(dt)
-    return _after((9, 15), t) and (t <= (15, 25))
+    cutoff = (NO_NEW_TRADES_AFTER_HOUR, NO_NEW_TRADES_AFTER_MINUTE)
+    return _before(cutoff, t)
+
+
+def is_chaitu_session(dt: datetime | None = None) -> bool:
+    """Setup 3 (Chaitu50c): Pine session 09:15–15:00 IST (no new trades after 3 PM)."""
+    dt = dt or now_ist()
+    if not is_weekday(dt) or not is_market_open(dt):
+        return False
+    return is_new_trade_window(dt) and _after((9, 15), ist_time_tuple(dt))
 
 
 def is_core_price_action_window(dt: datetime | None = None) -> bool:

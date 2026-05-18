@@ -18,7 +18,7 @@ from config import (
     SIGNALS_ONLY_TELEGRAM,
 )
 from data_fetcher import clear_session_cache
-from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
+from market_time import is_market_open, is_new_trade_window, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
 from session_alerts import handle_session_alerts, send_session_start_alert
 from state import record_trading_started_at
@@ -33,6 +33,7 @@ from state import (
 )
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 from telegram_client import Signal, send_plain, send_signal
+from trade_journal import record_trade
 
 logging.basicConfig(
     level=logging.INFO,
@@ -86,11 +87,32 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
 
         if send_signal(signal):
             mark_sent_combined(symbol, signal.side, confirmed.strategies)
+            record_trade(signal)
             sent_signals.append(signal)
         else:
             logger.error("Failed to send signal for %s", symbol)
 
     return sent_signals
+
+
+def run_nifty_options_scan() -> Signal | None:
+    """Supertrend flip on Nifty → Buy CE/PE (once per side per day)."""
+    from nifty_options import STRATEGY_NAME, scan_nifty_supertrend_option
+    from state import already_sent, mark_sent
+
+    sig = scan_nifty_supertrend_option()
+    if sig is None:
+        return None
+    if already_sent("NIFTY", STRATEGY_NAME, sig.side):
+        logger.info("Skip NIFTY option — already sent %s today.", sig.side)
+        return None
+    if send_signal(sig):
+        mark_sent("NIFTY", STRATEGY_NAME, sig.side)
+        record_trade(sig)
+        logger.info("NIFTY option signal sent: %s", sig.side)
+        return sig
+    logger.error("Failed to send NIFTY option signal.")
+    return None
 
 
 def _is_automatic_run() -> bool:
@@ -154,6 +176,10 @@ def main() -> int:
         logger.info("Market closed.")
         return 0
 
+    if not is_new_trade_window():
+        logger.info("After 3:00 PM IST — no new trades (summary at 3:30 PM).")
+        return 0
+
     if not session_start_sent():
         send_session_start_alert()
     else:
@@ -165,6 +191,9 @@ def main() -> int:
         return 0
 
     signals = run_intraday_scan(watchlist)
+    nifty_sig = run_nifty_options_scan()
+    if nifty_sig:
+        signals.append(nifty_sig)
 
     try_send_delayed_boot()
 

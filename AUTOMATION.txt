@@ -15,36 +15,55 @@ One-time setup (5 minutes):
 
 4. Add to .env in this folder:
 
-   CRONJOB_API_KEY=paste_cron_job_api_key
-   GITHUB_PAT=ghp_paste_github_token
+   TELEGRAM_TOKEN=...
+   TELEGRAM_CHAT_ID=...
+   TELEGRAM_GROUP_CHAT_ID=...
+   CRONJOB_API_KEY=...
+   GITHUB_PAT=ghp_...
+   DHAN_ACCESS_TOKEN=...          # optional — live Nifty option premium
+   DHAN_CLIENT_ID=...
 
 5. Run setup (PowerShell):
 
    cd "g:\Code\Telegram Trading bot"
-   .\scripts\setup_cron_job_org.ps1
+   python scripts/setup_github_secrets.py    # push secrets to GitHub Actions
+   python scripts/setup_cron_job_org.py      # create/update cron job
+   python scripts/test_automation.py         # local health check
 
-   This creates job: "Telegram Trading Bot — NSE every 5 min"
-   Schedule: Mon-Fri, every 5 min, 9:00-15:55 IST
-
-6. Verify
+6. Verify live scan
 
    python scripts/setup_cron_job_org.py --test
 
    → GitHub Actions run starts
-   → Telegram: scan result or "No signal right now"
+   → Telegram signals / session messages as per schedule
 
 COMMANDS
 --------
-  python scripts/setup_cron_job_org.py --list   # list cron-job.org jobs
-  python scripts/setup_cron_job_org.py --test   # one scan now
+  python scripts/setup_cron_job_org.py --list
+  python scripts/setup_cron_job_org.py --test
+  python scripts/setup_github_secrets.py --dry-run
+  python scripts/test_automation.py
+
+DAILY SCHEDULE (IST, Mon–Fri)
+-----------------------------
+  9:00–9:25   Pre-market report + watchlist lock
+  9:15–3:00   NEW trade signals (equity Chaitu50c + Nifty options)
+  ~9:45       Bot RUNNING ping (30 min after session start)
+  3:00–3:30   No new trades (scanner idle / EOD prep)
+  3:30+       Full day summary (win/loss) + session STOP
 
 TELEGRAM
 --------
-  • BUY/SELL signals → instant (Chaitu50c, Nifty 500, 0.6% max SL, 1:2 R:R)
-  • Pre-market report → ~9:10–9:26 IST
-  • Session START / STOP → market open / after 3:30 PM IST
-  • Bot RUNNING ping → ~30 min after session start (signals not delayed)
+  • Equity BUY/SELL — instant (Chaitu50c, Nifty 500)
+  • Nifty BUY CALL / BUY PUT — Supertrend flip (Dhan LTP if configured)
+  • Pre-market report · Session START/STOP · Daily P&L summary
+  • Bot RUNNING ~30 min after open (signals never delayed)
 
-NOTE: cron-job.org free tier = 100 API calls/day (~78 scans/day fits).
+GITHUB SECRETS (required for cloud runs)
+----------------------------------------
+  TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_GROUP_CHAT_ID
+  DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID (optional, for live option premium)
+
+NOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 
 OPTION A (Windows Task Scheduler): scripts/install_windows_autoscan.ps1

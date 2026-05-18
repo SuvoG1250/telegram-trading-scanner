@@ -75,3 +75,74 @@ def supertrend_direction(
                 st.iloc[i] = final_ub.iloc[i]
                 direction.iloc[i] = -1
     return direction
+
+
+def compute_supertrend(
+    df: pd.DataFrame,
+    length: int = 10,
+    multiplier: float = 3.0,
+) -> pd.DataFrame:
+    """
+    Supertrend matching TradingView ta.supertrend(factor, atrPeriod).
+
+    Returns DataFrame columns:
+      st_line   — active supertrend value
+      direction — -1 uptrend (bullish), +1 downtrend (bearish) [Pine convention]
+    """
+    hl2 = (df["High"] + df["Low"]) / 2
+    atr_vals = atr(df["High"], df["Low"], df["Close"], length)
+    basic_ub = hl2 + multiplier * atr_vals
+    basic_lb = hl2 - multiplier * atr_vals
+
+    final_ub = basic_ub.copy()
+    final_lb = basic_lb.copy()
+    for i in range(1, len(df)):
+        if basic_ub.iloc[i] < final_ub.iloc[i - 1] or df["Close"].iloc[i - 1] > final_ub.iloc[i - 1]:
+            final_ub.iloc[i] = basic_ub.iloc[i]
+        else:
+            final_ub.iloc[i] = final_ub.iloc[i - 1]
+        if basic_lb.iloc[i] > final_lb.iloc[i - 1] or df["Close"].iloc[i - 1] < final_lb.iloc[i - 1]:
+            final_lb.iloc[i] = final_lb.iloc[i]
+        else:
+            final_lb.iloc[i] = final_lb.iloc[i - 1]
+
+    st_line = pd.Series(index=df.index, dtype=float)
+    direction = pd.Series(index=df.index, dtype=float)
+    st_line.iloc[0] = final_ub.iloc[0]
+    direction.iloc[0] = 1.0
+
+    for i in range(1, len(df)):
+        prev_st = st_line.iloc[i - 1]
+        if prev_st == final_ub.iloc[i - 1]:
+            if df["Close"].iloc[i] > final_ub.iloc[i]:
+                st_line.iloc[i] = final_lb.iloc[i]
+                direction.iloc[i] = -1.0
+            else:
+                st_line.iloc[i] = final_ub.iloc[i]
+                direction.iloc[i] = 1.0
+        else:
+            if df["Close"].iloc[i] < final_lb.iloc[i]:
+                st_line.iloc[i] = final_ub.iloc[i]
+                direction.iloc[i] = 1.0
+            else:
+                st_line.iloc[i] = final_lb.iloc[i]
+                direction.iloc[i] = -1.0
+
+    return pd.DataFrame({"st_line": st_line, "direction": direction}, index=df.index)
+
+
+def supertrend_flip_pine(st: pd.DataFrame) -> str | None:
+    """
+    Pine: change(direction) < 0 → long (Buy Call); change(direction) > 0 → short (Buy Put).
+    Returns 'CALL', 'PUT', or None if no flip on last bar.
+    """
+    if len(st) < 2:
+        return None
+    prev_dir = float(st["direction"].iloc[-2])
+    curr_dir = float(st["direction"].iloc[-1])
+    change = curr_dir - prev_dir
+    if change < 0:
+        return "CALL"
+    if change > 0:
+        return "PUT"
+    return None

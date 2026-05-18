@@ -21,15 +21,54 @@ SignalKind = Literal["ENTRY", "EXIT"]
 class Signal:
     symbol: str
     strategy: str
-    side: str  # BUY or SELL
+    side: str
     levels: TradeLevels
     note: str = ""
     kind: SignalKind = "ENTRY"
     timeframe: str = "Intraday"
     timestamp: str = ""
+    instrument: str = "EQUITY"
+    strike: float | None = None
+    option_type: str | None = None
+    expiry_label: str | None = None
+    underlying: float | None = None
+    underlying_sl: float | None = None
+    underlying_target: float | None = None
+    premium_source: str = "estimate"
+
+
+def _format_option_signal(signal: Signal) -> str:
+    lv = signal.levels
+    ts = html.escape(signal.timestamp or "")
+    strike = int(signal.strike or 0)
+    opt = html.escape(signal.option_type or "")
+    expiry = html.escape(signal.expiry_label or "")
+    action = html.escape(signal.side)
+    emoji = "🟢" if "CALL" in signal.side else "🔴"
+
+    src = "live Dhan LTP" if signal.premium_source == "dhan" else "est. — confirm on broker"
+    lines = [
+        f"{emoji} <b>{action}</b> — NIFTY",
+        f"<b>Strike:</b> {strike} {opt}  ·  <b>Expiry:</b> {expiry}",
+        f"<b>Premium entry:</b> ₹{lv.entry:,.2f} <i>({src})</i>",
+        f"<b>SL premium:</b> ₹{lv.stop_loss:,.2f}  ·  <b>T1:</b> ₹{lv.target_1:,.2f}  ·  <b>Target:</b> ₹{lv.primary_target:,.2f}",
+    ]
+    if signal.underlying is not None:
+        lines.append(
+            f"<b>Nifty spot:</b> ₹{signal.underlying:,.2f}  ·  "
+            f"<b>Index SL:</b> ₹{signal.underlying_sl:,.2f}  ·  "
+            f"<b>Index target:</b> ₹{signal.underlying_target:,.2f}"
+        )
+    lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")
+    if signal.note and not SIGNALS_ONLY_TELEGRAM:
+        lines.append(html.escape(signal.note))
+    return "\n".join(lines)
 
 
 def format_signal_message(signal: Signal) -> str:
+    if signal.instrument == "NIFTY_OPTION":
+        return _format_option_signal(signal)
+
     sym = html.escape(signal.symbol)
     ts = html.escape(signal.timestamp or "")
     lv = signal.levels

@@ -1,12 +1,14 @@
-"""Session start/stop Telegram alerts."""
+"""Session start/stop and end-of-day trade summary."""
 
 from __future__ import annotations
 
 import logging
 
-from config import SEND_SESSION_ALERTS
+from config import SEND_DAILY_SUMMARY, SEND_SESSION_ALERTS
 from market_time import is_active_session, is_session_stop_window, now_ist
 from state import (
+    daily_summary_sent,
+    mark_daily_summary,
     mark_session_start,
     mark_session_stop,
     record_trading_started_at,
@@ -14,6 +16,7 @@ from state import (
     session_stop_sent,
 )
 from telegram_client import send_plain
+from trade_journal import send_daily_summary
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +34,9 @@ def send_session_start_alert() -> bool:
     text = (
         "🟢 <b>Trading Scanner STARTED</b>\n\n"
         f"📅 {_fmt_now()}\n"
-        "📊 Nifty 500 scan · Chaitu50c signals send <b>instantly</b> when found.\n"
-        f"🤖 Bot status ping ~30 min after open (if not already sent)."
+        "📊 Nifty 500 + Chaitu50c + Nifty options (Supertrend).\n"
+        "⏱ New trades: <b>9:15 AM – 3:00 PM IST</b> only.\n"
+        "📋 Full day summary after 3:30 PM."
     )
     if send_plain(text):
         mark_session_start()
@@ -57,10 +61,22 @@ def send_session_stop_alert() -> bool:
     return False
 
 
+def send_daily_summary_alert() -> bool:
+    if not SEND_DAILY_SUMMARY or daily_summary_sent():
+        return False
+    if send_daily_summary():
+        mark_daily_summary()
+        return True
+    return False
+
+
 def handle_session_alerts() -> bool:
-    """Returns True after market close (stop handling)."""
-    if is_session_stop_window() and not session_stop_sent():
-        send_session_stop_alert()
+    """After 3:30 PM: daily summary + session stop. Returns True to exit scan."""
+    if is_session_stop_window():
+        if not daily_summary_sent():
+            send_daily_summary_alert()
+        if not session_stop_sent():
+            send_session_stop_alert()
         return True
 
     if is_active_session() and not session_start_sent():

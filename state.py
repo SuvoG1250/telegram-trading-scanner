@@ -156,6 +156,16 @@ def mark_session_stop() -> None:
     _save_session(data)
 
 
+def daily_summary_sent() -> bool:
+    return bool(_session_today().get("daily_summary_sent"))
+
+
+def mark_daily_summary() -> None:
+    data = _session_today()
+    data["daily_summary_sent"] = True
+    _save_session(data)
+
+
 def automation_boot_sent() -> bool:
     return bool(_session_today().get("automation_boot_sent"))
 

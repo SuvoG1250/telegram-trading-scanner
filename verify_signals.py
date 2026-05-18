@@ -15,6 +15,7 @@ import pandas as pd
 
 from chaitu50c import ChaituParams, replay_last_bar_signal
 from config import SCAN_STRATEGIES
+from indicators import supertrend_flip_pine
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 
 
@@ -76,6 +77,18 @@ def test_chaitu50c_buy1() -> bool:
     return True
 
 
+def test_supertrend_flip() -> bool:
+    st = pd.DataFrame({"direction": [1.0, 1.0, -1.0]})
+    if supertrend_flip_pine(st) != "CALL":
+        print("FAIL supertrend flip should be CALL")
+        return False
+    st2 = pd.DataFrame({"direction": [-1.0, -1.0, 1.0]})
+    if supertrend_flip_pine(st2) != "PUT":
+        print("FAIL supertrend flip should be PUT")
+        return False
+    return True
+
+
 def test_strategies_import() -> bool:
     print(f"Playbook modules ({len(STRATEGY_SCANNERS)}):")
     for name in STRATEGY_NAMES:
@@ -92,6 +105,9 @@ def main() -> int:
     if not test_chaitu50c_buy1():
         return 1
     print("OK Chaitu50c Pine replay (buy1)\n")
+    if not test_supertrend_flip():
+        return 1
+    print("OK Nifty Supertrend flip (CALL/PUT)\n")
     if not test_strategies_import():
         return 1
     print("\nOK Strategy scanners registered")

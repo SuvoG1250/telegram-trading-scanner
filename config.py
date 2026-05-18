@@ -104,6 +104,23 @@ NO_SIGNAL_STATUS_ON_AUTO_SCAN = (
     and os.environ.get("NO_SIGNAL_STATUS_ON_AUTO_SCAN", "false").lower()
     in ("1", "true", "yes")
 )
+# Nifty options — Supertrend (Pine: ATR 10, factor 3)
+NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+NIFTY_ST_ATR_LENGTH = int(os.environ.get("NIFTY_ST_ATR_LENGTH", "10"))
+NIFTY_ST_FACTOR = float(os.environ.get("NIFTY_ST_FACTOR", "3.0"))
+NIFTY_ST_INTERVAL = os.environ.get("NIFTY_ST_INTERVAL", "5m")
+NIFTY_STRIKE_STEP = int(os.environ.get("NIFTY_STRIKE_STEP", "50"))
+NIFTY_OPTION_PREMIUM_SL_PCT = float(os.environ.get("NIFTY_OPTION_PREMIUM_SL_PCT", "30"))
+NIFTY_OPTION_PREMIUM_ATR_FACTOR = float(os.environ.get("NIFTY_OPTION_PREMIUM_ATR_FACTOR", "0.45"))
+# Dhan HQ v2 — live Nifty option premium (optional; falls back to ATR estimate)
+DHAN_ACCESS_TOKEN = os.environ.get("DHAN_ACCESS_TOKEN", "")
+DHAN_CLIENT_ID = os.environ.get("DHAN_CLIENT_ID", "")
+NIFTY_UNDERLYING_SCRIP = int(os.environ.get("NIFTY_UNDERLYING_SCRIP", "13"))
+NIFTY_UNDERLYING_SEG = os.environ.get("NIFTY_UNDERLYING_SEG", "IDX_I")
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 
@@ -111,6 +128,12 @@ DATA_DIR = Path(os.environ.get("SCANNER_DATA_DIR", "data"))
 WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 SIGNALS_FILE = DATA_DIR / "signals_sent.json"
 SESSION_FILE = DATA_DIR / "session.json"
+TRADES_JOURNAL_FILE = DATA_DIR / "trades_journal.json"
+
+# No new trade alerts after this time (IST)
+NO_NEW_TRADES_AFTER_HOUR = int(os.environ.get("NO_NEW_TRADES_AFTER_HOUR", "15"))
+NO_NEW_TRADES_AFTER_MINUTE = int(os.environ.get("NO_NEW_TRADES_AFTER_MINUTE", "0"))
+SEND_DAILY_SUMMARY = os.environ.get("SEND_DAILY_SUMMARY", "true").lower() in ("1", "true", "yes")
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")

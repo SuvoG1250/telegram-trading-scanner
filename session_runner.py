@@ -12,7 +12,13 @@ import logging
 import sys
 import time
 
-from market_time import is_market_open, is_premarket_window, is_session_stop_window, is_weekday, now_ist
+from market_time import (
+    is_market_open,
+    is_premarket_window,
+    is_session_stop_window,
+    is_weekday,
+    now_ist,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,9 +33,15 @@ SCAN_INTERVAL_SEC = 300
 def _should_continue() -> bool:
     if not is_weekday():
         return False
+    if is_premarket_window():
+        return True
+    if is_market_open():
+        return True
     if is_session_stop_window():
-        return False
-    return is_premarket_window() or is_market_open()
+        from state import daily_summary_sent, session_stop_sent
+
+        return not daily_summary_sent() or not session_stop_sent()
+    return False
 
 
 def run_loop(max_minutes: int) -> int:
@@ -68,11 +80,9 @@ def run_loop(max_minutes: int) -> int:
         time.sleep(sleep_for)
 
     if is_session_stop_window() or not _should_continue():
-        from session_alerts import send_session_stop_alert
-        from state import session_stop_sent
+        from session_alerts import handle_session_alerts
 
-        if not session_stop_sent():
-            send_session_stop_alert()
+        handle_session_alerts()
 
     logger.info("Session loop finished after %s iterations.", iteration)
     return 0
