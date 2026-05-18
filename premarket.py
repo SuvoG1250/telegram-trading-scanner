@@ -150,7 +150,7 @@ def format_watchlist_message(rows: list[dict]) -> str:
         "",
         format_sentiment_block(),
         "",
-        "_All 6 strategies on each stock — BUY/SELL when 2+ agree → one alert._\n",
+        "_6 strategies per stock — signal when 2 of 6 agree → one alert._\n",
     ]
     for row in rows:
         tag = row.get("mtf_consensus", "mixed")

@@ -104,8 +104,8 @@ def _send_no_signal_status(watchlist: list[str]) -> None:
         f"ℹ️ <b>No signal right now</b>\n\n"
         f"🕐 {now_ist().strftime('%d %b %Y, %H:%M IST')}\n"
         f"📋 <b>Scanned:</b> {stocks}\n\n"
-        f"All 6 strategies checked — none with <b>{MIN_STRATEGIES_TO_CONFIRM}+</b> "
-        f"strategies agreeing on BUY/SELL yet.\n"
+        f"All <b>6 strategies</b> checked on each stock — need <b>{MIN_STRATEGIES_TO_CONFIRM} of 6</b> "
+        f"to agree for BUY/SELL. None qualified this scan.\n"
         f"<i>Next automatic scan in ~5 minutes.</i>"
     )
     if send_plain(text):
