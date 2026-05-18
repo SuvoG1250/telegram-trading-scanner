@@ -13,6 +13,7 @@ from config import (
     LOCK_WATCHLIST_FOR_DAY,
     MIN_STRATEGIES_TO_CONFIRM,
     NO_SIGNAL_STATUS_ON_AUTO_SCAN,
+    SCAN_FULL_UNIVERSE,
 )
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
@@ -132,9 +133,27 @@ def _send_scan_summary(signals: list[Signal]) -> None:
     send_telegram("\n".join(lines), html_mode=True)
 
 
+def _needs_full_universe_refresh(watchlist: list[str]) -> bool:
+    """Upgrade old small watchlists to full Nifty 50 scan."""
+    return SCAN_FULL_UNIVERSE and len(watchlist) < 15
+
+
 def _get_daily_watchlist() -> list[str]:
     """Load locked daily list — never replace stocks mid-session."""
     watchlist = load_watchlist()
+
+    if _needs_full_universe_refresh(watchlist):
+        logger.info("Expanding watchlist to full Nifty 50 scan (%s stocks now).", len(watchlist))
+        watchlist, ranked = build_watchlist()
+        if watchlist:
+            save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
+            send_plain(
+                f"📌 <b>Scan list updated</b> — now monitoring <b>{len(watchlist)}</b> stocks "
+                f"(full Nifty 50 filter). 2+ strategies required for signals.\n\n"
+                + "\n".join(f"• {s}" for s in watchlist[:15])
+                + (f"\n<i>…and {len(watchlist) - 15} more</i>" if len(watchlist) > 15 else "")
+            )
+        return watchlist
 
     if watchlist and is_watchlist_locked():
         logger.info("Using locked daily watchlist: %s", ", ".join(watchlist))

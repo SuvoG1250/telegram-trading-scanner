@@ -8,6 +8,7 @@ import pandas as pd
 
 from config import (
     NEAR_52W_HIGH_PCT,
+    SCAN_FULL_UNIVERSE,
     VOLUME_MULTIPLIER_EARLY,
     VOLUME_MULTIPLIER_STRICT,
     WATCHLIST_MAX,
@@ -96,7 +97,9 @@ def _fallback_watchlist() -> tuple[list[str], list[dict]]:
                 "consolidation": False,
             }
         )
-    ranked = sorted(rows, key=lambda x: x["rank_score"], reverse=True)[:WATCHLIST_MAX]
+    ranked = sorted(rows, key=lambda x: x["rank_score"], reverse=True)
+    if not SCAN_FULL_UNIVERSE:
+        ranked = ranked[:WATCHLIST_MAX]
     syms = [r["symbol"] for r in ranked]
     return syms, ranked
 
@@ -126,9 +129,11 @@ def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[d
         ),
         reverse=True,
     )
-    count = min(WATCHLIST_MAX, max(WATCHLIST_MIN, len(ranked)))
-    count = min(count, len(ranked))
-    top = ranked[:count]
+    if SCAN_FULL_UNIVERSE:
+        top = ranked[:WATCHLIST_MAX]
+    else:
+        count = min(WATCHLIST_MAX, max(WATCHLIST_MIN, len(ranked)))
+        top = ranked[:count]
     selected = [r["symbol"] for r in top]
     logger.info(
         "Premarket watchlist (%s IST): %s",
@@ -145,7 +150,7 @@ def format_watchlist_message(rows: list[dict]) -> str:
         "",
         format_sentiment_block(),
         "",
-        "_All 6 strategies run on each stock — BUY/SELL only when 3+ agree → one alert._\n",
+        "_All 6 strategies on each stock — BUY/SELL when 2+ agree → one alert._\n",
     ]
     for row in rows:
         tag = row.get("mtf_consensus", "mixed")

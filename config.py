@@ -40,10 +40,12 @@ MAX_SL_RISK_PCT = 2.5
 CONSOLIDATION_RANGE_PCT = 8.0
 SECTOR_ST_MIN_BULLISH_PCT = 0.5
 
-WATCHLIST_MIN = 3
-WATCHLIST_MAX = 5
+WATCHLIST_MIN = 1
+WATCHLIST_MAX = 50
+# Scan full Nifty 50 daily list (all that pass filters), not just top 5
+SCAN_FULL_UNIVERSE = True
 # Minimum entry strategies that must agree before BUY/SELL alert is sent
-MIN_STRATEGIES_TO_CONFIRM = 3
+MIN_STRATEGIES_TO_CONFIRM = 2
 # After morning watchlist is set, do not add new stocks during the session
 LOCK_WATCHLIST_FOR_DAY = True
 NEAR_52W_HIGH_PCT = 3.0

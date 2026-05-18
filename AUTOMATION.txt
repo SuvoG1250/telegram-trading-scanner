@@ -40,7 +40,7 @@ COMMANDS
 
 TELEGRAM
 --------
-  • 3+ strategies agree → BUY/SELL alert
+  • 2+ strategies agree → BUY/SELL alert (full Nifty 50 scan)
   • No setup → "No signal right now"
   • Once per day → "Auto Trading Bot — RUNNING"
 
