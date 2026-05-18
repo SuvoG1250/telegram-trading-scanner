@@ -51,6 +51,8 @@ VOLUME_MULTIPLIER = 2.0  # alias for strict session
 GAP_THRESHOLD_PCT = 0.5
 
 SCAN_INTERVAL_MIN = 5
+# Notify Telegram when automatic scan finds no confirmed signal (every scan)
+NO_SIGNAL_STATUS_ON_AUTO_SCAN = True
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 

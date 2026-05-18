@@ -6,9 +6,14 @@ Intraday NSE stock scanner — daily watchlist, combined strategies, one alert p
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
-from config import LOCK_WATCHLIST_FOR_DAY, MIN_STRATEGIES_TO_CONFIRM
+from config import (
+    LOCK_WATCHLIST_FOR_DAY,
+    MIN_STRATEGIES_TO_CONFIRM,
+    NO_SIGNAL_STATUS_ON_AUTO_SCAN,
+)
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
 from session_alerts import handle_session_alerts, send_session_start_alert
@@ -84,6 +89,27 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
             logger.error("Failed to send combined alert for %s", symbol)
 
     return sent_signals
+
+
+def _is_automatic_run() -> bool:
+    return os.environ.get("GITHUB_EVENT_NAME") == "schedule"
+
+
+def _send_no_signal_status(watchlist: list[str]) -> None:
+    """Tell user automatic scan completed with no confirmed BUY/SELL."""
+    stocks = ", ".join(watchlist) if watchlist else "—"
+    text = (
+        f"ℹ️ <b>No signal right now</b>\n\n"
+        f"🕐 {now_ist().strftime('%d %b %Y, %H:%M IST')}\n"
+        f"📋 <b>Scanned:</b> {stocks}\n\n"
+        f"All 6 strategies checked — none with <b>{MIN_STRATEGIES_TO_CONFIRM}+</b> "
+        f"strategies agreeing on BUY/SELL yet.\n"
+        f"<i>Next automatic scan in ~5 minutes.</i>"
+    )
+    if send_plain(text):
+        logger.info("No-signal status sent to Telegram.")
+    else:
+        logger.error("Failed to send no-signal status.")
 
 
 def _send_scan_summary(signals: list[Signal]) -> None:
@@ -165,6 +191,11 @@ def main() -> int:
     signals = run_intraday_scan(watchlist)
     if signals:
         _send_scan_summary(signals)
+    elif (
+        NO_SIGNAL_STATUS_ON_AUTO_SCAN
+        and _is_automatic_run()
+    ):
+        _send_no_signal_status(watchlist)
 
     logger.info("Scan complete. Combined alerts sent: %d", len(signals))
     return 0
