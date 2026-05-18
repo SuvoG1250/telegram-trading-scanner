@@ -1,0 +1,47 @@
+# Dedicated scheduled workflow (cron). Runs every 5 min on NSE trading days.
+name: Scheduled Trading Scanner
+
+on:
+  schedule:
+    # UTC 3:00–10:55 = ~8:30 AM–4:25 PM IST (covers full NSE session)
+    - cron: "*/5 3-10 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-scanner
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
+      SCANNER_DATA_DIR: data
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: IST date for cache
+        id: ist_date
+        run: echo "date=$(TZ=Asia/Kolkata date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: data
+          key: scanner-data-${{ steps.ist_date.outputs.date }}
+          restore-keys: scanner-data-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run scanner
+        run: |
+          mkdir -p data
+          python scanner.py

@@ -10,8 +10,8 @@ import sys
 
 from market_time import is_market_open, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
-from session_alerts import handle_session_alerts
-from state import already_sent, load_watchlist, mark_sent, save_watchlist
+from session_alerts import handle_session_alerts, send_session_start_alert
+from state import already_sent, load_watchlist, mark_sent, save_watchlist, session_start_sent
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 from telegram_client import Signal, send_plain, send_signal
 
@@ -114,12 +114,25 @@ def main() -> int:
         logger.info("Outside market hours. Exiting.")
         return 0
 
+    if not session_start_sent():
+        send_session_start_alert()
+
     watchlist = load_watchlist()
     if not watchlist:
         logger.info("No watchlist for today; building from filters.")
         watchlist, _ = build_watchlist()
         if watchlist:
             save_watchlist(watchlist)
+
+    if not watchlist:
+        logger.warning("Empty watchlist; using fallback.")
+        watchlist, _ = build_watchlist()
+        if watchlist:
+            save_watchlist(watchlist)
+            send_plain(
+                f"⚠️ Watchlist was empty — using fallback list for today:\n"
+                + ", ".join(watchlist)
+            )
 
     if not watchlist:
         logger.warning("Empty watchlist; nothing to scan.")

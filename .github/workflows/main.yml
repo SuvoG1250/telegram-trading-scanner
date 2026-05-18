@@ -14,7 +14,7 @@ on:
 
 concurrency:
   group: trading-scanner-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   run-scanner:
