@@ -36,7 +36,7 @@ def send_session_stop_alert() -> bool:
         "🔴 Trading Scanner STOPPED\n\n"
         f"📅 {_fmt_now()}\n"
         "✅ Today's NSE intraday session has ended.\n\n"
-        "Next automatic start: next trading day ~9:10 AM IST."
+        "Next automatic start: next trading day ~9:05 AM IST (Mon–Fri)."
     )
     if send_plain(text):
         mark_session_stop()

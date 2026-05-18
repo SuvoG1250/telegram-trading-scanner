@@ -38,8 +38,12 @@ def run_loop(max_minutes: int) -> int:
     deadline = time.time() + max_minutes * 60
     iteration = 0
 
+    import os
+
+    event = os.environ.get("GITHUB_EVENT_NAME", "local")
     logger.info(
-        "Session loop started | max %s min | IST %s",
+        "Session loop started | trigger=%s | max %s min | IST %s",
+        event,
         max_minutes,
         now_ist().strftime("%H:%M:%S"),
     )

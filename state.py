@@ -152,6 +152,16 @@ def mark_session_stop() -> None:
     _save_session(data)
 
 
+def automation_boot_sent() -> bool:
+    return bool(_session_today().get("automation_boot_sent"))
+
+
+def mark_automation_boot() -> None:
+    data = _session_today()
+    data["automation_boot_sent"] = True
+    _save_session(data)
+
+
 def _consolidation_key(symbol: str) -> str:
     return f"consolidation_active|{symbol}"
 

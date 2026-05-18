@@ -1,0 +1,56 @@
+AUTOMATIC TRADING BOT — SETUP (read once)
+=========================================
+
+PROBLEM: GitHub "schedule" cron often does NOT run on private repos (free plan)
+or can be delayed hours. Your repo history showed ZERO automatic schedule runs —
+only manual "Run workflow" clicks.
+
+SOLUTION (pick one):
+
+A) RECOMMENDED — Free cron-job.org (works with private repo)
+------------------------------------------------------------
+1. Create GitHub Personal Access Token (classic):
+   - https://github.com/settings/tokens
+   - Scope: repo (full control of private repositories)
+
+2. Sign up: https://cron-job.org (free)
+
+3. Create TWO cron jobs (timezone: Asia/Kolkata):
+
+   Job 1 — Morning full session
+   - URL: https://api.github.com/repos/SuvoG1250/telegram-trading-scanner/actions/workflows/278548320/dispatches
+   - Method: POST
+   - Schedule: Mon–Fri 09:05
+   - Headers:
+       Accept: application/vnd.github+json
+       Authorization: Bearer YOUR_GITHUB_TOKEN
+       X-GitHub-Api-Version: 2022-11-28
+   - Body (JSON):
+       {"ref":"main","inputs":{"max_minutes":"390"}}
+
+   Job 2 — Afternoon backup (if morning missed)
+   - Same URL and headers
+   - Schedule: Mon–Fri 14:50
+   - Body: {"ref":"main","inputs":{"max_minutes":"90"}}
+
+4. Test: Run Job 1 once manually. You should get Telegram:
+   "Auto Trading Bot — RUNNING"
+
+B) Make repo PUBLIC (no secrets in code — tokens stay in GitHub Secrets)
+------------------------------------------------------------------------
+Public repos get more reliable GitHub schedule cron.
+Settings → General → Danger Zone → Change visibility
+
+C) Windows Task Scheduler (PC must be on at 9:05 AM)
+----------------------------------------------------
+Run: powershell -File scripts\trigger_auto_session.ps1
+(Requires: gh auth login)
+
+VERIFY AUTOMATION
+-----------------
+- Telegram message: "Auto Trading Bot — RUNNING" on each session start
+- GitHub → Actions → "Auto Trading Bot" → event should show schedule or workflow_dispatch
+- Weekdays only (Mon–Fri). No runs on Saturday/Sunday.
+
+WORKFLOW ID: 278548320
+REPO: SuvoG1250/telegram-trading-scanner

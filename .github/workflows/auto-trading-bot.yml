@@ -1,41 +1,55 @@
-# Full automatic trading bot — 2 reliable cron triggers per day (morning + afternoon).
-# Each job runs a loop: scan every 5 min + Telegram START/STOP/signals.
-# No manual runs needed on trading days.
+# Automatic NSE scanner — runs Mon–Fri without manual clicks.
+#
+# Triggers:
+#   1. schedule (GitHub cron) — full session ~9:05–15:35 IST
+#   2. workflow_dispatch — manual or cron-job.org (recommended backup for private repos)
+#   3. repository_dispatch — type: run-session
+#
+# Private repo note: GitHub schedule can be delayed or skip. Use cron-job.org (see AUTOMATION.txt).
 
 name: Auto Trading Bot
 
 on:
   schedule:
-    # 9:10 AM IST (3:40 UTC) — morning session loop until ~2:40 PM IST
-    - cron: "40 3 * * 1-5"
-    # 2:45 PM IST (9:15 UTC) — afternoon loop until market close
-    - cron: "15 9 * * 1-5"
+    # 9:05 AM IST (03:35 UTC) — one loop covers pre-market + full intraday
+    - cron: "35 3 * * 1-5"
+    # 2:50 PM IST backup if morning cron was skipped
+    - cron: "20 9 * * 1-5"
   workflow_dispatch:
     inputs:
       max_minutes:
-        description: "Loop duration (minutes); default 320 for full morning"
+        description: "Loop duration (minutes); 390 = full session"
         required: false
-        default: "15"
+        default: "390"
+  repository_dispatch:
+    types: [run-session]
 
 permissions:
   contents: read
 
 concurrency:
-  group: auto-trading-${{ github.run_id }}
+  group: auto-trading-session
   cancel-in-progress: false
 
 jobs:
   market-session:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    timeout-minutes: 400
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
       SCANNER_DATA_DIR: data
+      GITHUB_EVENT_NAME: ${{ github.event_name }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Log trigger
+        run: |
+          echo "event=${{ github.event_name }}"
+          echo "IST=$(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S %Z')"
+          echo "run_id=${{ github.run_id }}"
 
       - name: IST date for cache
         id: ist_date
@@ -54,22 +68,34 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Set loop duration (IST)
+      - name: Set loop duration
         id: duration
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mins=${{ github.event.inputs.max_minutes }}" >> "$GITHUB_OUTPUT"
+            MINS="${{ github.event.inputs.max_minutes }}"
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            MINS="${{ github.event.client_payload.max_minutes }}"
+            if [ -z "$MINS" ] || [ "$MINS" = "null" ]; then
+              MINS=390
+            fi
           else
             HOUR=$(TZ=Asia/Kolkata date +%H)
-            if [ "$HOUR" -lt 14 ]; then
-              echo "mins=320" >> "$GITHUB_OUTPUT"
+            MIN=$(TZ=Asia/Kolkata date +%M)
+            # Morning schedule: full day loop
+            if [ "$HOUR" -lt 14 ] || { [ "$HOUR" -eq 14 ] && [ "$MIN" -lt 30 ]; }; then
+              MINS=390
             else
-              echo "mins=55" >> "$GITHUB_OUTPUT"
+              # Afternoon backup cron — run until market close
+              MINS=90
             fi
           fi
+          echo "mins=$MINS" >> "$GITHUB_OUTPUT"
+          echo "Loop duration: $MINS minutes"
+
+      - name: Automation boot (Telegram proof)
+        run: python automation_boot.py
 
       - name: Run full market session loop
         run: |
           mkdir -p data
-          echo "Loop ${{ steps.duration.outputs.mins }} min | IST $(TZ=Asia/Kolkata date)"
           python session_runner.py --max-minutes "${{ steps.duration.outputs.mins }}"
