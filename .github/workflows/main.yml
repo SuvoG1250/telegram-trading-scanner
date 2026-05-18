@@ -1,62 +1,47 @@
-name: Trading Scanner Bot
+# Manual test only — use "Auto Trading Bot" for automatic runs.
+name: Trading Scanner Bot (Manual Test)
 
 on:
-  schedule:
-    # Mon–Fri: every 5 min during UTC 3–10 (~8:30–15:30 IST)
-    - cron: "*/5 3-10 * * 1-5"
   workflow_dispatch:
     inputs:
       send_test_signal:
-        description: "Send test Telegram signal only (skip scanner)"
+        description: "Send test Telegram signal only"
+        required: false
+        default: false
+        type: boolean
+      run_scanner_once:
+        description: "Run scanner once (no loop)"
         required: false
         default: false
         type: boolean
 
-concurrency:
-  group: trading-scanner-${{ github.ref }}
-  cancel-in-progress: false
+permissions:
+  contents: read
 
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
+      SCANNER_DATA_DIR: data
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: IST date for cache key
-        id: ist_date
-        run: echo "date=$(TZ=Asia/Kolkata date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache scanner state
-        uses: actions/cache@v4
-        with:
-          path: data
-          key: scanner-data-${{ steps.ist_date.outputs.date }}
-          restore-keys: |
-            scanner-data-
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run Scanner Script
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
-          SCANNER_DATA_DIR: data
+      - run: pip install -r requirements.txt
+      - name: Execute
         run: |
           mkdir -p data
-          touch data/.gitkeep
           if [ "${{ github.event.inputs.send_test_signal }}" = "true" ]; then
             python send_test_signal.py
-          else
+          elif [ "${{ github.event.inputs.run_scanner_once }}" = "true" ]; then
             python scanner.py
+          else
+            python send_test_signal.py
           fi

@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""
+Run scanner every 5 minutes inside one GitHub Actions job.
+Uses 2 scheduled triggers per day (morning + afternoon) instead of */5 cron,
+which is unreliable on many GitHub accounts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import sys
+import time
+
+from market_time import is_market_open, is_premarket_window, is_session_stop_window, is_weekday, now_ist
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("session_runner")
+
+SCAN_INTERVAL_SEC = 300
+
+
+def _should_continue() -> bool:
+    if not is_weekday():
+        return False
+    if is_session_stop_window():
+        return False
+    return is_premarket_window() or is_market_open()
+
+
+def run_loop(max_minutes: int) -> int:
+    from scanner import main as scan_once
+
+    deadline = time.time() + max_minutes * 60
+    iteration = 0
+
+    logger.info(
+        "Session loop started | max %s min | IST %s",
+        max_minutes,
+        now_ist().strftime("%H:%M:%S"),
+    )
+
+    while time.time() < deadline:
+        if not _should_continue():
+            logger.info("Outside trading window — ending loop.")
+            break
+
+        iteration += 1
+        logger.info("=== Scan iteration %s ===", iteration)
+        try:
+            scan_once()
+        except Exception:
+            logger.exception("Scan iteration %s failed", iteration)
+
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        sleep_for = min(SCAN_INTERVAL_SEC, remaining)
+        logger.info("Sleeping %.0f seconds until next scan...", sleep_for)
+        time.sleep(sleep_for)
+
+    if is_session_stop_window() or not _should_continue():
+        from session_alerts import send_session_stop_alert
+        from state import session_stop_sent
+
+        if not session_stop_sent():
+            send_session_stop_alert()
+
+    logger.info("Session loop finished after %s iterations.", iteration)
+    return 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--max-minutes", type=int, default=320)
+    args = parser.parse_args()
+    sys.exit(run_loop(args.max_minutes))
