@@ -48,6 +48,8 @@ SCAN_FULL_UNIVERSE = True
 SEND_LONG_TERM_PICKS_DAILY = True
 # Minimum entry strategies that must agree before BUY/SELL alert is sent
 MIN_STRATEGIES_TO_CONFIRM = 2
+# Minimum profit % to best target (entry → target) required to send alert
+MIN_TARGET_PROFIT_PCT = 1.0
 # After morning watchlist is set, do not add new stocks during the session
 LOCK_WATCHLIST_FOR_DAY = True
 NEAR_52W_HIGH_PCT = 3.0

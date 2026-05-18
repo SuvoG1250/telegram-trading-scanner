@@ -36,6 +36,15 @@ class TradeLevels:
             return 0.0
         return round((self.risk / self.entry) * 100, 2)
 
+    def target_profit_pct(self, side: str) -> float:
+        """Reward % from entry to best target (BUY or SELL)."""
+        if self.entry <= 0:
+            return 0.0
+        target = self.primary_target
+        if side == "BUY":
+            return round((target - self.entry) / self.entry * 100, 2)
+        return round((self.entry - target) / self.entry * 100, 2)
+
 
 def _round_price(value: float) -> float:
     return round(value, 2)

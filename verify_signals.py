@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import sys
 
+from config import MIN_TARGET_PROFIT_PCT
 from risk import levels_for_long, levels_for_short
 from signal_builder import entry_long, entry_short, validate_plan, TradePlan
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
@@ -23,6 +24,15 @@ def test_builder() -> bool:
     bad = entry_long("X", "Test", 100.0, 105.0)
     if bad is not None:
         print("FAIL should reject invalid long SL")
+        ok = False
+    # Target profit < 1% should reject (tight SL → small R:R targets)
+    tight = entry_long("X", "Test", 1000.0, 999.0, rr1=0.5, rr2=0.5, best_rr=0.5)
+    if tight is not None:
+        print("FAIL should reject when target profit < MIN_TARGET_PROFIT_PCT")
+        ok = False
+    wide = entry_long("X", "Test", 1000.0, 980.0, rr1=1.5, rr2=2.0, best_rr=2.0)
+    if wide is None or wide.levels.target_profit_pct("BUY") < MIN_TARGET_PROFIT_PCT:
+        print("FAIL should accept when target profit >= MIN_TARGET_PROFIT_PCT")
         ok = False
     return ok
 

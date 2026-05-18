@@ -8,7 +8,7 @@ import logging
 import statistics
 from dataclasses import dataclass, field
 
-from config import MIN_STRATEGIES_TO_CONFIRM
+from config import MIN_STRATEGIES_TO_CONFIRM, MIN_TARGET_PROFIT_PCT
 from market_time import now_ist
 from risk import TradeLevels
 from telegram_client import Signal
@@ -144,6 +144,17 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
 
     levels = _merge_levels(group, side)
     if levels is None:
+        return None
+
+    profit_pct = levels.target_profit_pct(side)
+    if profit_pct < MIN_TARGET_PROFIT_PCT:
+        logger.info(
+            "Skip %s %s — target profit %.2f%% below minimum %.2f%%.",
+            group[0].symbol,
+            side,
+            profit_pct,
+            MIN_TARGET_PROFIT_PCT,
+        )
         return None
 
     confidence = "HIGH" if len(group) >= MIN_STRATEGIES_TO_CONFIRM else "MEDIUM"

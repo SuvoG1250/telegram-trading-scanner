@@ -12,6 +12,7 @@ import sys
 from config import (
     LOCK_WATCHLIST_FOR_DAY,
     MIN_STRATEGIES_TO_CONFIRM,
+    MIN_TARGET_PROFIT_PCT,
     NO_SIGNAL_STATUS_ON_AUTO_SCAN,
     SCAN_FULL_UNIVERSE,
 )
@@ -104,8 +105,8 @@ def _send_no_signal_status(watchlist: list[str]) -> None:
         f"ℹ️ <b>No signal right now</b>\n\n"
         f"🕐 {now_ist().strftime('%d %b %Y, %H:%M IST')}\n"
         f"📋 <b>Scanned:</b> {stocks}\n\n"
-        f"All <b>6 strategies</b> checked on each stock — need <b>{MIN_STRATEGIES_TO_CONFIRM} of 6</b> "
-        f"to agree for BUY/SELL. None qualified this scan.\n"
+        f"All <b>6 strategies</b> checked — need <b>{MIN_STRATEGIES_TO_CONFIRM} of 6</b> agree "
+        f"+ min <b>{MIN_TARGET_PROFIT_PCT}%</b> target profit. None qualified.\n"
         f"<i>Next automatic scan in ~5 minutes.</i>"
     )
     if send_plain(text):

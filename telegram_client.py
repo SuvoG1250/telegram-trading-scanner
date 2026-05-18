@@ -66,7 +66,8 @@ def format_signal_message(signal: Signal) -> str:
         "",
         f"💰 <b>ENTRY:</b> ₹{lv.entry:,.2f}",
         f"🛑 <b>STOP LOSS:</b> ₹{lv.stop_loss:,.2f}",
-        f"🎯 <b>BEST TARGET:</b> ₹{best:,.2f} <i>(1:{lv.rr_best} R:R)</i>",
+        f"🎯 <b>BEST TARGET:</b> ₹{best:,.2f} "
+        f"<i>(+{lv.target_profit_pct(signal.side):.2f}% | 1:{lv.rr_best} R:R)</i>",
         f"📈 <b>T1:</b> ₹{lv.target_1:,.2f}",
         f"📈 <b>T2:</b> ₹{lv.target_2:,.2f}",
         "",
