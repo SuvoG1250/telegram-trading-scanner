@@ -30,7 +30,9 @@ if _env.exists():
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, _, v = line.partition("=")
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        key = k.strip()
+        if key:
+            os.environ[key] = v.strip().strip('"').strip("'")
 
 CRONJOB_API = "https://api.cron-job.org"
 GITHUB_OWNER = "SuvoG1250"
@@ -84,6 +86,11 @@ def build_job_payload(github_pat: str) -> dict:
 
 def list_jobs(api_key: str) -> list[dict]:
     r = requests.get(f"{CRONJOB_API}/jobs", headers=_cron_headers(api_key), timeout=30)
+    if r.status_code == 401:
+        print("cron-job.org rejected the API key (401 Unauthorized).")
+        print("Use the API key from https://console.cron-job.org/settings")
+        print("(not a job ID or account UUID — it is a long random string).")
+        sys.exit(1)
     r.raise_for_status()
     return r.json().get("jobs", [])
 
@@ -180,7 +187,7 @@ def main() -> int:
         return 1
     if not cron_key:
         print("Missing CRONJOB_API_KEY in .env")
-        print("Create: https://console.cron-job.org/settings → API key")
+        print("Create: https://console.cron-job.org/settings -> API key")
         return 1
 
     existing = find_job_id(cron_key)
