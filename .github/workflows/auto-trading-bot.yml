@@ -1,19 +1,13 @@
-# Automatic NSE scanner — runs Mon–Fri without manual clicks.
-#
-# Triggers:
-#   1. schedule (GitHub cron) — full session ~9:05–15:35 IST
-#   2. workflow_dispatch — manual or cron-job.org (recommended backup for private repos)
-#   3. repository_dispatch — type: run-session
-#
-# Private repo note: GitHub schedule can be delayed or skip. Use cron-job.org (see AUTOMATION.txt).
+# Full automatic NSE scanner — Mon–Fri, no manual clicks needed.
+# Triggers: GitHub schedule (9:05 + 14:50 IST) | manual Run workflow | external cron-job.org
 
 name: Auto Trading Bot
 
 on:
   schedule:
-    # 9:05 AM IST (03:35 UTC) — one loop covers pre-market + full intraday
+    # 9:05 AM IST (03:35 UTC) — full session until market close
     - cron: "35 3 * * 1-5"
-    # 2:50 PM IST backup if morning cron was skipped
+    # 2:50 PM IST (09:20 UTC) — backup if morning was missed
     - cron: "20 9 * * 1-5"
   workflow_dispatch:
     inputs:
@@ -36,7 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 400
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       TELEGRAM_GROUP_CHAT_ID: ${{ secrets.TELEGRAM_GROUP_CHAT_ID }}
@@ -45,11 +38,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Log trigger
+      - name: Log trigger (automatic vs manual)
         run: |
-          echo "event=${{ github.event_name }}"
-          echo "IST=$(TZ=Asia/Kolkata date '+%Y-%m-%d %H:%M:%S %Z')"
-          echo "run_id=${{ github.run_id }}"
+          echo "Trigger: ${{ github.event_name }}"
+          echo "IST: $(TZ=Asia/Kolkata date '+%A %Y-%m-%d %H:%M:%S %Z')"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "✅ AUTOMATIC scheduled run"
+          else
+            echo "Manual or external trigger"
+          fi
 
       - name: IST date for cache
         id: ist_date
@@ -81,16 +78,14 @@ jobs:
           else
             HOUR=$(TZ=Asia/Kolkata date +%H)
             MIN=$(TZ=Asia/Kolkata date +%M)
-            # Morning schedule: full day loop
             if [ "$HOUR" -lt 14 ] || { [ "$HOUR" -eq 14 ] && [ "$MIN" -lt 30 ]; }; then
               MINS=390
             else
-              # Afternoon backup cron — run until market close
               MINS=90
             fi
           fi
           echo "mins=$MINS" >> "$GITHUB_OUTPUT"
-          echo "Loop duration: $MINS minutes"
+          echo "Loop: $MINS minutes"
 
       - name: Automation boot (Telegram proof)
         run: python automation_boot.py
