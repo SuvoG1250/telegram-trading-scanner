@@ -7,8 +7,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from datetime import datetime
+
+import pytz
+
 from config import DATA_DIR, SESSION_FILE, SIGNALS_FILE, WATCHLIST_FILE
-from market_time import today_key
+from market_time import IST, today_key
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +164,27 @@ def mark_automation_boot() -> None:
     data = _session_today()
     data["automation_boot_sent"] = True
     _save_session(data)
+
+
+def record_trading_started_at() -> None:
+    """First intraday / session start of the day (used for 30-min delayed boot)."""
+    data = _session_today()
+    if not data.get("trading_started_at"):
+        data["trading_started_at"] = datetime.now(IST).isoformat()
+        _save_session(data)
+
+
+def get_trading_started_at() -> datetime | None:
+    raw = _session_today().get("trading_started_at")
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = IST.localize(dt)
+        return dt
+    except (TypeError, ValueError):
+        return None
 
 
 def long_term_picks_sent() -> bool:

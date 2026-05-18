@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from config import MIN_TARGET_PROFIT_PCT
+from config import MAX_SL_PCT_PLAYBOOK, MIN_TARGET_PROFIT_PCT
 from market_time import now_ist
-from risk import TradeLevels, levels_for_long, levels_for_short
+from risk import TradeLevels, levels_for_long, levels_for_short, levels_playbook
 from telegram_client import Signal
 
 SignalKind = Literal["ENTRY", "EXIT"]
@@ -52,12 +52,48 @@ def validate_plan(plan: TradePlan) -> bool:
             return False
         if lv.primary_target >= lv.entry:
             return False
-    if lv.risk_pct > 5.0:
+    if lv.risk_pct > MAX_SL_PCT_PLAYBOOK * 1.05:
         return False
     profit_pct = lv.target_profit_pct(plan.side)
     if profit_pct < MIN_TARGET_PROFIT_PCT:
         return False
     return True
+
+
+def playbook_entry_long(
+    symbol: str,
+    strategy: str,
+    entry: float,
+    structural_stop: float,
+    *,
+    note: str = "",
+    timeframe: str = "Intraday",
+) -> Signal | None:
+    levels = levels_playbook(entry, structural_stop, "BUY")
+    if levels is None:
+        return None
+    plan = TradePlan(symbol, strategy, "BUY", levels, note, "ENTRY", timeframe)
+    if not validate_plan(plan):
+        return None
+    return plan.to_signal()
+
+
+def playbook_entry_short(
+    symbol: str,
+    strategy: str,
+    entry: float,
+    structural_stop: float,
+    *,
+    note: str = "",
+    timeframe: str = "Intraday",
+) -> Signal | None:
+    levels = levels_playbook(entry, structural_stop, "SELL")
+    if levels is None:
+        return None
+    plan = TradePlan(symbol, strategy, "SELL", levels, note, "ENTRY", timeframe)
+    if not validate_plan(plan):
+        return None
+    return plan.to_signal()
 
 
 def entry_long(

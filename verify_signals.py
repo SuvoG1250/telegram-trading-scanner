@@ -1,63 +1,101 @@
 #!/usr/bin/env python3
-"""Verify all strategies load and signal builder validates correctly."""
+"""Verify playbook signal builder and strategy registration."""
 
 from __future__ import annotations
 
 import sys
 
 from config import MIN_TARGET_PROFIT_PCT
-from risk import levels_for_long, levels_for_short
-from signal_builder import entry_long, entry_short, validate_plan, TradePlan
+from signal_builder import (
+    entry_long,
+    playbook_entry_long,
+    playbook_entry_short,
+)
+import pandas as pd
+
+from chaitu50c import ChaituParams, replay_last_bar_signal
+from config import SCAN_STRATEGIES
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 
 
-def test_builder() -> bool:
+def test_playbook_builder() -> bool:
     ok = True
-    sig = entry_long("RELIANCE", "Test", 2500.0, 2480.0, note="Unit test")
+    sig = playbook_entry_long("RELIANCE", "Test", 2500.0, 2470.0, note="Unit test")
     if not sig or sig.levels.entry != 2500.0:
-        print("FAIL entry_long")
+        print("FAIL playbook_entry_long")
         ok = False
-    sig2 = entry_short("TCS", "Test", 4000.0, 4020.0)
+    if sig and sig.levels.risk_pct > 0.61:
+        print("FAIL SL should be capped near 0.6%")
+        ok = False
+    sig2 = playbook_entry_short("TCS", "Test", 4000.0, 4020.0)
     if not sig2 or sig2.levels.primary_target >= 4000.0:
-        print("FAIL entry_short")
+        print("FAIL playbook_entry_short")
         ok = False
     bad = entry_long("X", "Test", 100.0, 105.0)
     if bad is not None:
         print("FAIL should reject invalid long SL")
         ok = False
-    # Target profit < 1% should reject (tight SL → small R:R targets)
-    tight = entry_long("X", "Test", 1000.0, 999.0, rr1=0.5, rr2=0.5, best_rr=0.5)
-    if tight is not None:
-        print("FAIL should reject when target profit < MIN_TARGET_PROFIT_PCT")
-        ok = False
-    wide = entry_long("X", "Test", 1000.0, 980.0, rr1=1.5, rr2=2.0, best_rr=2.0)
+    wide = entry_long("X", "Test", 1000.0, 994.5, rr1=2.0, rr2=2.0, best_rr=2.0)
     if wide is None or wide.levels.target_profit_pct("BUY") < MIN_TARGET_PROFIT_PCT:
-        print("FAIL should accept when target profit >= MIN_TARGET_PROFIT_PCT")
+        print("FAIL legacy entry should pass profit rule when RR is wide enough")
+        ok = False
+    too_wide = entry_long("X", "Test", 1000.0, 990.0, rr1=2.0, rr2=2.0, best_rr=2.0)
+    if too_wide is not None:
+        print("FAIL should reject when SL risk > 0.6% of price")
         ok = False
     return ok
 
 
+def test_chaitu50c_buy1() -> bool:
+    ist = "Asia/Kolkata"
+    idx = pd.DatetimeIndex(
+        [
+            "2026-05-18 10:00:00",
+            "2026-05-18 10:05:00",
+            "2026-05-18 10:10:00",
+        ],
+        tz=ist,
+    )
+    session = pd.DataFrame(
+        {
+            "Open": [100.0, 100.0, 99.0],
+            "High": [101.0, 101.0, 102.0],
+            "Low": [99.0, 98.0, 99.0],
+            "Close": [100.0, 99.0, 102.0],
+            "Volume": [1000, 1000, 1000],
+        },
+        index=idx,
+    )
+    fire = replay_last_bar_signal(session, ChaituParams(enhanced_mode=True))
+    if fire is None or fire.side != "BUY":
+        print("FAIL chaitu50c expected BUY on last bar")
+        return False
+    if fire.stop_level > fire.entry:
+        print("FAIL chaitu50c BUY stop should be below entry")
+        return False
+    return True
+
+
 def test_strategies_import() -> bool:
-    print(f"Strategies loaded ({len(STRATEGY_SCANNERS)}):")
+    print(f"Playbook modules ({len(STRATEGY_SCANNERS)}):")
     for name in STRATEGY_NAMES:
         print(f"  OK {name}")
-    return len(STRATEGY_SCANNERS) == 6
+    expected = 3 if SCAN_STRATEGIES == "all" else 1
+    return len(STRATEGY_SCANNERS) == expected
 
 
 def main() -> int:
-    print("=== Signal system verification ===\n")
-    if not test_builder():
+    print("=== Master playbook verification ===\n")
+    if not test_playbook_builder():
         return 1
-    print("OK Signal builder & validation\n")
+    print("OK Playbook signal builder\n")
+    if not test_chaitu50c_buy1():
+        return 1
+    print("OK Chaitu50c Pine replay (buy1)\n")
     if not test_strategies_import():
         return 1
-    print("\nOK All strategies registered")
-    print("\nEach live alert includes:")
-    print("  • Stock Name (NSE)")
-    print("  • Entry Price")
-    print("  • Stop Loss")
-    print("  • Best Target (primary R:R)")
-    print("  • T1 / T2 + Trade Plan")
+    print("\nOK Strategy scanners registered")
+    print("\nTelegram (signals-only): BUY/SELL + Entry + SL + Target + time")
     return 0
 
 

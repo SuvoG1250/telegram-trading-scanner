@@ -1,11 +1,18 @@
-"""Once-per-day Telegram alerts when the scanner session starts and stops."""
+"""Session start/stop Telegram alerts."""
 
 from __future__ import annotations
 
 import logging
 
+from config import SEND_SESSION_ALERTS
 from market_time import is_active_session, is_session_stop_window, now_ist
-from state import mark_session_start, mark_session_stop, session_start_sent, session_stop_sent
+from state import (
+    mark_session_start,
+    mark_session_stop,
+    record_trading_started_at,
+    session_start_sent,
+    session_stop_sent,
+)
 from telegram_client import send_plain
 
 logger = logging.getLogger(__name__)
@@ -16,40 +23,42 @@ def _fmt_now() -> str:
 
 
 def send_session_start_alert() -> bool:
+    if not SEND_SESSION_ALERTS:
+        if not session_start_sent():
+            mark_session_start()
+            record_trading_started_at()
+        return True
     text = (
-        "🟢 Trading Scanner STARTED\n\n"
+        "🟢 <b>Trading Scanner STARTED</b>\n\n"
         f"📅 {_fmt_now()}\n"
-        "⏰ Session: Pre-market (9:10–9:25) + Intraday (9:15 AM–3:30 PM IST)\n"
-        "📊 Strategies: Winning Combo | ORB | Gap | 5TF Screener | Consolidation 3m\n\n"
-        "Today's watchlist will be set once. All 6 strategies run on each stock — "
-        "Nifty 100 + all sectors — 2 of 6 strategies agree + min 1% target profit."
+        "📊 Nifty 500 scan · Chaitu50c signals send <b>instantly</b> when found.\n"
+        f"🤖 Bot status ping ~30 min after open (if not already sent)."
     )
     if send_plain(text):
         mark_session_start()
-        logger.info("Session start alert sent.")
+        record_trading_started_at()
         return True
     return False
 
 
 def send_session_stop_alert() -> bool:
+    if not SEND_SESSION_ALERTS:
+        if not session_stop_sent():
+            mark_session_stop()
+        return True
     text = (
-        "🔴 Trading Scanner STOPPED\n\n"
+        "🔴 <b>Trading Scanner STOPPED</b>\n\n"
         f"📅 {_fmt_now()}\n"
-        "✅ Today's NSE intraday session has ended.\n\n"
-        "Next automatic start: next trading day ~9:05 AM IST (Mon–Fri)."
+        "Next session: next trading day ~9:10 AM IST."
     )
     if send_plain(text):
         mark_session_stop()
-        logger.info("Session stop alert sent.")
         return True
     return False
 
 
 def handle_session_alerts() -> bool:
-    """
-    Send start/stop alerts once per day.
-    Returns True if the run should exit early (after stop alert).
-    """
+    """Returns True after market close (stop handling)."""
     if is_session_stop_window() and not session_stop_sent():
         send_session_stop_alert()
         return True

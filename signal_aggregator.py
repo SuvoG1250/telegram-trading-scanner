@@ -8,19 +8,18 @@ import logging
 import statistics
 from dataclasses import dataclass, field
 
-from config import MIN_STRATEGIES_TO_CONFIRM, MIN_TARGET_PROFIT_PCT
+from config import MIN_STRATEGIES_TO_CONFIRM, MIN_TARGET_PROFIT_PCT, SIGNALS_ONLY_TELEGRAM
 from market_time import now_ist
-from risk import TradeLevels
+from risk import TradeLevels, clamp_levels_to_playbook
 from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
 
 ENTRY_STRATEGIES = {
-    "The Winning Combination",
-    "15-Min ORB",
-    "Gap Day Breakout",
-    "Screener Momentum (5 TF)",
-    "Consolidation Breakout (3m)",
+    "Setup 1: 1-Min Morning Breakout",
+    "Setup 2: Core Price Action (5m/15m)",
+    "Setup 3: Chaitu50c BUY/SELL",
+    "Chaitu50c",
 }
 
 
@@ -35,6 +34,27 @@ class ConfirmedSignal:
     kind: str = "ENTRY"
 
     def to_telegram_signal(self) -> Signal:
+        ts = now_ist().strftime("%d %b %Y, %H:%M IST")
+        if SIGNALS_ONLY_TELEGRAM:
+            label = "Chaitu50c"
+            for s in self.strategies:
+                if "Chaitu" in s:
+                    label = "Chaitu50c"
+                    break
+                if "Morning" in s:
+                    label = "Morning 1m"
+                elif "Core" in s:
+                    label = "5m/15m PA"
+            return Signal(
+                symbol=self.symbol,
+                strategy=label,
+                side=self.side,
+                levels=self.levels,
+                note="",
+                kind=self.kind,  # type: ignore[arg-type]
+                timeframe="",
+                timestamp=ts,
+            )
         strat_label = " + ".join(self.strategies)
         note_parts = [f"Confirmed by {len(self.strategies)} strategy(s): {strat_label}."]
         if self.confidence == "HIGH":
@@ -48,7 +68,7 @@ class ConfirmedSignal:
             note=" ".join(note_parts),
             kind=self.kind,  # type: ignore[arg-type]
             timeframe="Multi-strategy",
-            timestamp=now_ist().strftime("%d %b %Y, %H:%M IST"),
+            timestamp=ts,
         )
 
 
@@ -146,6 +166,11 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
     if levels is None:
         return None
 
+    levels = clamp_levels_to_playbook(levels, side)
+    if levels is None:
+        logger.info("Skip %s %s — playbook risk clamp rejected merged levels.", group[0].symbol, side)
+        return None
+
     profit_pct = levels.target_profit_pct(side)
     if profit_pct < MIN_TARGET_PROFIT_PCT:
         logger.info(
@@ -157,7 +182,7 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
         )
         return None
 
-    confidence = "HIGH" if len(group) >= MIN_STRATEGIES_TO_CONFIRM else "MEDIUM"
+    confidence = "HIGH" if len(group) >= 2 else "MEDIUM"
     return ConfirmedSignal(
         symbol=group[0].symbol,
         side=side,

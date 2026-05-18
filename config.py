@@ -42,14 +42,55 @@ SECTOR_ST_MIN_BULLISH_PCT = 0.5
 
 WATCHLIST_MIN = 1
 WATCHLIST_MAX = 100
-# Scan full Nifty 100 universe (all that pass filters)
+# nifty500 = all names in data/ind_nifty500list.csv (NSE); nifty100 = legacy list
+SCAN_UNIVERSE_MODE = os.environ.get("SCAN_UNIVERSE_MODE", "nifty500")
+# Intraday: scan every symbol in get_scan_universe(), not only top-ranked playbook picks
+SCAN_ALL_UNIVERSE_INTRADAY = True
+# Scan full universe (refresh small legacy watchlists)
 SCAN_FULL_UNIVERSE = True
-# Long-term picks + sector report once per day at pre-market
-SEND_LONG_TERM_PICKS_DAILY = True
-# Minimum entry strategies that must agree before BUY/SELL alert is sent
-MIN_STRATEGIES_TO_CONFIRM = 2
+# Chaitu50c (Pine port) — chart interval for yfinance replay
+CHAITU_INTERVAL = os.environ.get("CHAITU_INTERVAL", "5m")
+CHAITU_ENHANCED_MODE = os.environ.get("CHAITU_ENHANCED_MODE", "true").lower() in ("1", "true", "yes")
+# Compact BUY/SELL lines only (operational messages use flags below)
+SIGNALS_ONLY_TELEGRAM = os.environ.get("SIGNALS_ONLY_TELEGRAM", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+# Operational Telegram (independent of SIGNALS_ONLY_TELEGRAM)
+SEND_PREMARKET_REPORT = os.environ.get("SEND_PREMARKET_REPORT", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "true").lower() in ("1", "true", "yes")
+BOOT_DELAY_MINUTES = int(os.environ.get("BOOT_DELAY_MINUTES", "30"))
+# chaitu = Chaitu50c on full universe (fast); all = playbook setups 1–2 + Chaitu
+SCAN_STRATEGIES = os.environ.get("SCAN_STRATEGIES", "chaitu").lower()
+SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+# Master playbook: two execution modules — either can trigger an alert
+MIN_STRATEGIES_TO_CONFIRM = 1
 # Minimum profit % to best target (entry → target) required to send alert
 MIN_TARGET_PROFIT_PCT = 1.0
+# Module 3 — universal risk (cash equity)
+MAX_SL_PCT_PLAYBOOK = 0.6  # % of price — stop may not be wider than this
+MIN_RISK_REWARD_PLAYBOOK = 2.0  # minimum 1:2 to best target
+# Method D — Nifty 500-style scan: flag names with large prior-day % move
+VOLATILE_SCAN_MIN_PCT = 4.0
+VOLATILE_SCAN_MAX_PCT = 8.0
+PLAYBOOK_TRAIL_NOTE = (
+    "Book 70–80% at 1R target; trail 20–30% runner on 10 EMA (5m): exit only if a candle "
+    "CLOSES below 10 EMA AND the next candle breaks the low of that candle. Square intraday by 3:30 PM IST."
+)
 # After morning watchlist is set, do not add new stocks during the session
 LOCK_WATCHLIST_FOR_DAY = True
 NEAR_52W_HIGH_PCT = 3.0
@@ -58,7 +99,11 @@ GAP_THRESHOLD_PCT = 0.5
 
 SCAN_INTERVAL_MIN = 5
 # Notify Telegram when automatic scan finds no confirmed signal (every scan)
-NO_SIGNAL_STATUS_ON_AUTO_SCAN = True
+NO_SIGNAL_STATUS_ON_AUTO_SCAN = (
+    not SIGNALS_ONLY_TELEGRAM
+    and os.environ.get("NO_SIGNAL_STATUS_ON_AUTO_SCAN", "false").lower()
+    in ("1", "true", "yes")
+)
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 

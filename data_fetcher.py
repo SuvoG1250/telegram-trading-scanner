@@ -12,9 +12,10 @@ from stocks import to_yfinance_symbol
 
 logger = logging.getLogger(__name__)
 
-Interval = Literal["3m", "5m", "15m", "1h", "1d", "1wk", "1mo"]
+Interval = Literal["1m", "3m", "5m", "15m", "1h", "1d", "1wk", "1mo"]
 
 _PERIOD_BY_INTERVAL: dict[str, str] = {
+    "1m": "5d",
     "3m": "5d",
     "5m": "5d",
     "15m": "10d",
@@ -76,3 +77,21 @@ def today_session_df(df: pd.DataFrame, session_date) -> pd.DataFrame:
     out = df.loc[mask].copy()
     out.index = local_index[mask]
     return out
+
+
+_SESSION_CACHE: dict[tuple[str, str], pd.DataFrame] = {}
+
+
+def clear_session_cache() -> None:
+    _SESSION_CACHE.clear()
+
+
+def get_today_session(symbol: str, interval: Interval) -> pd.DataFrame:
+    """Cached intraday bars for today's IST session (one fetch per symbol per scan run)."""
+    key = (symbol, interval)
+    if key not in _SESSION_CACHE:
+        df = fetch_intraday(symbol, interval)
+        from market_time import now_ist
+
+        _SESSION_CACHE[key] = today_session_df(df, now_ist().date())
+    return _SESSION_CACHE[key]

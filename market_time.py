@@ -95,6 +95,33 @@ def is_momentum_entry_window(dt: datetime | None = None) -> bool:
     return _after(MOMENTUM_ENTRY_START, t) and _before(MOMENTUM_ENTRY_END, t)
 
 
+def is_morning_1m_playbook_window(dt: datetime | None = None) -> bool:
+    """Setup 1: 9:16 AM – 10:30 AM IST (1-minute morning breakout)."""
+    dt = dt or now_ist()
+    if not is_weekday(dt) or not is_market_open(dt):
+        return False
+    t = ist_time_tuple(dt)
+    return _after((9, 16), t) and _before((10, 30), t)
+
+
+def is_chaitu_session(dt: datetime | None = None) -> bool:
+    """Setup 3 (Chaitu50c): Pine session 09:15–15:25 IST."""
+    dt = dt or now_ist()
+    if not is_weekday(dt) or not is_market_open(dt):
+        return False
+    t = ist_time_tuple(dt)
+    return _after((9, 15), t) and (t <= (15, 25))
+
+
+def is_core_price_action_window(dt: datetime | None = None) -> bool:
+    """Setup 2: 5m/15m price action — after 10:30 to avoid mixing with Setup 1."""
+    dt = dt or now_ist()
+    if not is_weekday(dt) or not is_market_open(dt):
+        return False
+    t = ist_time_tuple(dt)
+    return _after((10, 30), t)
+
+
 def is_session_stop_window(dt: datetime | None = None) -> bool:
     """First run after 3:30 PM IST sends the daily stop alert (until 10 PM)."""
     dt = dt or now_ist()

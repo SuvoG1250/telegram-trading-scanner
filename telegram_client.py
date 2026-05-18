@@ -1,15 +1,15 @@
-"""Professional Telegram trade alerts (HTML format)."""
+"""Telegram trade alerts — compact signals-only format by default."""
 
 from __future__ import annotations
 
 import html
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 import requests
 
-from config import TELEGRAM_TOKEN, telegram_chat_ids
+from config import SIGNALS_ONLY_TELEGRAM, TELEGRAM_TOKEN, telegram_chat_ids
 from risk import TradeLevels
 
 logger = logging.getLogger(__name__)
@@ -30,31 +30,29 @@ class Signal:
 
 
 def format_signal_message(signal: Signal) -> str:
-    """Professional trader-style alert: Stock, Entry, SL, Best Target."""
     sym = html.escape(signal.symbol)
-    strat = html.escape(signal.strategy)
     ts = html.escape(signal.timestamp or "")
     lv = signal.levels
+    target = lv.primary_target
 
     if signal.kind == "EXIT":
-        side_label = "EXIT / BOOK PROFIT" if signal.side == "SELL" else "EXIT POSITION"
-        emoji = "🏁"
         return (
-            f"{emoji} <b>{side_label}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"📌 <b>Stock:</b> {sym} <i>(NSE)</i>\n"
-            f"📊 <b>Strategy:</b> {strat}\n"
-            f"🕐 <b>Time:</b> {ts}\n\n"
-            f"💵 <b>Exit near:</b> ₹{lv.entry:,.2f}\n\n"
-            f"📋 <b>Action:</b> {html.escape(signal.note or 'Close the open position.')}\n"
-            f"━━━━━━━━━━━━━━━━━━━━"
+            f"🏁 <b>EXIT {sym}</b>\n"
+            f"₹{lv.entry:,.2f}  ·  {ts}"
         )
 
     is_buy = signal.side == "BUY"
     emoji = "🟢" if is_buy else "🔴"
-    action = "BUY (LONG)" if is_buy else "SELL (SHORT)"
-    best = lv.primary_target
+    action = "BUY" if is_buy else "SELL"
 
+    if SIGNALS_ONLY_TELEGRAM:
+        return (
+            f"{emoji} <b>{action} {sym}</b>\n"
+            f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
+            f"<i>1:{lv.risk_reward_best} R:R  ·  {ts}</i>"
+        )
+
+    strat = html.escape(signal.strategy)
     lines = [
         f"{emoji} <b>INTRADAY {action}</b>",
         "━━━━━━━━━━━━━━━━━━━━",
@@ -66,23 +64,14 @@ def format_signal_message(signal: Signal) -> str:
         "",
         f"💰 <b>ENTRY:</b> ₹{lv.entry:,.2f}",
         f"🛑 <b>STOP LOSS:</b> ₹{lv.stop_loss:,.2f}",
-        f"🎯 <b>BEST TARGET:</b> ₹{best:,.2f} "
-        f"<i>(+{lv.target_profit_pct(signal.side):.2f}% | 1:{lv.rr_best} R:R)</i>",
+        f"🎯 <b>TARGET:</b> ₹{target:,.2f} "
+        f"<i>(+{lv.target_profit_pct(signal.side):.2f}% | 1:{lv.risk_reward_best})</i>",
         f"📈 <b>T1:</b> ₹{lv.target_1:,.2f}",
-        f"📈 <b>T2:</b> ₹{lv.target_2:,.2f}",
         "",
-        f"⚖️ <b>Risk:</b> ₹{lv.risk:,.2f} ({lv.risk_pct}%)",
-        f"✅ <b>Reward (best):</b> ₹{abs(best - lv.entry):,.2f}",
-        f"📐 <b>R:R</b> = 1 : {lv.risk_reward_best}",
-        "",
-        "<b>📋 Trade plan</b>",
-        "• Honor stop loss — no averaging down",
-        "• Book 40–50% at T1, rest toward best target",
-        f"• {html.escape(lv.trailing_note)}",
-        "• <b>Square off ALL intraday positions by 3:30 PM IST</b>",
+        "<i>Book 70% at T1 · trail runner · exit by 3:30 PM IST</i>",
     ]
     if signal.note:
-        lines.extend(["", f"<b>Setup:</b> {html.escape(signal.note)}"])
+        lines.extend(["", html.escape(signal.note)])
     lines.append("━━━━━━━━━━━━━━━━━━━━")
     return "\n".join(lines)
 
@@ -133,8 +122,7 @@ def send_telegram(message: str, *, html_mode: bool = True) -> bool:
 def send_signal(signal: Signal) -> bool:
     body = format_signal_message(signal)
     logger.info(
-        "Signal | %s | %s | %s | Entry=%s SL=%s Target=%s",
-        signal.strategy,
+        "Signal | %s %s | Entry=%s SL=%s Target=%s",
         signal.symbol,
         signal.side,
         signal.levels.entry,

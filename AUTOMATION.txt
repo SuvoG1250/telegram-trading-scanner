@@ -40,9 +40,10 @@ COMMANDS
 
 TELEGRAM
 --------
-  • 2 of 6 strategies agree + min 1% target profit → BUY/SELL alert
-  • No setup → "No signal right now"
-  • Once per day → "Auto Trading Bot — RUNNING"
+  • BUY/SELL signals → instant (Chaitu50c, Nifty 500, 0.6% max SL, 1:2 R:R)
+  • Pre-market report → ~9:10–9:26 IST
+  • Session START / STOP → market open / after 3:30 PM IST
+  • Bot RUNNING ping → ~30 min after session start (signals not delayed)
 
 NOTE: cron-job.org free tier = 100 API calls/day (~78 scans/day fits).
 
