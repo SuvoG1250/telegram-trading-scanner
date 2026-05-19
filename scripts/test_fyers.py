@@ -31,13 +31,21 @@ def main() -> int:
     print("FYERS_APP_ID:", "set" if FYERS_APP_ID else "MISSING")
     print("FYERS_ACCESS_TOKEN:", "set" if FYERS_ACCESS_TOKEN else "MISSING")
     if not FYERS_APP_ID or not FYERS_ACCESS_TOKEN:
-        print("\nAdd FYERS_APP_ID (e.g. MKBRXHLH5S-100) and FYERS_ACCESS_TOKEN from Fyers login flow.")
-        print("See: https://myapi.fyers.in/docsv3 (generate authcode -> validate -> access_token)")
+        print("\nAdd FYERS_APP_ID and FYERS_ACCESS_TOKEN.")
+        print("Run:  python scripts/fyers_login.py")
+        print("Docs: https://myapi.fyers.in/docsv3")
+        return 1
+    tok = FYERS_ACCESS_TOKEN.strip()
+    if "..." in tok or "from_validate" in tok.lower() or len(tok) < 20:
+        print("\nFYERS_ACCESS_TOKEN looks like a placeholder, not a real token.")
+        print("Run:  python scripts/fyers_login.py")
         return 1
     if verify_fyers():
         print("OK Fyers index quote / auth")
     else:
-        print("FAIL Fyers verify (check token and API permissions: Quotes & Market data)")
+        print("FAIL Fyers verify — token invalid or expired (code -15).")
+        print("  Run:  python scripts/fyers_login.py")
+        print("  Ensure FYERS_REDIRECT_URI in .env matches the app Redirect URL exactly.")
         return 1
     exp = _nifty_weekly_expiry_date()
     sym = build_fyers_nifty_option_symbol(exp, 24500, "CE")

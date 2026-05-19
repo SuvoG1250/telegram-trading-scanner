@@ -34,6 +34,7 @@ One-time setup (5 minutes):
    python scripts/rebuild_watchlist.py       # F&O cache + filtered watchlist
    python scripts/setup_github_secrets.py    # push secrets to GitHub Actions
    python scripts/setup_cron_job_org.py      # create/update cron job
+   python scripts/fyers_login.py             # browser login → FYERS_ACCESS_TOKEN
    python scripts/test_fyers.py               # optional — Fyers option quotes
 
 6. Verify live scan
