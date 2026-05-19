@@ -42,6 +42,11 @@ jobs:
       UPSTOX_API_KEY: ${{ secrets.UPSTOX_API_KEY }}
       UPSTOX_API_SECRET: ${{ secrets.UPSTOX_API_SECRET }}
       OPTION_DATA_PROVIDER: upstox
+      USE_TRADE_FILTERS: "true"
+      REQUIRE_FNO_ELIGIBLE: "true"
+      REQUIRE_INTRADAY_MARGIN: "true"
+      MIN_STOCK_MOVE_POTENTIAL_PCT: "5"
+      MIN_TARGET_PROFIT_PCT: "5"
       SCANNER_DATA_DIR: data
       GITHUB_EVENT_NAME: ${{ github.event_name }}
       GITHUB_ACTIONS: "true"

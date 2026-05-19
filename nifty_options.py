@@ -15,6 +15,7 @@ import yfinance as yf
 
 from config import (
     MIN_RISK_REWARD_PLAYBOOK,
+    MIN_TARGET_PROFIT_PCT,
     NIFTY_OPTION_PREMIUM_ATR_FACTOR,
     NIFTY_OPTION_PREMIUM_SL_PCT,
     NIFTY_OPTIONS_ENABLED,
@@ -134,6 +135,14 @@ def scan_nifty_supertrend_option() -> Signal | None:
         premium = _estimate_atm_premium(spot, atr_val)
 
     levels = _option_levels(premium)
+    profit_pct = levels.target_profit_pct("BUY")
+    if profit_pct < MIN_TARGET_PROFIT_PCT:
+        logger.info(
+            "Skip NIFTY option — premium target %.1f%% below min %.1f%%.",
+            profit_pct,
+            MIN_TARGET_PROFIT_PCT,
+        )
+        return None
     idx_sl, idx_target = _underlying_targets(spot, st_line, flip)
 
     action = "BUY CALL" if flip == "CALL" else "BUY PUT"

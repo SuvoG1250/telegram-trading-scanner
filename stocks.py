@@ -167,6 +167,9 @@ ALL_SECTORS: list[str] = [
 
 
 _NIFTY_500_CACHE: list[str] | None = None
+_FNO_CACHE: set[str] | None = None
+
+_NSE_FNO_API = "https://www.nseindia.com/api/equity-stockIndices?index=SECURITIES%20IN%20F%26O"
 
 _NIFTY500_CSV_URL = (
     "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
@@ -216,6 +219,76 @@ def load_nifty500_symbols() -> list[str]:
     return _NIFTY_500_CACHE
 
 
+def _load_fno_from_nse_api() -> set[str]:
+    import json
+    import logging
+    import urllib.request
+
+    logger = logging.getLogger(__name__)
+    try:
+        req = urllib.request.Request(
+            _NSE_FNO_API,
+            headers={
+                "User-Agent": "Mozilla/5.0 (compatible; NSE-Scanner/1.0)",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = json.loads(resp.read())
+        rows = body.get("data") or []
+        syms = {
+            str(row.get("symbol", "")).strip().upper()
+            for row in rows
+            if row.get("symbol")
+        }
+        syms.discard("")
+        if syms:
+            return syms
+    except Exception:
+        logger.warning("Could not fetch NSE F&O list from API.")
+    return set()
+
+
+def _save_fno_cache(symbols: set[str]) -> None:
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / "data" / "fno_symbols.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(symbols), indent=2), encoding="utf-8")
+
+
+def load_fno_symbols(*, refresh: bool = False) -> set[str]:
+    """NSE F&O underlying symbols (cached in data/fno_symbols.json)."""
+    global _FNO_CACHE
+    if _FNO_CACHE is not None and not refresh:
+        return _FNO_CACHE
+
+    import json
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / "data" / "fno_symbols.json"
+    if path.is_file() and not refresh:
+        try:
+            loaded = set(json.loads(path.read_text(encoding="utf-8")))
+            if loaded:
+                _FNO_CACHE = loaded
+                return _FNO_CACHE
+        except Exception:
+            pass
+
+    syms = _load_fno_from_nse_api()
+    if not syms:
+        syms = set(NIFTY_100_SYMBOLS)
+    _save_fno_cache(syms)
+    _FNO_CACHE = syms
+    return _FNO_CACHE
+
+
+def is_fno_eligible(symbol: str) -> bool:
+    return symbol.upper() in load_fno_symbols()
+
+
 def get_scan_universe() -> list[str]:
     """Intraday scan universe — Nifty 500 when CSV present, else Nifty 100."""
     from config import SCAN_UNIVERSE_MODE
@@ -223,6 +296,13 @@ def get_scan_universe() -> list[str]:
     if SCAN_UNIVERSE_MODE == "nifty500":
         return load_nifty500_symbols()
     return list(NIFTY_100_SYMBOLS)
+
+
+def get_tradeable_universe() -> list[str]:
+    """Nifty universe intersected with F&O underlyings (before move/liquidity filters)."""
+    base = set(get_scan_universe())
+    fno = load_fno_symbols()
+    return sorted(base & fno)
 
 
 def to_yfinance_symbol(symbol: str) -> str:

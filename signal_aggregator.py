@@ -8,7 +8,8 @@ import logging
 import statistics
 from dataclasses import dataclass, field
 
-from config import MIN_STRATEGIES_TO_CONFIRM, MIN_TARGET_PROFIT_PCT, SIGNALS_ONLY_TELEGRAM
+from config import MIN_STRATEGIES_TO_CONFIRM, SIGNALS_ONLY_TELEGRAM
+from trade_filters import min_equity_target_profit_pct
 from market_time import now_ist
 from risk import TradeLevels, clamp_levels_to_playbook
 from telegram_client import Signal
@@ -172,13 +173,14 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
         return None
 
     profit_pct = levels.target_profit_pct(side)
-    if profit_pct < MIN_TARGET_PROFIT_PCT:
+    min_profit = min_equity_target_profit_pct()
+    if profit_pct < min_profit:
         logger.info(
             "Skip %s %s — target profit %.2f%% below minimum %.2f%%.",
             group[0].symbol,
             side,
             profit_pct,
-            MIN_TARGET_PROFIT_PCT,
+            min_profit,
         )
         return None
 

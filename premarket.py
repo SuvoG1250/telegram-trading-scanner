@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from config import (
+    MIN_STOCK_MOVE_POTENTIAL_PCT,
     SCAN_FULL_UNIVERSE,
     SEND_LONG_TERM_PICKS_DAILY,
     WATCHLIST_MAX,
@@ -17,7 +18,9 @@ from playbook_selection import build_playbook_watchlist
 from sector_map import group_rows_by_sector, sector_for
 from sector_overview import format_sector_overview_block
 from state import long_term_picks_sent, mark_long_term_picks_sent
-from stocks import get_scan_universe
+from config import USE_TRADE_FILTERS
+from stocks import get_scan_universe, get_tradeable_universe
+from trade_filters import filter_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +76,13 @@ def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[d
         from config import SCAN_ALL_UNIVERSE_INTRADAY
 
         if SCAN_ALL_UNIVERSE_INTRADAY:
-            universe = get_scan_universe()
+            universe = get_tradeable_universe() if USE_TRADE_FILTERS else get_scan_universe()
+            if USE_TRADE_FILTERS:
+                universe = filter_symbols(universe)
             logger.info(
-                "Intraday scan: full universe (%s symbols); playbook highlights=%s",
+                "Intraday scan: %s symbols (filters=%s); playbook highlights=%s",
                 len(universe),
+                USE_TRADE_FILTERS,
                 len(selected),
             )
             return universe, ranked
@@ -89,8 +95,8 @@ def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[d
 def format_watchlist_message(rows: list[dict]) -> str:
     lines = [
         f"📋 <b>Master Intraday Playbook</b> ({now_ist().strftime('%d %b %Y %H:%M IST')})",
-        f"<i>Playbook highlights below; intraday scan runs on <b>full Nifty 500</b> when enabled. "
-        f"A: Dhan ScanX &amp; E: ClearTrend = manual add-ons.</i>",
+        f"<i>Playbook highlights below. Intraday scan: <b>F&amp;O + MIS + ~{MIN_STOCK_MOVE_POTENTIAL_PCT:.0f}% move potential</b> "
+        f"(when filters on). A: Dhan ScanX &amp; E: ClearTrend = manual.</i>",
         "",
         "<b>Module 1 — Selection tags</b>",
     ]
@@ -119,7 +125,7 @@ def format_watchlist_message(rows: list[dict]) -> str:
             "• <b>Setup 2</b>: 5m/15m price action from 10:30 (no overlap with Setup 1)",
             "• <b>Setup 3</b>: Chaitu50c single/double candle break (9:15–15:25, chart interval configurable)",
             "",
-            "<b>Module 3 — Risk</b>: max SL 0.6% | min 1:2 R:R | 70/30 + 10 EMA runner rules in each alert.",
+            "<b>Module 3 — Risk</b>: max SL 0.6% | min 1:2 R:R | alerts only F&amp;O + MIS + high-range names.",
         ]
     )
 

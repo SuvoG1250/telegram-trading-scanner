@@ -10,13 +10,17 @@ import sys
 from boot_alerts import try_send_delayed_boot
 from config import (
     LOCK_WATCHLIST_FOR_DAY,
+    MIN_STOCK_MOVE_POTENTIAL_PCT,
     MIN_TARGET_PROFIT_PCT,
     NO_SIGNAL_STATUS_ON_AUTO_SCAN,
+    REQUIRE_FNO_ELIGIBLE,
     SCAN_FULL_UNIVERSE,
     SCAN_STRATEGIES,
     SEND_PREMARKET_REPORT,
     SIGNALS_ONLY_TELEGRAM,
+    USE_TRADE_FILTERS,
 )
+from trade_filters import filter_symbols, passes_trade_filters
 from data_fetcher import clear_session_cache
 from market_time import is_market_open, is_new_trade_window, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
@@ -60,6 +64,11 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
     sent_signals: list[Signal] = []
 
     for symbol in watchlist:
+        if USE_TRADE_FILTERS:
+            ok, reason = passes_trade_filters(symbol)
+            if not ok:
+                logger.debug("Skip %s — %s", symbol, reason)
+                continue
         raw = collect_raw_signals(symbol, STRATEGY_SCANNERS, STRATEGY_NAMES)
         if not raw:
             continue
@@ -157,10 +166,13 @@ def main() -> int:
 
     mode = "signals-only" if SIGNALS_ONLY_TELEGRAM else "verbose"
     logger.info(
-        "Scan %s IST | %s | strategy=%s | min target %.1f%%",
+        "Scan %s IST | %s | strategy=%s | filters=%s F&O=%s | min move %.1f%% | opt target %.1f%%",
         now_ist().strftime("%H:%M"),
         mode,
         SCAN_STRATEGIES,
+        USE_TRADE_FILTERS,
+        REQUIRE_FNO_ELIGIBLE,
+        MIN_STOCK_MOVE_POTENTIAL_PCT,
         MIN_TARGET_PROFIT_PCT,
     )
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from config import MAX_SL_PCT_PLAYBOOK, MIN_TARGET_PROFIT_PCT
+from config import MAX_SL_PCT_PLAYBOOK
+from trade_filters import min_equity_target_profit_pct
 from market_time import now_ist
 from risk import TradeLevels, levels_for_long, levels_for_short, levels_playbook
 from telegram_client import Signal
@@ -55,7 +56,7 @@ def validate_plan(plan: TradePlan) -> bool:
     if lv.risk_pct > MAX_SL_PCT_PLAYBOOK * 1.05:
         return False
     profit_pct = lv.target_profit_pct(plan.side)
-    if profit_pct < MIN_TARGET_PROFIT_PCT:
+    if profit_pct < min_equity_target_profit_pct():
         return False
     return True
 

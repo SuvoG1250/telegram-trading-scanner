@@ -87,8 +87,14 @@ def format_signal_message(signal: Signal) -> str:
     action = "BUY" if is_buy else "SELL"
 
     if SIGNALS_ONLY_TELEGRAM:
+        from config import USE_TRADE_FILTERS
+        from stocks import is_fno_eligible
+
+        tags = ""
+        if USE_TRADE_FILTERS and is_fno_eligible(signal.symbol):
+            tags = "  ·  <i>F&amp;O · MIS</i>"
         return (
-            f"{emoji} <b>{action} {sym}</b>\n"
+            f"{emoji} <b>{action} {sym}</b>{tags}\n"
             f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
             f"<i>1:{lv.risk_reward_best} R:R  ·  {ts}</i>"
         )

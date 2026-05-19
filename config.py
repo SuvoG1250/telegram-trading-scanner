@@ -80,7 +80,27 @@ SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true"
 # Master playbook: two execution modules — either can trigger an alert
 MIN_STRATEGIES_TO_CONFIRM = 1
 # Minimum profit % to best target (entry → target) required to send alert
-MIN_TARGET_PROFIT_PCT = 1.0
+MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "5.0"))
+# Cash equity playbook caps SL at 0.6% — best target ~1.2% at 1:2 R:R
+MIN_EQUITY_TARGET_PROFIT_PCT = float(os.environ.get("MIN_EQUITY_TARGET_PROFIT_PCT", "1.0"))
+# Only alert names that often trade with enough range for ~5% intraday moves
+MIN_STOCK_MOVE_POTENTIAL_PCT = float(os.environ.get("MIN_STOCK_MOVE_POTENTIAL_PCT", "5.0"))
+REQUIRE_FNO_ELIGIBLE = os.environ.get("REQUIRE_FNO_ELIGIBLE", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+REQUIRE_INTRADAY_MARGIN = os.environ.get("REQUIRE_INTRADAY_MARGIN", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+APPLY_QUALITY_FILTER = os.environ.get("APPLY_QUALITY_FILTER", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+USE_TRADE_FILTERS = os.environ.get("USE_TRADE_FILTERS", "true").lower() in ("1", "true", "yes")
 # Module 3 — universal risk (cash equity)
 MAX_SL_PCT_PLAYBOOK = 0.6  # % of price — stop may not be wider than this
 MIN_RISK_REWARD_PLAYBOOK = 2.0  # minimum 1:2 to best target

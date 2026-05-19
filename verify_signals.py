@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import sys
 
-from config import MIN_TARGET_PROFIT_PCT
+from trade_filters import min_equity_target_profit_pct
 from signal_builder import (
     entry_long,
     playbook_entry_long,
@@ -37,7 +37,7 @@ def test_playbook_builder() -> bool:
         print("FAIL should reject invalid long SL")
         ok = False
     wide = entry_long("X", "Test", 1000.0, 994.5, rr1=2.0, rr2=2.0, best_rr=2.0)
-    if wide is None or wide.levels.target_profit_pct("BUY") < MIN_TARGET_PROFIT_PCT:
+    if wide is None or wide.levels.target_profit_pct("BUY") < min_equity_target_profit_pct():
         print("FAIL legacy entry should pass profit rule when RR is wide enough")
         ok = False
     too_wide = entry_long("X", "Test", 1000.0, 990.0, rr1=2.0, rr2=2.0, best_rr=2.0)
