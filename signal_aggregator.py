@@ -8,7 +8,7 @@ import logging
 import statistics
 from dataclasses import dataclass, field
 
-from config import MIN_STRATEGIES_TO_CONFIRM, SIGNALS_ONLY_TELEGRAM
+from config import EMA_MIN_TARGET_PROFIT_PCT, MIN_STRATEGIES_TO_CONFIRM, SIGNALS_ONLY_TELEGRAM
 from trade_filters import min_equity_target_profit_pct
 from market_time import now_ist
 from risk import TradeLevels, clamp_levels_to_playbook
@@ -21,6 +21,7 @@ ENTRY_STRATEGIES = {
     "Setup 2: Core Price Action (5m/15m)",
     "Setup 3: Chaitu50c BUY/SELL",
     "Chaitu50c",
+    "EMA 9/15 Crossover",
 }
 
 
@@ -33,12 +34,17 @@ class ConfirmedSignal:
     notes: list[str] = field(default_factory=list)
     confidence: str = "MEDIUM"
     kind: str = "ENTRY"
+    risk_mode: str = "playbook"
+    suggested_qty: int = 0
 
     def to_telegram_signal(self) -> Signal:
         ts = now_ist().strftime("%d %b %Y, %H:%M IST")
         if SIGNALS_ONLY_TELEGRAM:
             label = "Chaitu50c"
             for s in self.strategies:
+                if "EMA" in s:
+                    label = "9/15 EMA"
+                    break
                 if "Chaitu" in s:
                     label = "Chaitu50c"
                     break
@@ -55,6 +61,8 @@ class ConfirmedSignal:
                 kind=self.kind,  # type: ignore[arg-type]
                 timeframe="",
                 timestamp=ts,
+                risk_mode=self.risk_mode,
+                suggested_qty=self.suggested_qty,
             )
         strat_label = " + ".join(self.strategies)
         note_parts = [f"Confirmed by {len(self.strategies)} strategy(s): {strat_label}."]
@@ -167,13 +175,20 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
     if levels is None:
         return None
 
-    levels = clamp_levels_to_playbook(levels, side)
+    ema_mode = all(getattr(s, "risk_mode", "playbook") == "ema" for s in group)
+    if ema_mode:
+        from risk import levels_ema_crossover
+
+        levels = levels_ema_crossover(levels.entry, levels.stop_loss, side)
+        min_profit = EMA_MIN_TARGET_PROFIT_PCT
+    else:
+        levels = clamp_levels_to_playbook(levels, side)
+        min_profit = min_equity_target_profit_pct()
     if levels is None:
-        logger.info("Skip %s %s — playbook risk clamp rejected merged levels.", group[0].symbol, side)
+        logger.info("Skip %s %s — risk clamp rejected merged levels.", group[0].symbol, side)
         return None
 
     profit_pct = levels.target_profit_pct(side)
-    min_profit = min_equity_target_profit_pct()
     if profit_pct < min_profit:
         logger.info(
             "Skip %s %s — target profit %.2f%% below minimum %.2f%%.",
@@ -193,6 +208,8 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
         notes=[s.note for s in group if s.note][:4],
         confidence=confidence,
         kind="ENTRY",
+        risk_mode=getattr(group[0], "risk_mode", "playbook"),
+        suggested_qty=max((getattr(s, "suggested_qty", 0) for s in group), default=0),
     )
 
 

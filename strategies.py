@@ -17,7 +17,22 @@ import logging
 import pandas as pd
 
 from chaitu50c import ChaituParams, replay_last_bar_signal
-from config import CHAITU_ENHANCED_MODE, CHAITU_INTERVAL, SCAN_STRATEGIES, SIGNALS_ONLY_TELEGRAM
+from config import (
+    CHAITU_ENHANCED_MODE,
+    CHAITU_INTERVAL,
+    EMA_INTERVAL,
+    EMA_SLOW,
+    EMA_VOLUME_MULTIPLIER,
+    RISK_PER_TRADE_INR,
+    SCAN_STRATEGIES,
+    SIGNALS_ONLY_TELEGRAM,
+)
+from ema_crossover import (
+    add_emas,
+    crossover_signal,
+    multi_day_volume_spike,
+    position_quantity,
+)
 from data_fetcher import Interval, get_today_session
 from market_time import (
     is_chaitu_session,
@@ -26,7 +41,7 @@ from market_time import (
     is_morning_1m_playbook_window,
     now_ist,
 )
-from signal_builder import playbook_entry_long, playbook_entry_short
+from signal_builder import ema_entry_long, ema_entry_short, playbook_entry_long, playbook_entry_short
 from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
@@ -207,12 +222,62 @@ def setup_3_chaitu50c_breakout(symbol: str) -> Signal | None:
     )
 
 
+def setup_4_ema_crossover(symbol: str) -> Signal | None:
+    """
+    Setup 4 — 9 EMA crosses 15 EMA on 5m with volume momentum.
+    SL: previous candle low/high. Target: 2–3% (low risk, max 0.5% SL).
+    """
+    if not is_market_open() or not is_chaitu_session():
+        return None
+
+    interval: Interval = EMA_INTERVAL if EMA_INTERVAL in ("1m", "3m", "5m", "15m") else "5m"
+    session = _session_interval(symbol, interval)
+    if len(session) < max(EMA_SLOW, 20) + 2:
+        return None
+
+    if not multi_day_volume_spike(symbol):
+        return None
+
+    df = add_emas(session)
+    side = crossover_signal(df)
+    if side is None:
+        return None
+
+    prev = df.iloc[-2]
+    cur = df.iloc[-1]
+    entry = float(cur["Close"])
+    strategy = "EMA 9/15 Crossover"
+    tf = interval.upper().replace("M", " Min")
+    note = "" if SIGNALS_ONLY_TELEGRAM else (
+        f"Volume > {EMA_VOLUME_MULTIPLIER}x avg · {STANDARD_EXIT}"
+    )
+
+    if side == "BUY":
+        sl = float(prev["Low"])
+        qty = position_quantity(entry, sl, RISK_PER_TRADE_INR)
+        return ema_entry_long(symbol, strategy, entry, sl, note=note, timeframe=tf, suggested_qty=qty)
+
+    sl = float(prev["High"])
+    qty = position_quantity(entry, sl, RISK_PER_TRADE_INR)
+    return ema_entry_short(symbol, strategy, entry, sl, note=note, timeframe=tf, suggested_qty=qty)
+
+
 _ALL_SCANNERS = [
     setup_1_morning_1m_breakout,
     setup_2_core_price_action_5m_15m,
     setup_3_chaitu50c_breakout,
+    setup_4_ema_crossover,
 ]
 _CHAITU_ONLY = [setup_3_chaitu50c_breakout]
+_EMA_ONLY = [setup_4_ema_crossover]
 
-STRATEGY_SCANNERS = _ALL_SCANNERS if SCAN_STRATEGIES == "all" else _CHAITU_ONLY
+if SCAN_STRATEGIES == "all":
+    STRATEGY_SCANNERS = _ALL_SCANNERS
+elif SCAN_STRATEGIES == "both":
+    STRATEGY_SCANNERS = _CHAITU_ONLY + _EMA_ONLY
+elif SCAN_STRATEGIES == "ema":
+    STRATEGY_SCANNERS = _EMA_ONLY
+else:
+    STRATEGY_SCANNERS = _CHAITU_ONLY
+
 STRATEGY_NAMES = [fn.__name__ for fn in STRATEGY_SCANNERS]

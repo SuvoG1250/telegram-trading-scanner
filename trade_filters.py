@@ -99,3 +99,9 @@ def filter_symbols(symbols: list[str]) -> list[str]:
 def min_equity_target_profit_pct() -> float:
     """Playbook caps SL at 0.6%% — best target is ~1.2%% at 1:2 R:R."""
     return MIN_EQUITY_TARGET_PROFIT_PCT
+
+
+def min_ema_target_profit_pct() -> float:
+    from config import EMA_MIN_TARGET_PROFIT_PCT
+
+    return EMA_MIN_TARGET_PROFIT_PCT

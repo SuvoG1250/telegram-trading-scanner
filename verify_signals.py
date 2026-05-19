@@ -16,6 +16,8 @@ import pandas as pd
 from chaitu50c import ChaituParams, replay_last_bar_signal
 from config import SCAN_STRATEGIES
 from indicators import supertrend_flip_pine
+from ema_crossover import add_emas, crossover_signal
+from risk import levels_ema_crossover
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 
 
@@ -89,11 +91,53 @@ def test_supertrend_flip() -> bool:
     return True
 
 
+def test_ema_crossover() -> bool:
+    ist = "Asia/Kolkata"
+    idx = pd.DatetimeIndex(
+        [f"2026-05-19 10:{m:02d}:00" for m in range(20)],
+        tz=ist,
+    )
+    close = [100 + i * 0.1 for i in range(20)]
+    session = pd.DataFrame(
+        {
+            "Open": close,
+            "High": [c + 0.5 for c in close],
+            "Low": [c - 0.5 for c in close],
+            "Close": close,
+            "Volume": [1_000_000] * 20,
+        },
+        index=idx,
+    )
+    session.iloc[-2, session.columns.get_loc("Close")] = 98.0
+    session.iloc[-1, session.columns.get_loc("Close")] = 102.0
+    df = add_emas(session)
+    df.iloc[-2, df.columns.get_loc("EMA_Fast")] = 99.0
+    df.iloc[-2, df.columns.get_loc("EMA_Slow")] = 100.0
+    df.iloc[-1, df.columns.get_loc("EMA_Fast")] = 101.0
+    df.iloc[-1, df.columns.get_loc("EMA_Slow")] = 100.0
+    if crossover_signal(df) != "BUY":
+        print("FAIL ema crossover BUY")
+        return False
+    lv = levels_ema_crossover(102.0, 98.5, "BUY")
+    if lv is None or lv.target_profit_pct("BUY") < 2.0:
+        print("FAIL ema levels min 2% profit")
+        return False
+    if lv.risk_pct > 0.55:
+        print("FAIL ema SL should be low risk <=0.5%")
+        return False
+    return True
+
+
 def test_strategies_import() -> bool:
     print(f"Playbook modules ({len(STRATEGY_SCANNERS)}):")
     for name in STRATEGY_NAMES:
         print(f"  OK {name}")
-    expected = 3 if SCAN_STRATEGIES == "all" else 1
+    expected = {
+        "all": 4,
+        "both": 2,
+        "ema": 1,
+        "chaitu": 1,
+    }.get(SCAN_STRATEGIES, 1)
     return len(STRATEGY_SCANNERS) == expected
 
 
@@ -108,6 +152,9 @@ def main() -> int:
     if not test_supertrend_flip():
         return 1
     print("OK Nifty Supertrend flip (CALL/PUT)\n")
+    if not test_ema_crossover():
+        return 1
+    print("OK EMA 9/15 crossover + 2-3% target\n")
     if not test_strategies_import():
         return 1
     print("\nOK Strategy scanners registered")

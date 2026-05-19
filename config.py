@@ -70,8 +70,18 @@ SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
 )
 SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "true").lower() in ("1", "true", "yes")
 BOOT_DELAY_MINUTES = int(os.environ.get("BOOT_DELAY_MINUTES", "30"))
-# chaitu = Chaitu50c on full universe (fast); all = playbook setups 1–2 + Chaitu
-SCAN_STRATEGIES = os.environ.get("SCAN_STRATEGIES", "chaitu").lower()
+# ema = 9/15 EMA crossover (default) | chaitu | all | both (chaitu + ema)
+SCAN_STRATEGIES = os.environ.get("SCAN_STRATEGIES", "ema").lower()
+# 9/15 EMA crossover (5m)
+EMA_FAST = int(os.environ.get("EMA_FAST", "9"))
+EMA_SLOW = int(os.environ.get("EMA_SLOW", "15"))
+EMA_INTERVAL = os.environ.get("EMA_INTERVAL", "5m")
+EMA_VOLUME_MULTIPLIER = float(os.environ.get("EMA_VOLUME_MULTIPLIER", "1.5"))
+EMA_MAX_SL_PCT = float(os.environ.get("EMA_MAX_SL_PCT", "0.5"))
+EMA_MIN_TARGET_PROFIT_PCT = float(os.environ.get("EMA_MIN_TARGET_PROFIT_PCT", "2.0"))
+EMA_MAX_TARGET_PROFIT_PCT = float(os.environ.get("EMA_MAX_TARGET_PROFIT_PCT", "3.0"))
+EMA_RISK_REWARD = float(os.environ.get("EMA_RISK_REWARD", "2.0"))
+RISK_PER_TRADE_INR = float(os.environ.get("RISK_PER_TRADE_INR", "1000"))
 SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true").lower() in (
     "1",
     "true",
@@ -80,11 +90,11 @@ SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true"
 # Master playbook: two execution modules — either can trigger an alert
 MIN_STRATEGIES_TO_CONFIRM = 1
 # Minimum profit % to best target (entry → target) required to send alert
-MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "3.0"))
+MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "2.0"))
 # Cash equity playbook caps SL at 0.6% — best target ~1.2% at 1:2 R:R
 MIN_EQUITY_TARGET_PROFIT_PCT = float(os.environ.get("MIN_EQUITY_TARGET_PROFIT_PCT", "1.0"))
-# Only alert names that often trade with enough range for ~3% intraday moves
-MIN_STOCK_MOVE_POTENTIAL_PCT = float(os.environ.get("MIN_STOCK_MOVE_POTENTIAL_PCT", "3.0"))
+# Only alert names that often trade with enough range for ~2–3% intraday moves
+MIN_STOCK_MOVE_POTENTIAL_PCT = float(os.environ.get("MIN_STOCK_MOVE_POTENTIAL_PCT", "2.0"))
 REQUIRE_FNO_ELIGIBLE = os.environ.get("REQUIRE_FNO_ELIGIBLE", "true").lower() in (
     "1",
     "true",

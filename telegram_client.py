@@ -35,6 +35,8 @@ class Signal:
     underlying_sl: float | None = None
     underlying_target: float | None = None
     premium_source: str = "estimate"
+    risk_mode: str = "playbook"
+    suggested_qty: int = 0
 
 
 def _format_option_signal(signal: Signal) -> str:
@@ -90,13 +92,22 @@ def format_signal_message(signal: Signal) -> str:
         from config import USE_TRADE_FILTERS
         from stocks import is_fno_eligible
 
+        from config import RISK_PER_TRADE_INR
+
         tags = ""
         if USE_TRADE_FILTERS and is_fno_eligible(signal.symbol):
             tags = "  ·  <i>F&amp;O · MIS</i>"
+        setup = ""
+        if signal.risk_mode == "ema":
+            setup = "  ·  <i>9/15 EMA</i>"
+        qty_line = ""
+        if signal.suggested_qty > 0:
+            qty_line = f" · Qty <b>{signal.suggested_qty}</b> <i>(₹{RISK_PER_TRADE_INR:,.0f} risk)</i>"
+
         return (
-            f"{emoji} <b>{action} {sym}</b>{tags}\n"
+            f"{emoji} <b>{action} {sym}</b>{tags}{setup}\n"
             f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
-            f"<i>1:{lv.risk_reward_best} R:R  ·  {ts}</i>"
+            f"<i>+{lv.target_profit_pct(signal.side):.2f}% · 1:{lv.risk_reward_best} R:R · SL {lv.risk_pct:.2f}%{qty_line} ·  {ts}</i>"
         )
 
     strat = html.escape(signal.strategy)

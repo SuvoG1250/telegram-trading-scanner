@@ -45,8 +45,12 @@ jobs:
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"
-      MIN_STOCK_MOVE_POTENTIAL_PCT: "3"
-      MIN_TARGET_PROFIT_PCT: "3"
+      SCAN_STRATEGIES: ema
+      MIN_STOCK_MOVE_POTENTIAL_PCT: "2"
+      MIN_TARGET_PROFIT_PCT: "2"
+      EMA_MIN_TARGET_PROFIT_PCT: "2"
+      EMA_MAX_TARGET_PROFIT_PCT: "3"
+      EMA_MAX_SL_PCT: "0.5"
       SCANNER_DATA_DIR: data
       GITHUB_EVENT_NAME: ${{ github.event_name }}
       GITHUB_ACTIONS: "true"

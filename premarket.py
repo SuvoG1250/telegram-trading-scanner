@@ -123,7 +123,8 @@ def format_watchlist_message(rows: list[dict]) -> str:
             "<b>Module 2 — Execution</b>",
             "• <b>Setup 1</b>: 1m morning 9:16–10:30 (pennant break proxy)",
             "• <b>Setup 2</b>: 5m/15m price action from 10:30 (no overlap with Setup 1)",
-            "• <b>Setup 3</b>: Chaitu50c single/double candle break (9:15–15:25, chart interval configurable)",
+            "• <b>Setup 3</b>: Chaitu50c single/double candle break (9:15–15:25)",
+            "• <b>Setup 4</b>: 9/15 EMA crossover on 5m + volume (2–3% target, 0.5% max SL)",
             "",
             "<b>Module 3 — Risk</b>: max SL 0.6% | min 1:2 R:R | alerts only F&amp;O + MIS + high-range names.",
         ]
