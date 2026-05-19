@@ -54,6 +54,25 @@ def main() -> int:
         print("FYERS_SECRET_KEY still looks like a placeholder — use the real Secret from Fyers dashboard.")
         return 1
 
+    print()
+    print("=" * 72)
+    print("FYERS REDIRECT — fix \"redirectUrl mismatch\"")
+    print("=" * 72)
+    print("This string is sent to Fyers as redirect_uri (must match app settings EXACTLY):")
+    print(f"  {redirect!r}")
+    print()
+    print("Do ONE of these (same text in both places):")
+    print("  A) In browser: https://myapi.fyers.in/dashboard → your app → Edit")
+    print("     Paste the line above into \"Redirect URL\" → Save.")
+    print("  B) Or copy Redirect URL FROM that page INTO .env as FYERS_REDIRECT_URI=...")
+    print()
+    print("Typical values (pick the one that matches your app, or align app to this):")
+    print("  https://trade.fyers.in/api-login/redirect-uri/index.html")
+    print("  https://127.0.0.1")
+    print("Check: https not http, hyphens api-login not spaces, no extra trailing / unless app has it.")
+    print("=" * 72)
+    print()
+
     q = urllib.parse.urlencode(
         {
             "client_id": app_id,
@@ -65,13 +84,7 @@ def main() -> int:
     auth_url = f"{FYERS_API}/generate-authcode?{q}"
 
     print("--- Step 1 ---")
-    print("redirectUrl mismatch = the line below must match Fyers My API → your app → Redirect URL EXACTLY.")
-    print("If it does not, set FYERS_REDIRECT_URI in .env to that exact URL (https vs http, trailing slash, path).")
-    print()
-    print("Using redirect_uri for this login link:")
-    print(f"  {redirect}")
-    print()
-    print("Open this URL in your browser, log in, approve the app:")
+    print("Open ONLY this link (do not open the redirect page by itself first):")
     print(auth_url)
     print()
     print("--- Step 2 ---")
