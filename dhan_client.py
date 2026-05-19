@@ -12,15 +12,26 @@ import requests
 from config import (
     DHAN_ACCESS_TOKEN,
     DHAN_CLIENT_ID,
+    DHAN_SANDBOX,
     NIFTY_UNDERLYING_SCRIP,
     NIFTY_UNDERLYING_SEG,
 )
 
 logger = logging.getLogger(__name__)
 
-DHAN_BASE = "https://api.dhan.co/v2"
+DHAN_BASE_LIVE = "https://api.dhan.co/v2"
+DHAN_BASE_SANDBOX = "https://sandbox.dhan.co/v2"
 _LAST_CHAIN_AT = 0.0
 _CHAIN_MIN_INTERVAL = 3.1
+
+
+def dhan_base_url() -> str:
+    return DHAN_BASE_SANDBOX if DHAN_SANDBOX else DHAN_BASE_LIVE
+
+
+def dhan_option_chain_available() -> bool:
+    """Live option chain requires production token + Data API plan."""
+    return dhan_configured() and not DHAN_SANDBOX
 
 
 @dataclass
@@ -53,7 +64,7 @@ def _post(path: str, payload: dict) -> dict | None:
         return None
     try:
         resp = requests.post(
-            f"{DHAN_BASE}{path}",
+            f"{dhan_base_url()}{path}",
             headers=_headers(),
             json=payload,
             timeout=30,
@@ -143,7 +154,7 @@ def verify_dhan_profile() -> dict | None:
         return None
     try:
         resp = requests.get(
-            f"{DHAN_BASE}/profile",
+            f"{dhan_base_url()}/profile",
             headers=_headers(),
             timeout=20,
         )
@@ -162,6 +173,9 @@ def fetch_nifty_option_quote(strike: int, option_type: str, expiry: str | None =
     option_type: 'CE' or 'PE'
     """
     if not dhan_configured():
+        return None
+
+    if not dhan_option_chain_available():
         return None
 
     exp = expiry

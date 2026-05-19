@@ -22,10 +22,14 @@ One-time setup (5 minutes):
    GITHUB_PAT=ghp_...
    DHAN_ACCESS_TOKEN=...          # optional — live Nifty option premium
    DHAN_CLIENT_ID=...
+   UPSTOX_ACCESS_TOKEN=...        # Analytics → Generate Token (option chain)
+   UPSTOX_API_KEY=...
+   UPSTOX_API_SECRET=...
 
 5. Run setup (PowerShell):
 
    cd "g:\Code\Telegram Trading bot"
+   python scripts/rebuild_watchlist.py       # F&O cache + filtered watchlist
    python scripts/setup_github_secrets.py    # push secrets to GitHub Actions
    python scripts/setup_cron_job_org.py      # create/update cron job
    python scripts/test_automation.py         # local health check
@@ -63,6 +67,10 @@ GITHUB SECRETS (required for cloud runs)
 ----------------------------------------
   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_GROUP_CHAT_ID
   DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID (optional, for live option premium)
+  UPSTOX_ACCESS_TOKEN, UPSTOX_API_KEY, UPSTOX_API_SECRET (option chain; token required)
+
+WORKFLOW ENV (in auto-trading-bot.yml — no secret needed)
+  USE_TRADE_FILTERS=true, MIN_STOCK_MOVE_POTENTIAL_PCT=3, MIN_TARGET_PROFIT_PCT=3
 
 NOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 
