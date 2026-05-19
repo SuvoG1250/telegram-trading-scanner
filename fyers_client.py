@@ -53,8 +53,12 @@ def fyers_configured() -> bool:
 
 
 def _headers() -> dict[str, str]:
+    app = FYERS_APP_ID.strip()
+    tok = FYERS_ACCESS_TOKEN.strip()
+    if tok.lower().startswith("bearer "):
+        tok = tok[7:].strip()
     return {
-        "Authorization": f"{FYERS_APP_ID}:{FYERS_ACCESS_TOKEN}",
+        "Authorization": f"{app}:{tok}",
         "Content-Type": "application/json",
         "version": "3",
     }

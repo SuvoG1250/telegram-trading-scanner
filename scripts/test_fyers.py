@@ -16,7 +16,7 @@ if _env.exists():
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, _, v = line.partition("=")
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 from config import FYERS_ACCESS_TOKEN, FYERS_APP_ID
 from fyers_client import (
@@ -36,10 +36,19 @@ def main() -> int:
         print("Docs: https://myapi.fyers.in/docsv3")
         return 1
     tok = FYERS_ACCESS_TOKEN.strip()
+    if tok.lower().startswith("bearer "):
+        tok = tok[7:].strip()
+    if "FYERS_ACCESS_TOKEN=" in tok or ("access_token" in tok.lower() and "{" in tok):
+        print("\nPaste only the token string into .env, not the full line or JSON.")
+        print("Example:  FYERS_ACCESS_TOKEN=eyJ...   (one line, no quotes)")
+        return 1
     if "..." in tok or "from_validate" in tok.lower() or len(tok) < 20:
         print("\nFYERS_ACCESS_TOKEN looks like a placeholder, not a real token.")
         print("Run:  python scripts/fyers_login.py")
         return 1
+    aid = FYERS_APP_ID.strip()
+    print(f"FYERS_APP_ID ends with: ...{aid[-8:]}" if len(aid) > 8 else f"FYERS_APP_ID: {aid}")
+    print(f"FYERS_ACCESS_TOKEN length: {len(tok)} chars")
     if verify_fyers():
         print("OK Fyers index quote / auth")
     else:

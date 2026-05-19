@@ -13,7 +13,8 @@ if _env_path.exists():
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+        # Assign so repo `.env` wins over stale shell exports (common Fyers -15 cause).
+        os.environ[key.strip()] = value.strip().strip('"').strip("'")
 
 # Indian market (NSE) session in IST
 MARKET_OPEN_HOUR = 9

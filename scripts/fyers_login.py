@@ -29,7 +29,7 @@ if _env.exists():
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, _, v = line.partition("=")
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 
 FYERS_API = "https://api-t1.fyers.in/api/v3"
