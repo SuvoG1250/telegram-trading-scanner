@@ -80,11 +80,11 @@ SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true"
 # Master playbook: two execution modules — either can trigger an alert
 MIN_STRATEGIES_TO_CONFIRM = 1
 # Minimum profit % to best target (entry → target) required to send alert
-MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "5.0"))
+MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "3.0"))
 # Cash equity playbook caps SL at 0.6% — best target ~1.2% at 1:2 R:R
 MIN_EQUITY_TARGET_PROFIT_PCT = float(os.environ.get("MIN_EQUITY_TARGET_PROFIT_PCT", "1.0"))
-# Only alert names that often trade with enough range for ~5% intraday moves
-MIN_STOCK_MOVE_POTENTIAL_PCT = float(os.environ.get("MIN_STOCK_MOVE_POTENTIAL_PCT", "5.0"))
+# Only alert names that often trade with enough range for ~3% intraday moves
+MIN_STOCK_MOVE_POTENTIAL_PCT = float(os.environ.get("MIN_STOCK_MOVE_POTENTIAL_PCT", "3.0"))
 REQUIRE_FNO_ELIGIBLE = os.environ.get("REQUIRE_FNO_ELIGIBLE", "true").lower() in (
     "1",
     "true",

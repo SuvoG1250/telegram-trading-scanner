@@ -39,7 +39,7 @@ def _avg_daily_range_pct(symbol: str) -> float | None:
 
 
 def has_move_potential(symbol: str, min_pct: float | None = None) -> bool:
-    """Stock often trades with enough range to target ~5% intraday moves."""
+    """Stock often trades with enough range to target ~3% intraday moves."""
     threshold = min_pct if min_pct is not None else MIN_STOCK_MOVE_POTENTIAL_PCT
     ok, metrics = passes_quality_filter(symbol)
     if ok:
