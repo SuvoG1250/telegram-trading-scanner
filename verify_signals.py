@@ -128,6 +128,33 @@ def test_ema_crossover() -> bool:
     return True
 
 
+def test_exit490_supertrend() -> bool:
+    from indicators import compute_supertrend_exit490, supertrend_flip_pine
+
+    ist = "Asia/Kolkata"
+    idx = pd.date_range("2026-01-02 09:15", periods=40, freq="5min", tz=ist)
+    base = 24000.0
+    noise = [(-1) ** (i // 3) * (i % 5) for i in range(40)]
+    close = [base + n for n in noise]
+    df = pd.DataFrame(
+        {
+            "Open": close,
+            "High": [c + 8 for c in close],
+            "Low": [c - 8 for c in close],
+            "Close": close,
+            "Volume": [1_000_000] * 40,
+        },
+        index=idx,
+    )
+    st = compute_supertrend_exit490(df, bars_back=1, mult=3.0)
+    if len(st) != 40 or "direction" not in st.columns:
+        print("FAIL exit490 supertrend shape")
+        return False
+    mapped = st.assign(direction=-st["direction"])
+    supertrend_flip_pine(mapped)
+    return True
+
+
 def test_strategies_import() -> bool:
     print(f"Playbook modules ({len(STRATEGY_SCANNERS)}):")
     for name in STRATEGY_NAMES:
@@ -152,6 +179,9 @@ def main() -> int:
     if not test_supertrend_flip():
         return 1
     print("OK Nifty Supertrend flip (CALL/PUT)\n")
+    if not test_exit490_supertrend():
+        return 1
+    print("OK exit490 SuperTrend engine\n")
     if not test_ema_crossover():
         return 1
     print("OK EMA 9/15 crossover + 2-3% target\n")

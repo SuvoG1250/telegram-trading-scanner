@@ -131,6 +131,52 @@ def compute_supertrend(
     return pd.DataFrame({"st_line": st_line, "direction": direction}, index=df.index)
 
 
+def compute_supertrend_exit490(
+    df: pd.DataFrame,
+    bars_back: int = 1,
+    mult: float = 3.0,
+) -> pd.DataFrame:
+    """
+    SuperTrend ATR with trailing bands (exit490 / Mauricio Pimenta Pine v4 style).
+
+    direction: +1 long (green / longStop), -1 short (red / shortStop).
+    st_line: active stop line value (valueToPlot in Pine).
+    """
+    hl2 = (df["High"] + df["Low"]) / 2.0
+    atr_vals = atr(df["High"], df["Low"], df["Close"], max(int(bars_back), 1)) * float(mult)
+    long_stop = hl2 - atr_vals
+    short_stop = hl2 + atr_vals
+
+    ls = long_stop.copy()
+    ss = short_stop.copy()
+    for i in range(1, len(df)):
+        lp = float(ls.iloc[i - 1])
+        if float(df["Close"].iloc[i - 1]) > lp:
+            ls.iloc[i] = max(float(ls.iloc[i]), lp)
+        sp = float(ss.iloc[i - 1])
+        if float(df["Close"].iloc[i - 1]) < sp:
+            ss.iloc[i] = min(float(ss.iloc[i]), sp)
+
+    direction = pd.Series(1.0, index=df.index, dtype=float)
+    for i in range(1, len(df)):
+        d = float(direction.iloc[i - 1])
+        lp = float(ls.iloc[i - 1])
+        sp = float(ss.iloc[i - 1])
+        c = float(df["Close"].iloc[i])
+        if d == -1.0 and c > sp:
+            direction.iloc[i] = 1.0
+        elif d == 1.0 and c < lp:
+            direction.iloc[i] = -1.0
+        else:
+            direction.iloc[i] = d
+
+    line = pd.Series(index=df.index, dtype=float)
+    for i in range(len(df)):
+        line.iloc[i] = float(ls.iloc[i]) if float(direction.iloc[i]) == 1.0 else float(ss.iloc[i])
+
+    return pd.DataFrame({"st_line": line, "direction": direction}, index=df.index)
+
+
 def supertrend_flip_pine(st: pd.DataFrame) -> str | None:
     """
     Pine: change(direction) < 0 → long (Buy Call); change(direction) > 0 → short (Buy Put).

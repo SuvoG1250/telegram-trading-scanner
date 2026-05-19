@@ -37,6 +37,8 @@ class Signal:
     premium_source: str = "estimate"
     risk_mode: str = "playbook"
     suggested_qty: int = 0
+    # Nifty option: fixed ₹ SL / T1 / trail (vs %-based premium risk)
+    option_points_mode: bool = False
 
 
 def _format_option_signal(signal: Signal) -> str:
@@ -69,7 +71,22 @@ def _format_option_signal(signal: Signal) -> str:
             f"<b>Index SL:</b> ₹{signal.underlying_sl:,.2f}  ·  "
             f"<b>Index target:</b> ₹{signal.underlying_target:,.2f}"
         )
-    lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")
+    if signal.option_points_mode:
+        from config import (
+            NIFTY_OPTION_PREMIUM_SL_POINTS,
+            NIFTY_OPTION_PREMIUM_TARGET_POINTS,
+            NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS,
+        )
+
+        sp = int(NIFTY_OPTION_PREMIUM_SL_POINTS)
+        tp = int(NIFTY_OPTION_PREMIUM_TARGET_POINTS)
+        mx = int(NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS)
+        lines.append(
+            f"<i>SL −₹{sp} · Book +₹{tp} · Trail runner up to +₹{mx} from entry (manual trail)  ·  "
+            f"1:{lv.risk_reward_best} R:R to max target  ·  {ts}</i>"
+        )
+    else:
+        lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")
     if signal.note and not SIGNALS_ONLY_TELEGRAM:
         lines.append(html.escape(signal.note))
     return "\n".join(lines)

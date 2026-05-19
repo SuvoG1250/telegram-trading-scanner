@@ -1,8 +1,13 @@
 """
-Nifty index options — Supertrend flip strategy (Pine: ATR 10, factor 3).
+Nifty index options — SuperTrend flip → Buy CE/PE.
 
-Bullish flip (direction change < 0) → Buy Call (CE)
-Bearish flip (direction change > 0) → Buy Put (PE)
+Engines:
+  • tv — TradingView-style ta.supertrend (ATR length / factor on NIFTY_ST_*).
+  • exit490 — Pine v4 "SuperTrend ATR with TSL" (exit490): ATR(bars)×mult on hl2, trailing bands.
+
+Live premium: Fyers → Upstox → Dhan → estimate (see OPTION_DATA_PROVIDER).
+
+Premium plan (default): SL ₹15, book +₹30, runner trail zone up to +₹100 from entry.
 """
 
 from __future__ import annotations
@@ -16,16 +21,22 @@ import yfinance as yf
 from config import (
     MIN_RISK_REWARD_PLAYBOOK,
     MIN_TARGET_PROFIT_PCT,
+    NIFTY_EXIT490_ATR_BARS,
+    NIFTY_EXIT490_ATR_MULT,
     NIFTY_OPTION_PREMIUM_ATR_FACTOR,
+    NIFTY_OPTION_PREMIUM_SL_POINTS,
     NIFTY_OPTION_PREMIUM_SL_PCT,
+    NIFTY_OPTION_PREMIUM_TARGET_POINTS,
+    NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS,
     NIFTY_OPTIONS_ENABLED,
     NIFTY_ST_ATR_LENGTH,
+    NIFTY_ST_ENGINE,
     NIFTY_ST_FACTOR,
     NIFTY_ST_INTERVAL,
     NIFTY_STRIKE_STEP,
 )
 from data_fetcher import today_session_df
-from indicators import atr, compute_supertrend, supertrend_flip_pine
+from indicators import atr, compute_supertrend, compute_supertrend_exit490, supertrend_flip_pine
 from market_sentiment import NIFTY_TICKER
 from market_time import is_chaitu_session, is_market_open, now_ist
 from option_quotes import fetch_nifty_option_quote as get_option_quote
@@ -34,7 +45,7 @@ from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
 
-STRATEGY_NAME = "Nifty Supertrend Options"
+STRATEGY_NAME = "Nifty ST+TSL Options"
 
 
 def _round_strike(spot: float) -> int:
@@ -58,7 +69,7 @@ def _estimate_atm_premium(spot: float, atr_val: float) -> float:
     return round(max(by_atr, by_spot, 40.0), 2)
 
 
-def _option_levels(entry_premium: float) -> TradeLevels:
+def _option_levels_percent(entry_premium: float) -> TradeLevels:
     sl_frac = NIFTY_OPTION_PREMIUM_SL_PCT / 100.0
     risk = max(entry_premium * sl_frac, 5.0)
     sl = entry_premium - risk
@@ -75,6 +86,33 @@ def _option_levels(entry_premium: float) -> TradeLevels:
         risk=round(risk, 2),
         reward_1=round(t1 - entry_premium, 2),
         reward_2=round(t2 - entry_premium, 2),
+    )
+
+
+def _option_levels_points(entry_premium: float) -> TradeLevels:
+    """Fixed ₹ SL / T1 / max trail (long premium only)."""
+    sl_pts = NIFTY_OPTION_PREMIUM_SL_POINTS
+    t1_pts = NIFTY_OPTION_PREMIUM_TARGET_POINTS
+    max_pts = NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS
+    risk = max(sl_pts, 1.0)
+    sl = max(entry_premium - sl_pts, 0.5)
+    t1 = entry_premium + t1_pts
+    best = entry_premium + max_pts
+    rr = (best - entry_premium) / risk if risk > 0 else 0.0
+    return TradeLevels(
+        entry=round(entry_premium, 2),
+        stop_loss=round(sl, 2),
+        target_1=round(t1, 2),
+        target_2=round(best, 2),
+        best_target=round(best, 2),
+        rr_best=round(rr, 2),
+        trailing_note=(
+            f"Book ~70% at +₹{t1_pts:.0f}; trail runner toward +₹{max_pts:.0f} from entry; "
+            f"initial SL −₹{sl_pts:.0f} on premium (tighten manually). Exit by 3:25 PM IST."
+        ),
+        risk=round(risk, 2),
+        reward_1=round(t1_pts, 2),
+        reward_2=round(max_pts, 2),
     )
 
 
@@ -106,16 +144,28 @@ def scan_nifty_supertrend_option() -> Signal | None:
 
     interval = NIFTY_ST_INTERVAL if NIFTY_ST_INTERVAL in ("1m", "5m", "15m") else "5m"
     session = _fetch_nifty_session(interval)
-    if len(session) < NIFTY_ST_ATR_LENGTH + 3:
+    min_len = max(NIFTY_ST_ATR_LENGTH, NIFTY_EXIT490_ATR_BARS, 3) + 3
+    if len(session) < min_len:
         return None
 
-    st = compute_supertrend(session, length=NIFTY_ST_ATR_LENGTH, multiplier=NIFTY_ST_FACTOR)
-    flip = supertrend_flip_pine(st)
+    if NIFTY_ST_ENGINE == "exit490":
+        st_raw = compute_supertrend_exit490(
+            session,
+            bars_back=NIFTY_EXIT490_ATR_BARS,
+            mult=NIFTY_EXIT490_ATR_MULT,
+        )
+        st_flip = st_raw.assign(direction=-st_raw["direction"])
+        flip = supertrend_flip_pine(st_flip)
+    else:
+        st_raw = compute_supertrend(session, length=NIFTY_ST_ATR_LENGTH, multiplier=NIFTY_ST_FACTOR)
+        st_flip = st_raw
+        flip = supertrend_flip_pine(st_flip)
+
     if flip is None:
         return None
 
     spot = float(session["Close"].iloc[-1])
-    st_line = float(st["st_line"].iloc[-1])
+    st_line = float(st_raw["st_line"].iloc[-1])
     strike = _round_strike(spot)
     opt_type = "CE" if flip == "CALL" else "PE"
 
@@ -126,23 +176,41 @@ def scan_nifty_supertrend_option() -> Signal | None:
         premium_source = src
         if quote.spot:
             spot = quote.spot
-        expiry = datetime.strptime(quote.expiry, "%Y-%m-%d").strftime("%d %b %Y")
+        exp_raw = (quote.expiry or "").strip()
+        if exp_raw:
+            try:
+                expiry = datetime.strptime(exp_raw, "%Y-%m-%d").strftime("%d %b %Y")
+            except ValueError:
+                expiry = _weekly_expiry_label()
+        else:
+            expiry = _weekly_expiry_label()
+        logger.info(
+            "Nifty option LTP source=%s strike=%s %s premium=%.2f",
+            src,
+            strike,
+            opt_type,
+            premium,
+        )
     else:
         expiry = _weekly_expiry_label()
+        atr_len = NIFTY_ST_ATR_LENGTH if NIFTY_ST_ENGINE != "exit490" else max(NIFTY_EXIT490_ATR_BARS, 1)
         atr_val = float(
-            atr(session["High"], session["Low"], session["Close"], NIFTY_ST_ATR_LENGTH).iloc[-1]
+            atr(session["High"], session["Low"], session["Close"], atr_len).iloc[-1]
         )
         premium = _estimate_atm_premium(spot, atr_val)
 
-    levels = _option_levels(premium)
-    profit_pct = levels.target_profit_pct("BUY")
-    if profit_pct < MIN_TARGET_PROFIT_PCT:
-        logger.info(
-            "Skip NIFTY option — premium target %.1f%% below min %.1f%%.",
-            profit_pct,
-            MIN_TARGET_PROFIT_PCT,
-        )
-        return None
+    use_points = NIFTY_OPTION_PREMIUM_SL_POINTS > 0
+    levels = _option_levels_points(premium) if use_points else _option_levels_percent(premium)
+    if not use_points:
+        profit_pct = levels.target_profit_pct("BUY")
+        if profit_pct < MIN_TARGET_PROFIT_PCT:
+            logger.info(
+                "Skip NIFTY option — premium target %.1f%% below min %.1f%%.",
+                profit_pct,
+                MIN_TARGET_PROFIT_PCT,
+            )
+            return None
+
     idx_sl, idx_target = _underlying_targets(spot, st_line, flip)
 
     action = "BUY CALL" if flip == "CALL" else "BUY PUT"
@@ -164,4 +232,5 @@ def scan_nifty_supertrend_option() -> Signal | None:
         underlying_sl=idx_sl,
         underlying_target=idx_target,
         premium_source=premium_source,
+        option_points_mode=use_points,
     )

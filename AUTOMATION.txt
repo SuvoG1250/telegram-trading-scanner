@@ -61,7 +61,7 @@ DAILY SCHEDULE (IST, Mon–Fri)
 TELEGRAM
 --------
   • Equity BUY/SELL — instant (Chaitu50c, Nifty 500)
-  • Nifty BUY CALL / BUY PUT — Supertrend flip (Fyers / Upstox / Dhan LTP when configured)
+  • Nifty BUY CALL / BUY PUT — exit490 SuperTrend + TSL; premium SL/T1/trail in ₹; live: Fyers → Upstox → Dhan
   • Pre-market report · Session START/STOP · Daily P&L summary
   • Bot RUNNING ~30 min after open (signals never delayed)
 

@@ -63,6 +63,7 @@ class ConfirmedSignal:
                 timestamp=ts,
                 risk_mode=self.risk_mode,
                 suggested_qty=self.suggested_qty,
+                option_points_mode=False,
             )
         strat_label = " + ".join(self.strategies)
         note_parts = [f"Confirmed by {len(self.strategies)} strategy(s): {strat_label}."]
@@ -78,6 +79,7 @@ class ConfirmedSignal:
             kind=self.kind,  # type: ignore[arg-type]
             timeframe="Multi-strategy",
             timestamp=ts,
+            option_points_mode=False,
         )
 
 
