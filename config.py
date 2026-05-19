@@ -176,6 +176,11 @@ FYERS_SECRET_KEY = os.environ.get("FYERS_SECRET_KEY", "")
 FYERS_ACCESS_TOKEN = os.environ.get("FYERS_ACCESS_TOKEN", "")
 FYERS_NIFTY_INDEX_SYMBOL = os.environ.get("FYERS_NIFTY_INDEX_SYMBOL", "NSE:NIFTY50-INDEX")
 FYERS_OPTION_STRIKE_COUNT = int(os.environ.get("FYERS_OPTION_STRIKE_COUNT", "20"))
+# Must match My API app "Redirect URL" exactly (character-for-character) or login shows redirectUrl mismatch
+FYERS_REDIRECT_URI = os.environ.get(
+    "FYERS_REDIRECT_URI",
+    "https://trade.fyers.in/api-login/redirect-uri/index.html",
+)
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 

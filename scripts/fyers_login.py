@@ -2,10 +2,12 @@
 """
 One-time Fyers v3 login: print auth URL → you log in → paste ?code=... → prints access_token for .env
 
-Requires in .env (or environment):
+Requires in .env:
   FYERS_APP_ID
   FYERS_SECRET_KEY
-  FYERS_REDIRECT_URI  (optional, default https://127.0.0.1 — must match EXACTLY what you set in Fyers app settings)
+  FYERS_REDIRECT_URI  (optional — default matches Fyers' common app redirect; MUST equal My API → app → Redirect URL exactly)
+
+If you see "redirectUrl mismatch" in the browser, copy the Redirect URL from the Fyers app page into FYERS_REDIRECT_URI and run this script again.
 """
 
 from __future__ import annotations
@@ -38,9 +40,11 @@ def _app_id_hash(client_id: str, secret_key: str) -> str:
 
 
 def main() -> int:
+    from config import FYERS_REDIRECT_URI
+
     app_id = os.environ.get("FYERS_APP_ID", "").strip()
     secret = os.environ.get("FYERS_SECRET_KEY", "").strip()
-    redirect = os.environ.get("FYERS_REDIRECT_URI", "https://127.0.0.1").strip()
+    redirect = FYERS_REDIRECT_URI.strip()
 
     if not app_id or not secret:
         print("Set FYERS_APP_ID and FYERS_SECRET_KEY in .env first (from My API app page).")
@@ -61,7 +65,10 @@ def main() -> int:
     auth_url = f"{FYERS_API}/generate-authcode?{q}"
 
     print("--- Step 1 ---")
-    print("In Fyers My API → your app → Redirect URL must be EXACTLY:")
+    print("redirectUrl mismatch = the line below must match Fyers My API → your app → Redirect URL EXACTLY.")
+    print("If it does not, set FYERS_REDIRECT_URI in .env to that exact URL (https vs http, trailing slash, path).")
+    print()
+    print("Using redirect_uri for this login link:")
     print(f"  {redirect}")
     print()
     print("Open this URL in your browser, log in, approve the app:")

@@ -25,9 +25,10 @@ One-time setup (5 minutes):
    UPSTOX_ACCESS_TOKEN=...        # Analytics → Generate Token (option chain)
    UPSTOX_API_KEY=...
    UPSTOX_API_SECRET=...
-   FYERS_APP_ID=...               # My API App ID (e.g. XXXXX-100)
-   FYERS_SECRET_KEY=...          # App Secret — for token generation only (keep local)
-   FYERS_ACCESS_TOKEN=...        # Session token after OAuth (live option LTP)
+   FYERS_APP_ID=...
+   FYERS_SECRET_KEY=...
+   FYERS_REDIRECT_URI=https://trade.fyers.in/api-login/redirect-uri/index.html
+   # ^ must match My API app Redirect URL exactly (fixes redirectUrl mismatch)
 5. Run setup (PowerShell):
 
    cd "g:\Code\Telegram Trading bot"
