@@ -1,4 +1,4 @@
-"""Unified live Nifty option quote (Upstox preferred, then Dhan)."""
+"""Unified live Nifty option quote — Fyers preferred, then Upstox, then Dhan."""
 
 from __future__ import annotations
 
@@ -7,6 +7,15 @@ from config import OPTION_DATA_PROVIDER
 
 def fetch_nifty_option_quote(strike: int, option_type: str, expiry: str | None = None):
     provider = OPTION_DATA_PROVIDER.lower()
+
+    if provider in ("fyers", "auto"):
+        from fyers_client import fetch_nifty_option_quote as fyers_quote
+        from fyers_client import fyers_configured
+
+        if fyers_configured():
+            q = fyers_quote(strike, option_type, expiry)
+            if q:
+                return q, "fyers"
 
     if provider in ("upstox", "auto"):
         from upstox_client import fetch_nifty_option_quote as upstox_quote

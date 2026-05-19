@@ -25,14 +25,16 @@ One-time setup (5 minutes):
    UPSTOX_ACCESS_TOKEN=...        # Analytics → Generate Token (option chain)
    UPSTOX_API_KEY=...
    UPSTOX_API_SECRET=...
-
+   FYERS_APP_ID=...               # My API App ID (e.g. XXXXX-100)
+   FYERS_SECRET_KEY=...          # App Secret — for token generation only (keep local)
+   FYERS_ACCESS_TOKEN=...        # Session token after OAuth (live option LTP)
 5. Run setup (PowerShell):
 
    cd "g:\Code\Telegram Trading bot"
    python scripts/rebuild_watchlist.py       # F&O cache + filtered watchlist
    python scripts/setup_github_secrets.py    # push secrets to GitHub Actions
    python scripts/setup_cron_job_org.py      # create/update cron job
-   python scripts/test_automation.py         # local health check
+   python scripts/test_fyers.py               # optional — Fyers option quotes
 
 6. Verify live scan
 
@@ -59,7 +61,7 @@ DAILY SCHEDULE (IST, Mon–Fri)
 TELEGRAM
 --------
   • Equity BUY/SELL — instant (Chaitu50c, Nifty 500)
-  • Nifty BUY CALL / BUY PUT — Supertrend flip (Dhan LTP if configured)
+  • Nifty BUY CALL / BUY PUT — Supertrend flip (Fyers / Upstox / Dhan LTP when configured)
   • Pre-market report · Session START/STOP · Daily P&L summary
   • Bot RUNNING ~30 min after open (signals never delayed)
 
@@ -67,10 +69,11 @@ GITHUB SECRETS (required for cloud runs)
 ----------------------------------------
   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_GROUP_CHAT_ID
   DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID (optional, for live option premium)
-  UPSTOX_ACCESS_TOKEN, UPSTOX_API_KEY, UPSTOX_API_SECRET (option chain; token required)
+  FYERS_APP_ID, FYERS_ACCESS_TOKEN (preferred live Nifty option premium; auto provider order)
+  UPSTOX_ACCESS_TOKEN, UPSTOX_API_KEY, UPSTOX_API_SECRET (fallback option chain)
 
 WORKFLOW ENV (in auto-trading-bot.yml — no secret needed)
-  USE_TRADE_FILTERS=true, MIN_STOCK_MOVE_POTENTIAL_PCT=3, MIN_TARGET_PROFIT_PCT=3
+  USE_TRADE_FILTERS=true, OPTION_DATA_PROVIDER=auto (Fyers then Upstox then Dhan)
 
 NOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 

@@ -41,7 +41,9 @@ jobs:
       UPSTOX_ACCESS_TOKEN: ${{ secrets.UPSTOX_ACCESS_TOKEN }}
       UPSTOX_API_KEY: ${{ secrets.UPSTOX_API_KEY }}
       UPSTOX_API_SECRET: ${{ secrets.UPSTOX_API_SECRET }}
-      OPTION_DATA_PROVIDER: upstox
+      FYERS_APP_ID: ${{ secrets.FYERS_APP_ID }}
+      FYERS_ACCESS_TOKEN: ${{ secrets.FYERS_ACCESS_TOKEN }}
+      OPTION_DATA_PROVIDER: auto
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"

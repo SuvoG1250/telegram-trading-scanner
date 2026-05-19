@@ -48,8 +48,14 @@ def _format_option_signal(signal: Signal) -> str:
     action = html.escape(signal.side)
     emoji = "🟢" if "CALL" in signal.side else "🔴"
 
-    src = "live Dhan LTP" if signal.premium_source == "dhan" else (
-        "live Upstox LTP" if signal.premium_source == "upstox" else "est. — confirm on broker"
+    src = (
+        "live Fyers LTP"
+        if signal.premium_source == "fyers"
+        else (
+            "live Dhan LTP"
+            if signal.premium_source == "dhan"
+            else ("live Upstox LTP" if signal.premium_source == "upstox" else "est. — confirm on broker")
+        )
     )
     lines = [
         f"{emoji} <b>{action}</b> — NIFTY",

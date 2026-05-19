@@ -160,8 +160,14 @@ UPSTOX_ACCESS_TOKEN = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
 UPSTOX_NIFTY_INSTRUMENT_KEY = os.environ.get(
     "UPSTOX_NIFTY_INSTRUMENT_KEY", "NSE_INDEX|Nifty 50"
 )
-# upstox | dhan | auto (tries upstox then dhan)
+# upstox | fyers | dhan | auto (fyers → upstox → dhan)
 OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "auto").lower()
+# Fyers My API — App ID + access token from login (https://myapi.fyers.in/)
+FYERS_APP_ID = os.environ.get("FYERS_APP_ID", os.environ.get("FYERS_CLIENT_ID", ""))
+FYERS_SECRET_KEY = os.environ.get("FYERS_SECRET_KEY", "")
+FYERS_ACCESS_TOKEN = os.environ.get("FYERS_ACCESS_TOKEN", "")
+FYERS_NIFTY_INDEX_SYMBOL = os.environ.get("FYERS_NIFTY_INDEX_SYMBOL", "NSE:NIFTY50-INDEX")
+FYERS_OPTION_STRIKE_COUNT = int(os.environ.get("FYERS_OPTION_STRIKE_COUNT", "20"))
 SUPERTREND_LENGTH = 7
 SUPERTREND_MULTIPLIER = 3.0
 
