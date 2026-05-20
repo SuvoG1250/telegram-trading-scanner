@@ -22,6 +22,7 @@ ENTRY_STRATEGIES = {
     "Setup 3: Chaitu50c BUY/SELL",
     "Chaitu50c",
     "EMA 9/15 Crossover",
+    "EMA 9/21 Crossover",
 }
 
 
@@ -42,11 +43,14 @@ class ConfirmedSignal:
         if SIGNALS_ONLY_TELEGRAM:
             label = "Chaitu50c"
             for s in self.strategies:
-                if "EMA" in s:
-                    label = "9/15 EMA"
-                    break
                 if "Chaitu" in s:
                     label = "Chaitu50c"
+                    break
+                if "9/21" in s:
+                    label = "9/21 EMA"
+                    break
+                if "9/15" in s:
+                    label = "9/15 EMA"
                     break
                 if "Morning" in s:
                     label = "Morning 1m"

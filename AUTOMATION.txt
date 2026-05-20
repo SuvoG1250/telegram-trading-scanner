@@ -75,7 +75,7 @@ GITHUB SECRETS (required for cloud runs)
   UPSTOX_ACCESS_TOKEN, UPSTOX_API_KEY, UPSTOX_API_SECRET (fallback option chain)
 
 WORKFLOW ENV (in auto-trading-bot.yml — no secret needed)
-  USE_TRADE_FILTERS=true, OPTION_DATA_PROVIDER=upstox (Analytics token for Nifty option LTP)
+  USE_TRADE_FILTERS=true, SCAN_STRATEGIES=both (Chaitu50c + 9/15 EMA + 9/21 EMA), OPTION_DATA_PROVIDER=upstox
 
 NOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 

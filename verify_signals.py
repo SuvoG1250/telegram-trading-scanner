@@ -160,9 +160,13 @@ def test_strategies_import() -> bool:
     for name in STRATEGY_NAMES:
         print(f"  OK {name}")
     expected = {
-        "all": 4,
-        "both": 2,
-        "ema": 1,
+        "all": 5,
+        "both": 3,
+        "ema": 2,
+        "ema15": 1,
+        "ema_15": 1,
+        "ema21": 1,
+        "ema_21": 1,
         "chaitu": 1,
     }.get(SCAN_STRATEGIES, 1)
     return len(STRATEGY_SCANNERS) == expected
@@ -184,7 +188,7 @@ def main() -> int:
     print("OK exit490 SuperTrend engine\n")
     if not test_ema_crossover():
         return 1
-    print("OK EMA 9/15 crossover + 2-3% target\n")
+    print("OK EMA crossover + 2-3% target\n")
     if not test_strategies_import():
         return 1
     print("\nOK Strategy scanners registered")

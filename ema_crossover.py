@@ -1,4 +1,4 @@
-"""9 EMA / 15 EMA crossover on 5m — volume momentum filter."""
+"""EMA crossover on 5m — volume momentum filter (9/15 and 9/21)."""
 
 from __future__ import annotations
 
