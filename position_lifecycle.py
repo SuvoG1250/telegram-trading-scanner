@@ -54,6 +54,7 @@ def _load() -> dict[str, Any]:
     blob.setdefault("premium", [])
     blob.setdefault("reentry_stock", {})
     blob.setdefault("reentry_option", {})
+    blob.setdefault("equity_buy_sent_today", 0)
     blob.setdefault("date", today_key())
     return blob
 
@@ -70,6 +71,7 @@ def _empty_blob() -> dict[str, Any]:
         "premium": [],
         "reentry_stock": {},
         "reentry_option": {},
+        "equity_buy_sent_today": 0,
     }
 
 
@@ -286,3 +288,14 @@ def equity_candidate_score(sig: Signal) -> float:
     rk = max(float(rk), 0.05)
     # Prefer higher RR and reward % vs tight risk %
     return rr * 12.0 + tp_pct + 5.0 / rk
+
+
+def equity_buy_sent_today() -> int:
+    blob = _load()
+    return int(blob.get("equity_buy_sent_today") or 0)
+
+
+def increment_equity_buy_sent() -> None:
+    blob = _load()
+    blob["equity_buy_sent_today"] = int(blob.get("equity_buy_sent_today") or 0) + 1
+    _save(blob)

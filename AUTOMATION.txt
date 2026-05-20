@@ -78,13 +78,15 @@ SIGNAL LIFECYCLE (scanner)
 --------------------------
   • data/active_positions.json carries open equity + premium plans and automatically checks
     delayed 5m cash prices / option LTP before queuing new ideas.
-  • Each scan sends at most MAX_STOCK_ALERTS_PER_SCAN (5–10, default 10) names ranked by RR.
-  • Telegram includes a “Flag:” line when a Symbol reappears after TP/SL clears.
+  • Long BUY: MAX_DAILY_BUY_SIGNALS total per IST day (5–10, default 10) plus MAX_BUY_ALERTS_PER_SCAN
+    each 5m run (default 1), so buys are spread through the session, not blasted in one tick.
+  • Short SELL: MAX_SELL_ALERTS_PER_SCAN per 5m run only (no daily cap). Use 0 to disable (GitHub default); set 1–5 locally if you want shorts.
+  • Telegram includes a Flag line when a symbol reappears after TP/SL on an earlier plan.
+  • Set SLTP_CLOSE_ALERT_TELEGRAM=true for extra TP/SL clear pings.
+
 WORKFLOW ENV (in auto-trading-bot.yml — no secret needed)
 -----------------------------------------------
-  MAX_STOCK_ALERTS_PER_SCAN=10 · SLTP_CLOSE_ALERT_TELEGRAM=false (set true for SL/TP pings)
-  USE_TRADE_FILTERS=true, SCAN_STRATEGIES=both (Chaitu50c + 9/15 EMA + 9/21 EMA), OPTION_DATA_PROVIDER=upstox
-
-NOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
+  MAX_DAILY_BUY_SIGNALS=10 · MAX_BUY_ALERTS_PER_SCAN=1 · MAX_SELL_ALERTS_PER_SCAN=0 · SLTP_CLOSE_ALERT_TELEGRAM=false
+  USE_TRADE_FILTERS=true, SCAN_STRATEGIES=both (Chaitu50c + 9/15 EMA + 9/21 EMA), OPTION_DATA_PROVIDER=upstoxNOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 
 OPTION A (Windows Task Scheduler): scripts/install_windows_autoscan.ps1

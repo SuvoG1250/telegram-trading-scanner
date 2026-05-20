@@ -59,7 +59,9 @@ jobs:
       EMA_MIN_TARGET_PROFIT_PCT: "2"
       EMA_MAX_TARGET_PROFIT_PCT: "3"
       EMA_MAX_SL_PCT: "0.5"
-      MAX_STOCK_ALERTS_PER_SCAN: "10"
+      MAX_DAILY_BUY_SIGNALS: "10"
+      MAX_BUY_ALERTS_PER_SCAN: "1"
+      MAX_SELL_ALERTS_PER_SCAN: "0"
       SLTP_CLOSE_ALERT_TELEGRAM: "false"
       SCANNER_DATA_DIR: data
       GITHUB_EVENT_NAME: ${{ github.event_name }}

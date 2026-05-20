@@ -12,7 +12,9 @@ import html as html_module
 from boot_alerts import try_send_delayed_boot
 from config import (
     LOCK_WATCHLIST_FOR_DAY,
-    MAX_STOCK_ALERTS_PER_SCAN,
+    MAX_BUY_ALERTS_PER_SCAN,
+    MAX_DAILY_BUY_SIGNALS,
+    MAX_SELL_ALERTS_PER_SCAN,
     MIN_STOCK_MOVE_POTENTIAL_PCT,
     MIN_TARGET_PROFIT_PCT,
     NO_SIGNAL_STATUS_ON_AUTO_SCAN,
@@ -34,8 +36,10 @@ from position_lifecycle import (
     caption_after_prior_exit,
     dismiss_option_exit_flag,
     dismiss_stock_exit_flag,
+    equity_buy_sent_today,
     equity_candidate_score,
     equity_position_open,
+    increment_equity_buy_sent,
     peek_option_exit_flag,
     peek_stock_exit_flag,
     premium_position_open,
@@ -109,16 +113,31 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
         if cur is None or score > cur[1]:
             best_per_symbol[symbol] = (confirmed, score, strat)
 
-    ordered = sorted(best_per_symbol.values(), key=lambda t: -t[1])[: MAX_STOCK_ALERTS_PER_SCAN]
+    ranked = sorted(best_per_symbol.values(), key=lambda t: -t[1])
+    buy_scan_emitted = 0
+    sell_scan_emitted = 0
+    daily_buy_left = max(0, MAX_DAILY_BUY_SIGNALS - equity_buy_sent_today())
     logger.info(
-        "Equity scan: %d raw setups across %d symbols → top-%d emits",
+        "Equity scan: %d raw setups, %d symbols ranked | BUY %d/%d day left · up to %d/scan · SELL up to %d/scan",
         len(raw_candidates),
         len(best_per_symbol),
-        MAX_STOCK_ALERTS_PER_SCAN,
+        daily_buy_left,
+        MAX_DAILY_BUY_SIGNALS,
+        MAX_BUY_ALERTS_PER_SCAN,
+        MAX_SELL_ALERTS_PER_SCAN,
     )
 
-    for confirmed, score, strat in ordered:
+    for confirmed, score, strat in ranked:
+        side = confirmed.side
         symbol = confirmed.symbol
+
+        if side == "BUY":
+            if buy_scan_emitted >= MAX_BUY_ALERTS_PER_SCAN or daily_buy_left <= 0:
+                continue
+        else:
+            if sell_scan_emitted >= MAX_SELL_ALERTS_PER_SCAN:
+                continue
+
         telegram_sig = confirmed.to_telegram_signal()
         peek = peek_stock_exit_flag(symbol)
         telegram_sig.note = caption_after_prior_exit(peek, basket="equity")
@@ -137,6 +156,12 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
         if ok:
             register_equity_open(telegram_sig, strat)
             record_trade(telegram_sig)
+            if telegram_sig.side == "BUY":
+                increment_equity_buy_sent()
+                buy_scan_emitted += 1
+                daily_buy_left -= 1
+            else:
+                sell_scan_emitted += 1
             if peek is not None:
                 dismiss_stock_exit_flag(symbol)
             sent_signals.append(telegram_sig)

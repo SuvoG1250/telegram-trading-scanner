@@ -195,11 +195,18 @@ SESSION_FILE = DATA_DIR / "session.json"
 TRADES_JOURNAL_FILE = DATA_DIR / "trades_journal.json"
 ACTIVE_POSITIONS_FILE = DATA_DIR / "active_positions.json"
 
-# Per scan: rank candidates and Telegram at most N fresh equity setups (lifecycle still blocks churn)
-MAX_STOCK_ALERTS_PER_SCAN = max(
+# Long-side equity: max BUY Telegram alerts per IST day (best names first, spread by per-scan cap below)
+MAX_DAILY_BUY_SIGNALS = max(
     5,
-    min(10, int(os.environ.get("MAX_STOCK_ALERTS_PER_SCAN", "10"))),
+    min(
+        10,
+        int(os.environ.get("MAX_DAILY_BUY_SIGNALS", os.environ.get("MAX_STOCK_ALERTS_PER_SCAN", "10"))),
+    ),
 )
+# Each 5m scan: emit at most this many new BUY signals (so 5–10 buys fill over the day, not in one burst)
+MAX_BUY_ALERTS_PER_SCAN = max(1, min(3, int(os.environ.get("MAX_BUY_ALERTS_PER_SCAN", "1"))))
+# SELL ideas: max per 5m scan (0 = equity short setups are not alerted)
+MAX_SELL_ALERTS_PER_SCAN = max(0, min(5, int(os.environ.get("MAX_SELL_ALERTS_PER_SCAN", "2"))))
 # Optional pings when lifecycle marks SL/Target hit before new alert rules
 SLTP_CLOSE_ALERT_TELEGRAM = os.environ.get("SLTP_CLOSE_ALERT_TELEGRAM", "false").lower() in (
     "1",
