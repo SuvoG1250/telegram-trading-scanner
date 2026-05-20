@@ -89,7 +89,7 @@ def _format_option_signal(signal: Signal) -> str:
         )
     else:
         lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")
-    if signal.note and not SIGNALS_ONLY_TELEGRAM:
+    if signal.note:
         lines.append(html.escape(signal.note))
     return "\n".join(lines)
 
@@ -126,12 +126,16 @@ def format_signal_message(signal: Signal) -> str:
         qty_line = ""
         if signal.suggested_qty > 0:
             qty_line = f" · Qty <b>{signal.suggested_qty}</b> <i>(₹{RISK_PER_TRADE_INR:,.0f} risk)</i>"
+        extras = ""
+        if signal.note:
+            extras = "\n" + html.escape(signal.note)
 
         return (
             f"{emoji} <b>{action} {sym}</b>{tags}\n"
             f"📊 <b>Strategy:</b> {strat}\n"
             f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
             f"<i>+{lv.target_profit_pct(signal.side):.2f}% · 1:{lv.risk_reward_best} R:R · SL {lv.risk_pct:.2f}%{qty_line} ·  {ts}</i>"
+            f"{extras}"
         )
 
     strat = html.escape(signal.strategy)

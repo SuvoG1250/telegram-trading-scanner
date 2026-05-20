@@ -193,6 +193,19 @@ WATCHLIST_FILE = DATA_DIR / "watchlist.json"
 SIGNALS_FILE = DATA_DIR / "signals_sent.json"
 SESSION_FILE = DATA_DIR / "session.json"
 TRADES_JOURNAL_FILE = DATA_DIR / "trades_journal.json"
+ACTIVE_POSITIONS_FILE = DATA_DIR / "active_positions.json"
+
+# Per scan: rank candidates and Telegram at most N fresh equity setups (lifecycle still blocks churn)
+MAX_STOCK_ALERTS_PER_SCAN = max(
+    5,
+    min(10, int(os.environ.get("MAX_STOCK_ALERTS_PER_SCAN", "10"))),
+)
+# Optional pings when lifecycle marks SL/Target hit before new alert rules
+SLTP_CLOSE_ALERT_TELEGRAM = os.environ.get("SLTP_CLOSE_ALERT_TELEGRAM", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # No new trade alerts after this time (IST)
 NO_NEW_TRADES_AFTER_HOUR = int(os.environ.get("NO_NEW_TRADES_AFTER_HOUR", "15"))
