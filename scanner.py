@@ -30,7 +30,7 @@ from trade_filters import filter_symbols, passes_trade_filters
 from data_fetcher import clear_session_cache
 from market_time import is_market_open, is_new_trade_window, is_premarket_window, is_weekday, now_ist
 from premarket import build_watchlist, format_watchlist_message
-from session_alerts import handle_session_alerts, send_session_start_alert
+from session_alerts import handle_session_alerts
 from state import record_trading_started_at
 from position_lifecycle import (
     caption_after_prior_exit,
@@ -52,7 +52,6 @@ from state import (
     is_watchlist_locked,
     load_watchlist,
     save_watchlist,
-    session_start_sent,
 )
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 from telegram_client import Signal, send_plain, send_signal
@@ -287,10 +286,9 @@ def main() -> int:
         logger.info("After 3:00 PM IST — no new trades (summary at 3:30 PM).")
         return 0
 
-    if not session_start_sent():
-        send_session_start_alert()
-    else:
-        record_trading_started_at()
+    # Session start alert is handled centrally in handle_session_alerts().
+    # Keep start timestamp refreshed for delayed boot/session metrics.
+    record_trading_started_at()
 
     watchlist = _get_daily_watchlist()
     if not watchlist:
