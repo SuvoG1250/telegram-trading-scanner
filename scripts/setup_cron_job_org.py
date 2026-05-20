@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create/update cron-job.org job to trigger GitHub scanner every 5 min (Mon-Fri, NSE hours).
+Create/update cron-job.org job to trigger GitHub scanner every 3 min (Mon-Fri, NSE hours).
 
 Requires in .env or environment:
   CRONJOB_API_KEY  — from https://console.cron-job.org/settings
@@ -38,7 +38,7 @@ CRONJOB_API = "https://api.cron-job.org"
 GITHUB_OWNER = "SuvoG1250"
 GITHUB_REPO = "telegram-trading-scanner"
 WORKFLOW_ID = "278548320"
-JOB_TITLE = "Telegram Trading Bot — NSE every 5 min"
+JOB_TITLE = "Telegram Trading Bot — NSE every 3 min"
 
 DISPATCH_URL = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
@@ -222,7 +222,7 @@ def main() -> int:
         print(f"Created cron-job.org job id={job_id}")
 
     print()
-    print("Schedule: every 5 min, Mon-Fri, 9:00-15:55 IST (Asia/Kolkata)")
+    print("Schedule: every 3 min, Mon-Fri, 9:00-15:55 IST (Asia/Kolkata)")
     print("Each run triggers GitHub -> scanner -> Telegram signal or 'no signal'")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
