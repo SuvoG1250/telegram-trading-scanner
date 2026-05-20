@@ -5,7 +5,7 @@ name: Auto Trading Bot
 
 on:
   schedule:
-    - cron: "*/3 3-10 * * 1-5"
+    - cron: "45 3 * * 1-5"
   workflow_dispatch:
     inputs:
       mode:

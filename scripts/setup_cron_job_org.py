@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create/update cron-job.org job to trigger GitHub scanner every 3 min (Mon-Fri, NSE hours).
+Create/update cron-job.org job to trigger one full-session GitHub run at NSE open.
 
 Requires in .env or environment:
   CRONJOB_API_KEY  — from https://console.cron-job.org/settings
@@ -38,7 +38,7 @@ CRONJOB_API = "https://api.cron-job.org"
 GITHUB_OWNER = "SuvoG1250"
 GITHUB_REPO = "telegram-trading-scanner"
 WORKFLOW_ID = "278548320"
-JOB_TITLE = "Telegram Trading Bot — NSE every 3 min"
+JOB_TITLE = "Telegram Trading Bot — NSE full session"
 
 DISPATCH_URL = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
@@ -65,8 +65,8 @@ def build_job_payload(github_pat: str) -> dict:
             "schedule": {
                 "timezone": "Asia/Kolkata",
                 "expiresAt": 0,
-                "hours": [9, 10, 11, 12, 13, 14, 15],
-                "minutes": [0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54, 57],
+                "hours": [9],
+                "minutes": [15],
                 "mdays": [-1],
                 "months": [-1],
                 "wdays": [1, 2, 3, 4, 5],
@@ -78,7 +78,7 @@ def build_job_payload(github_pat: str) -> dict:
                     "X-GitHub-Api-Version": "2022-11-28",
                     "Content-Type": "application/json",
                 },
-                "body": json.dumps({"ref": "main", "inputs": {"mode": "scan_once"}}),
+                "body": json.dumps({"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "0"}}),
             },
         }
     }
@@ -222,8 +222,8 @@ def main() -> int:
         print(f"Created cron-job.org job id={job_id}")
 
     print()
-    print("Schedule: every 3 min, Mon-Fri, 9:00-15:55 IST (Asia/Kolkata)")
-    print("Each run triggers GitHub -> scanner -> Telegram signal or 'no signal'")
+    print("Schedule: once daily at 9:15 IST, Mon-Fri (Asia/Kolkata)")
+    print("Each run starts full_session loop; scanner checks every 3 minutes internally")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0
