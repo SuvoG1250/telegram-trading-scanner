@@ -59,8 +59,10 @@ def _format_option_signal(signal: Signal) -> str:
             else ("live Upstox LTP" if signal.premium_source == "upstox" else "est. — confirm on broker")
         )
     )
+    strat = html.escape(signal.strategy or "Nifty ST+TSL Options")
     lines = [
         f"{emoji} <b>{action}</b> — NIFTY",
+        f"<b>Strategy:</b> {strat}",
         f"<b>Strike:</b> {strike} {opt}  ·  <b>Expiry:</b> {expiry}",
         f"<b>Premium entry:</b> ₹{lv.entry:,.2f} <i>({src})</i>",
         f"<b>SL premium:</b> ₹{lv.stop_loss:,.2f}  ·  <b>T1:</b> ₹{lv.target_1:,.2f}  ·  <b>Target:</b> ₹{lv.primary_target:,.2f}",
@@ -120,15 +122,14 @@ def format_signal_message(signal: Signal) -> str:
         tags = ""
         if USE_TRADE_FILTERS and is_fno_eligible(signal.symbol):
             tags = "  ·  <i>F&amp;O · MIS</i>"
-        setup = ""
-        if signal.risk_mode == "ema":
-            setup = "  ·  <i>9/15 EMA</i>"
+        strat = html.escape(signal.strategy or "Intraday")
         qty_line = ""
         if signal.suggested_qty > 0:
             qty_line = f" · Qty <b>{signal.suggested_qty}</b> <i>(₹{RISK_PER_TRADE_INR:,.0f} risk)</i>"
 
         return (
-            f"{emoji} <b>{action} {sym}</b>{tags}{setup}\n"
+            f"{emoji} <b>{action} {sym}</b>{tags}\n"
+            f"📊 <b>Strategy:</b> {strat}\n"
             f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
             f"<i>+{lv.target_profit_pct(signal.side):.2f}% · 1:{lv.risk_reward_best} R:R · SL {lv.risk_pct:.2f}%{qty_line} ·  {ts}</i>"
         )

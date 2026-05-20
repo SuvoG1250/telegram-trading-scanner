@@ -1,5 +1,5 @@
 """
-Combine all strategy signals per stock, confirm, then send ONE alert per stock/side/day.
+Validate strategy signals and send one Telegram alert per strategy when it fires.
 """
 
 from __future__ import annotations
@@ -40,25 +40,11 @@ class ConfirmedSignal:
 
     def to_telegram_signal(self) -> Signal:
         ts = now_ist().strftime("%d %b %Y, %H:%M IST")
+        name = self.strategies[0] if len(self.strategies) == 1 else " + ".join(self.strategies)
         if SIGNALS_ONLY_TELEGRAM:
-            label = "Chaitu50c"
-            for s in self.strategies:
-                if "Chaitu" in s:
-                    label = "Chaitu50c"
-                    break
-                if "9/21" in s:
-                    label = "9/21 EMA"
-                    break
-                if "9/15" in s:
-                    label = "9/15 EMA"
-                    break
-                if "Morning" in s:
-                    label = "Morning 1m"
-                elif "Core" in s:
-                    label = "5m/15m PA"
             return Signal(
                 symbol=self.symbol,
-                strategy=label,
+                strategy=name,
                 side=self.side,
                 levels=self.levels,
                 note="",
@@ -126,6 +112,61 @@ def _merge_levels(signals: list[Signal], side: str) -> TradeLevels | None:
         risk=round(risk, 2),
         reward_1=round(abs(target_1 - entry), 2),
         reward_2=round(abs(target_2 - entry), 2),
+    )
+
+
+def confirm_single_signal(sig: Signal) -> ConfirmedSignal | None:
+    """Validate one strategy hit; send as soon as it qualifies (no merge with others)."""
+    if sig.kind == "EXIT":
+        return ConfirmedSignal(
+            symbol=sig.symbol,
+            side=sig.side,
+            levels=sig.levels,
+            strategies=[sig.strategy],
+            notes=[sig.note] if sig.note else [],
+            confidence="EXIT",
+            kind="EXIT",
+        )
+
+    if sig.kind != "ENTRY":
+        return None
+
+    side = sig.side
+    ema_mode = getattr(sig, "risk_mode", "playbook") == "ema"
+    if ema_mode:
+        from risk import levels_ema_crossover
+
+        levels = levels_ema_crossover(sig.levels.entry, sig.levels.stop_loss, side)
+        min_profit = EMA_MIN_TARGET_PROFIT_PCT
+    else:
+        levels = clamp_levels_to_playbook(sig.levels, side)
+        min_profit = min_equity_target_profit_pct()
+    if levels is None:
+        logger.info("Skip %s %s [%s] — risk clamp rejected.", sig.symbol, side, sig.strategy)
+        return None
+
+    profit_pct = levels.target_profit_pct(side)
+    if profit_pct < min_profit:
+        logger.info(
+            "Skip %s %s [%s] — target profit %.2f%% below minimum %.2f%%.",
+            sig.symbol,
+            side,
+            sig.strategy,
+            profit_pct,
+            min_profit,
+        )
+        return None
+
+    return ConfirmedSignal(
+        symbol=sig.symbol,
+        side=side,
+        levels=levels,
+        strategies=[sig.strategy],
+        notes=[sig.note] if sig.note else [],
+        confidence="MEDIUM",
+        kind="ENTRY",
+        risk_mode=getattr(sig, "risk_mode", "playbook"),
+        suggested_qty=getattr(sig, "suggested_qty", 0),
     )
 
 

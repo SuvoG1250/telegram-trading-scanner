@@ -26,12 +26,12 @@ from market_time import is_market_open, is_new_trade_window, is_premarket_window
 from premarket import build_watchlist, format_watchlist_message
 from session_alerts import handle_session_alerts, send_session_start_alert
 from state import record_trading_started_at
-from signal_aggregator import collect_raw_signals, confirm_signals
+from signal_aggregator import collect_raw_signals, confirm_single_signal
 from state import (
-    already_sent_combined,
+    already_sent,
     is_watchlist_locked,
     load_watchlist,
-    mark_sent_combined,
+    mark_sent,
     save_watchlist,
     session_start_sent,
 )
@@ -73,33 +73,34 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
         if not raw:
             continue
 
-        confirmed = confirm_signals(raw)
-        if confirmed is None:
-            continue
-
-        signal = confirmed.to_telegram_signal()
-
-        if signal.kind == "EXIT":
-            if already_sent_combined(symbol, signal.side):
+        for raw_sig in raw:
+            confirmed = confirm_single_signal(raw_sig)
+            if confirmed is None:
                 continue
-        elif already_sent_combined(symbol, signal.side):
-            continue
 
-        logger.info(
-            "SIGNAL %s %s | Entry=%s SL=%s Target=%s",
-            symbol,
-            signal.side,
-            signal.levels.entry,
-            signal.levels.stop_loss,
-            signal.levels.primary_target,
-        )
+            signal = confirmed.to_telegram_signal()
+            strat = confirmed.strategies[0]
 
-        if send_signal(signal):
-            mark_sent_combined(symbol, signal.side, confirmed.strategies)
-            record_trade(signal)
-            sent_signals.append(signal)
-        else:
-            logger.error("Failed to send signal for %s", symbol)
+            if already_sent(symbol, strat, signal.side):
+                logger.debug("Skip %s %s — already sent [%s] today.", symbol, signal.side, strat)
+                continue
+
+            logger.info(
+                "SIGNAL %s %s [%s] | Entry=%s SL=%s Target=%s",
+                symbol,
+                signal.side,
+                strat,
+                signal.levels.entry,
+                signal.levels.stop_loss,
+                signal.levels.primary_target,
+            )
+
+            if send_signal(signal):
+                mark_sent(symbol, strat, signal.side)
+                record_trade(signal)
+                sent_signals.append(signal)
+            else:
+                logger.error("Failed to send signal for %s [%s]", symbol, strat)
 
     return sent_signals
 
