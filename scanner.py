@@ -47,7 +47,7 @@ from position_lifecycle import (
     register_premium_open,
     reconcile_all_positions,
 )
-from signal_aggregator import collect_raw_signals, confirm_single_signal, ConfirmedSignal
+from signal_aggregator import collect_raw_signals, confirm_signals, ConfirmedSignal
 from state import (
     is_watchlist_locked,
     load_watchlist,
@@ -97,19 +97,18 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
         if not raw:
             continue
 
-        for raw_sig in raw:
-            confirmed = confirm_single_signal(raw_sig)
-            if confirmed is None:
-                continue
-            telegram_sig = confirmed.to_telegram_signal()
-            strat = confirmed.strategies[0]
-            score = equity_candidate_score(telegram_sig)
-            raw_candidates.append((symbol, confirmed, telegram_sig, score))
+        confirmed = confirm_signals(raw)
+        if confirmed is None:
+            continue
+        telegram_sig = confirmed.to_telegram_signal()
+        strat = " + ".join(confirmed.strategies)
+        score = equity_candidate_score(telegram_sig)
+        raw_candidates.append((symbol, confirmed, telegram_sig, score))
 
     best_per_symbol: dict[str, tuple[ConfirmedSignal, float, str]] = {}
     for symbol, confirmed, telegram_sig, score in raw_candidates:
         cur = best_per_symbol.get(symbol)
-        strat = confirmed.strategies[0]
+        strat = " + ".join(confirmed.strategies)
         if cur is None or score > cur[1]:
             best_per_symbol[symbol] = (confirmed, score, strat)
 

@@ -91,8 +91,8 @@ SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true"
     "true",
     "yes",
 )
-# Master playbook: two execution modules — either can trigger an alert
-MIN_STRATEGIES_TO_CONFIRM = 1
+# Master playbook: require at least 2 agreeing strategies before stock alert
+MIN_STRATEGIES_TO_CONFIRM = max(2, int(os.environ.get("MIN_STRATEGIES_TO_CONFIRM", "2")))
 # Minimum profit % to best target (entry → target) required to send alert
 MIN_TARGET_PROFIT_PCT = float(os.environ.get("MIN_TARGET_PROFIT_PCT", "2.0"))
 # Cash equity playbook caps SL at 0.6% — best target ~1.2% at 1:2 R:R
