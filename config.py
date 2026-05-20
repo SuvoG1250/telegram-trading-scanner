@@ -50,7 +50,7 @@ SCAN_ALL_UNIVERSE_INTRADAY = True
 # Scan full universe (refresh small legacy watchlists)
 SCAN_FULL_UNIVERSE = True
 # Chaitu50c (Pine port) — chart interval for yfinance replay
-CHAITU_INTERVAL = os.environ.get("CHAITU_INTERVAL", "5m")
+CHAITU_INTERVAL = os.environ.get("CHAITU_INTERVAL", "15m")
 CHAITU_ENHANCED_MODE = os.environ.get("CHAITU_ENHANCED_MODE", "true").lower() in ("1", "true", "yes")
 # Compact BUY/SELL lines only (operational messages use flags below)
 SIGNALS_ONLY_TELEGRAM = os.environ.get("SIGNALS_ONLY_TELEGRAM", "true").lower() in (
@@ -59,7 +59,7 @@ SIGNALS_ONLY_TELEGRAM = os.environ.get("SIGNALS_ONLY_TELEGRAM", "true").lower() 
     "yes",
 )
 # Operational Telegram (independent of SIGNALS_ONLY_TELEGRAM)
-SEND_PREMARKET_REPORT = os.environ.get("SEND_PREMARKET_REPORT", "true").lower() in (
+SEND_PREMARKET_REPORT = os.environ.get("SEND_PREMARKET_REPORT", "false").lower() in (
     "1",
     "true",
     "yes",
@@ -69,7 +69,7 @@ SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
     "true",
     "yes",
 )
-SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "true").lower() in ("1", "true", "yes")
+SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "false").lower() in ("1", "true", "yes")
 BOOT_DELAY_MINUTES = int(os.environ.get("BOOT_DELAY_MINUTES", "30"))
 # ema = 9/15 + 9/21 EMA | ema15 = 9/15 only | ema21 = 9/21 only | chaitu | both (chaitu + both EMAs) | all
 SCAN_STRATEGIES = os.environ.get("SCAN_STRATEGIES", "both").lower()
@@ -79,7 +79,7 @@ EMA_SLOW = int(os.environ.get("EMA_SLOW", "15"))
 # 9/21 EMA crossover (5m)
 EMA21_FAST = int(os.environ.get("EMA21_FAST", "9"))
 EMA21_SLOW = int(os.environ.get("EMA21_SLOW", "21"))
-EMA_INTERVAL = os.environ.get("EMA_INTERVAL", "5m")
+EMA_INTERVAL = os.environ.get("EMA_INTERVAL", "15m")
 EMA_VOLUME_MULTIPLIER = float(os.environ.get("EMA_VOLUME_MULTIPLIER", "1.5"))
 EMA_MAX_SL_PCT = float(os.environ.get("EMA_MAX_SL_PCT", "0.5"))
 EMA_MIN_TARGET_PROFIT_PCT = float(os.environ.get("EMA_MIN_TARGET_PROFIT_PCT", "2.0"))

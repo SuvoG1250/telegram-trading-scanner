@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("session_runner")
 
-SCAN_INTERVAL_SEC = 300
+SCAN_INTERVAL_SEC = 180
 
 
 def _should_continue() -> bool:
