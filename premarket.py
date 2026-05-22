@@ -79,9 +79,14 @@ def build_watchlist(symbols: list[str] | None = None) -> tuple[list[str], list[d
             universe = get_tradeable_universe() if USE_TRADE_FILTERS else get_scan_universe()
             if USE_TRADE_FILTERS:
                 universe = filter_symbols(universe)
+            from config import MAX_STOCK_PRICE, MIN_STOCK_PRICE, SCAN_UNIVERSE_MODE
+
             logger.info(
-                "Intraday scan: %s symbols (filters=%s); playbook highlights=%s",
+                "Intraday scan: %s symbols | mode=%s Rs %.0f-%.0f | filters=%s | playbook=%s",
                 len(universe),
+                SCAN_UNIVERSE_MODE,
+                MIN_STOCK_PRICE,
+                MAX_STOCK_PRICE,
                 USE_TRADE_FILTERS,
                 len(selected),
             )

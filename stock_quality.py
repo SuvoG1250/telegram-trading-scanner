@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from config import MIN_ATR_PCT, MIN_AVG_VOLUME, MIN_STOCK_PRICE
+from config import MAX_STOCK_PRICE, MIN_ATR_PCT, MIN_AVG_VOLUME, MIN_STOCK_PRICE
 from data_fetcher import fetch_daily
 
 
@@ -16,7 +16,9 @@ def passes_quality_filter(symbol: str) -> tuple[bool, dict]:
     last = daily.iloc[-1]
     price = float(last["Close"])
     if price < MIN_STOCK_PRICE:
-        return False, {"reason": "penny/low price"}
+        return False, {"reason": "below min price"}
+    if price > MAX_STOCK_PRICE:
+        return False, {"reason": "above max price"}
 
     avg_vol = float(daily["Volume"].tail(22).mean())
     if avg_vol < MIN_AVG_VOLUME:

@@ -34,7 +34,8 @@ MOMENTUM_MIN_TIMEFRAMES = 3  # of 5 TFs must agree (Strong Buy/Sell)
 # Consolidation / sector strategy (Nifty 100 large-cap)
 CONSOLIDATION_ENTRY_START = (9, 18)
 CONSOLIDATION_ENTRY_END = (9, 36)
-MIN_STOCK_PRICE = 100.0
+MIN_STOCK_PRICE = float(os.environ.get("MIN_STOCK_PRICE", "100"))
+MAX_STOCK_PRICE = float(os.environ.get("MAX_STOCK_PRICE", "1000"))
 MIN_AVG_VOLUME = 500_000
 MIN_ATR_PCT = 1.0
 MAX_SL_RISK_PCT = 2.5
@@ -43,8 +44,8 @@ SECTOR_ST_MIN_BULLISH_PCT = 0.5
 
 WATCHLIST_MIN = 1
 WATCHLIST_MAX = 100
-# nifty500 = all names in data/ind_nifty500list.csv (NSE); nifty100 = legacy list
-SCAN_UNIVERSE_MODE = os.environ.get("SCAN_UNIVERSE_MODE", "nifty500")
+# nifty500 | nifty100 | nse_price_band (all NSE EQ with last close in MIN/MAX price)
+SCAN_UNIVERSE_MODE = os.environ.get("SCAN_UNIVERSE_MODE", "nse_price_band")
 # Intraday: scan every symbol in get_scan_universe(), not only top-ranked playbook picks
 SCAN_ALL_UNIVERSE_INTRADAY = True
 # Scan full universe (refresh small legacy watchlists)

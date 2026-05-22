@@ -32,6 +32,7 @@ One-time setup (5 minutes):
 5. Run setup (PowerShell):
 
    cd "g:\Code\Telegram Trading bot"
+   python scripts/refresh_nse_universe.py    # NSE EQ Rs 100-1000 cache (once/day)
    python scripts/rebuild_watchlist.py       # F&O cache + filtered watchlist
    python scripts/setup_github_secrets.py    # push secrets to GitHub Actions
    python scripts/setup_cron_job_org.py      # create/update cron job

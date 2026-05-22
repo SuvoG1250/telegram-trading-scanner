@@ -1,6 +1,13 @@
-"""NSE universes: Nifty 50, Nifty 100, and extended sector coverage."""
+"""NSE universes: Nifty indices, full EQ list, and price-band scan lists."""
 
 from __future__ import annotations
+
+import json
+import logging
+from datetime import date
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 NIFTY_50_SYMBOLS: list[str] = [
     "ADANIENT",
@@ -174,6 +181,8 @@ _NSE_FNO_API = "https://www.nseindia.com/api/equity-stockIndices?index=SECURITIE
 _NIFTY500_CSV_URL = (
     "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
 )
+_NSE_EQUITY_CSV_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+_PRICE_BAND_CACHE = Path(__file__).resolve().parent / "data" / "nse_universe_100_1000.json"
 
 
 def _try_download_nifty500_csv(path) -> None:
@@ -289,11 +298,211 @@ def is_fno_eligible(symbol: str) -> bool:
     return symbol.upper() in load_fno_symbols()
 
 
+def _try_download_csv(url: str, path: Path, label: str) -> None:
+    import urllib.request
+
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mozilla/5.0 (compatible; NSE-Scanner/1.0)"},
+        )
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            path.write_bytes(resp.read())
+        logger.info("Downloaded %s to %s", label, path)
+    except Exception:
+        logger.warning("Could not download %s.", label)
+
+
+def load_nse_equity_symbols() -> list[str]:
+    """All NSE equity (EQ series) symbols from EQUITY_L.csv."""
+    import csv
+
+    path = Path(__file__).resolve().parent / "data" / "EQUITY_L.csv"
+    if not path.is_file():
+        _try_download_csv(_NSE_EQUITY_CSV_URL, path, "NSE EQUITY_L")
+    if not path.is_file():
+        logger.warning("EQUITY_L.csv missing; using Nifty 500 as fallback.")
+        return load_nifty500_symbols()
+
+    symbols: list[str] = []
+    with path.open(encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            sym = (row.get("SYMBOL") or row.get("Symbol") or "").strip().upper()
+            series = (row.get("SERIES") or row.get("Series") or "EQ").strip().upper()
+            if sym and series == "EQ" and len(sym) >= 2:
+                symbols.append(sym)
+    out = sorted(set(symbols))
+    return out if out else load_nifty500_symbols()
+
+
+def _extract_last_closes(data, chunk: list[str]) -> dict[str, float]:
+    """Parse yfinance multi-ticker download into symbol -> last close."""
+    import pandas as pd
+
+    from config import YFINANCE_SUFFIX
+
+    prices: dict[str, float] = {}
+    if data is None or (hasattr(data, "empty") and data.empty):
+        return prices
+
+    if len(chunk) == 1:
+        sym = chunk[0]
+        try:
+            close = data["Close"].dropna()
+            if len(close):
+                prices[sym] = float(close.iloc[-1])
+        except Exception:
+            pass
+        return prices
+
+    if not isinstance(data.columns, pd.MultiIndex):
+        return prices
+
+    names = data.columns.names or ()
+    tickers_in = set(data.columns.get_level_values(0))
+    for sym in chunk:
+        yf_sym = f"{sym}{YFINANCE_SUFFIX}"
+        if yf_sym not in tickers_in:
+            continue
+        try:
+            if names == ("Ticker", "Price"):
+                close = data[(yf_sym, "Close")].dropna()
+            else:
+                close = data[("Close", yf_sym)].dropna()
+            if len(close):
+                prices[sym] = float(close.iloc[-1])
+        except Exception:
+            continue
+    return prices
+
+
+def _fetch_chunk_closes(chunk: list[str]) -> dict[str, float]:
+    """Download last closes for a symbol chunk (yfinance batch + per-symbol fallback)."""
+    import time
+
+    import yfinance as yf
+
+    from config import YFINANCE_SUFFIX
+    from data_fetcher import fetch_daily
+
+    tickers = [f"{s}{YFINANCE_SUFFIX}" for s in chunk]
+    prices: dict[str, float] = {}
+    try:
+        data = yf.download(
+            tickers,
+            period="10d",
+            interval="1d",
+            group_by="ticker",
+            auto_adjust=True,
+            threads=False,
+            progress=False,
+        )
+        prices.update(_extract_last_closes(data, chunk))
+    except Exception:
+        logger.warning("Batch price fetch failed for chunk starting %s", chunk[0] if chunk else "?")
+
+    missing = [s for s in chunk if s not in prices]
+    for sym in missing:
+        daily = fetch_daily(sym, period="1mo")
+        if daily.empty:
+            continue
+        prices[sym] = float(daily["Close"].iloc[-1])
+        time.sleep(0.35)
+    return prices
+
+
+def filter_symbols_by_price(
+    symbols: list[str],
+    min_price: float,
+    max_price: float,
+    *,
+    chunk_size: int = 25,
+) -> list[str]:
+    """Keep symbols whose latest daily close is within [min_price, max_price]."""
+    import time
+
+    matched: list[str] = []
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i : i + chunk_size]
+        prices = _fetch_chunk_closes(chunk)
+        for sym, px in prices.items():
+            if min_price <= px <= max_price:
+                matched.append(sym)
+        if i + chunk_size < len(symbols):
+            time.sleep(1.2)
+        if (i // chunk_size) % 20 == 0 and i > 0:
+            logger.info("Price filter progress: %s / %s (matched %s)", i, len(symbols), len(matched))
+    return sorted(set(matched))
+
+
+def refresh_nse_price_band_universe(*, force: bool = False) -> list[str]:
+    """
+    Build/cache NSE EQ symbols with last close in configured price band.
+    Cache file: data/nse_universe_100_1000.json (IST date).
+    """
+    from config import MAX_STOCK_PRICE, MIN_STOCK_PRICE
+    from market_time import today_key
+
+    day = today_key()
+    if _PRICE_BAND_CACHE.is_file() and not force:
+        try:
+            cached = json.loads(_PRICE_BAND_CACHE.read_text(encoding="utf-8"))
+            if (
+                cached.get("date") == day
+                and float(cached.get("min_price", 0)) == MIN_STOCK_PRICE
+                and float(cached.get("max_price", 0)) == MAX_STOCK_PRICE
+            ):
+                syms = list(cached.get("symbols") or [])
+                if syms:
+                    logger.info("Price-band universe from cache: %s symbols", len(syms))
+                    return syms
+        except Exception:
+            pass
+
+    all_eq = load_nse_equity_symbols()
+    logger.info(
+        "Filtering %s NSE EQ symbols for Rs %.0f-%.0f …",
+        len(all_eq),
+        MIN_STOCK_PRICE,
+        MAX_STOCK_PRICE,
+    )
+    band = filter_symbols_by_price(all_eq, MIN_STOCK_PRICE, MAX_STOCK_PRICE)
+    if not band:
+        logger.warning("Price-band filter returned 0 symbols; using Nifty 500 in band as fallback.")
+        band = filter_symbols_by_price(load_nifty500_symbols(), MIN_STOCK_PRICE, MAX_STOCK_PRICE)
+    payload = {
+        "date": day,
+        "min_price": MIN_STOCK_PRICE,
+        "max_price": MAX_STOCK_PRICE,
+        "source_count": len(all_eq),
+        "symbols": band,
+    }
+    _PRICE_BAND_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    _PRICE_BAND_CACHE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    logger.info("Price-band universe saved: %s / %s symbols", len(band), len(all_eq))
+    return band
+
+
+def load_nse_price_band_symbols(*, refresh: bool = False) -> list[str]:
+    """Cached intraday universe: all NSE EQ in MIN_STOCK_PRICE–MAX_STOCK_PRICE."""
+    if refresh:
+        return refresh_nse_price_band_universe(force=True)
+    band = refresh_nse_price_band_universe(force=False)
+    if band:
+        return band
+    return load_nifty500_symbols()
+
+
 def get_scan_universe() -> list[str]:
-    """Intraday scan universe — Nifty 500 when CSV present, else Nifty 100."""
+    """Intraday scan universe."""
     from config import SCAN_UNIVERSE_MODE
 
-    if SCAN_UNIVERSE_MODE == "nifty500":
+    mode = (SCAN_UNIVERSE_MODE or "nifty500").lower()
+    if mode in ("nse_price_band", "nse_all", "all_nse", "price_band"):
+        return load_nse_price_band_symbols()
+    if mode == "nifty500":
         return load_nifty500_symbols()
     return list(NIFTY_100_SYMBOLS)
 
