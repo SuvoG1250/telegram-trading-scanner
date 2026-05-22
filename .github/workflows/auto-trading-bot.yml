@@ -53,6 +53,7 @@ jobs:
       SCAN_UNIVERSE_MODE: nse_price_band
       MIN_STOCK_PRICE: "100"
       MAX_STOCK_PRICE: "1000"
+      SEND_SCAN_SUMMARY: "true"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"

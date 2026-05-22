@@ -17,7 +17,6 @@ from config import (
     MAX_SELL_ALERTS_PER_SCAN,
     MIN_STOCK_MOVE_POTENTIAL_PCT,
     MIN_TARGET_PROFIT_PCT,
-    NO_SIGNAL_STATUS_ON_AUTO_SCAN,
     REQUIRE_FNO_ELIGIBLE,
     SCAN_FULL_UNIVERSE,
     SCAN_STRATEGIES,
@@ -54,6 +53,7 @@ from state import (
     save_watchlist,
 )
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
+from scan_summary import ScanStats, send_scan_summary
 from telegram_client import Signal, send_plain, send_signal
 from trade_journal import record_trade
 
@@ -77,10 +77,12 @@ def run_premarket() -> list[str]:
     return watchlist
 
 
-def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
+def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
     clear_session_cache()
     sent_signals: list[Signal] = []
     raw_candidates: list[tuple[str, ConfirmedSignal, Signal, float]] = []
+    stats = ScanStats(symbols_scanned=len(watchlist))
+    single_strategy_only = 0
 
     for symbol in watchlist:
         if USE_TRADE_FILTERS:
@@ -92,12 +94,14 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
             logger.debug("Skip %s — active equity plan still awaiting SL/Target.", symbol)
             continue
 
+        stats.symbols_checked += 1
         raw = collect_raw_signals(symbol, STRATEGY_SCANNERS, STRATEGY_NAMES)
         if not raw:
             continue
 
         confirmed = confirm_signals(raw)
         if confirmed is None:
+            single_strategy_only += 1
             continue
         telegram_sig = confirmed.to_telegram_signal()
         strat = " + ".join(confirmed.strategies)
@@ -166,7 +170,12 @@ def run_intraday_scan(watchlist: list[str]) -> list[Signal]:
         else:
             logger.error("Failed to send signal for %s [%s]", symbol, strat)
 
-    return sent_signals
+    stats.single_strategy_only = single_strategy_only
+    stats.raw_setups = len(raw_candidates)
+    stats.confirmed_ranked = len(best_per_symbol)
+    stats.buy_sent = sum(1 for s in sent_signals if s.side == "BUY")
+    stats.sell_sent = sum(1 for s in sent_signals if s.side == "SELL")
+    return sent_signals, stats
 
 
 def run_nifty_options_scan() -> Signal | None:
@@ -298,23 +307,24 @@ def main() -> int:
     equity_hits, premium_hits = reconcile_all_positions()
     broadcast_lifecycle_updates(equity_hits, premium_hits)
 
-    signals = run_intraday_scan(watchlist)
+    equity_signals, scan_stats = run_intraday_scan(watchlist)
+    signals = list(equity_signals)
     nifty_sig = run_nifty_options_scan()
     if nifty_sig:
         signals.append(nifty_sig)
+        scan_stats.nifty_option_sent = True
 
     try_send_delayed_boot()
 
-    if (
-        not signals
-        and NO_SIGNAL_STATUS_ON_AUTO_SCAN
-        and _is_automatic_run()
-    ):
-        send_plain(
-            f"No signal — {now_ist().strftime('%H:%M IST')}"
-        )
+    send_scan_summary(scan_stats)
 
-    logger.info("Done. Signals sent: %d / %d symbols", len(signals), len(watchlist))
+    logger.info(
+        "Done. Signals sent: %d / %d symbols | raw=%d BUY=%d",
+        len(signals),
+        len(watchlist),
+        scan_stats.raw_setups,
+        scan_stats.buy_sent,
+    )
     return 0
 
 

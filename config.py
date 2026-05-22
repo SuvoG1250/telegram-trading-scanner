@@ -133,6 +133,12 @@ VOLUME_MULTIPLIER = 2.0  # alias for strict session
 GAP_THRESHOLD_PCT = 0.5
 
 SCAN_INTERVAL_MIN = 5
+# One-line Telegram after each scan (symbols scanned, 2-strategy count, BUY sent)
+SEND_SCAN_SUMMARY = os.environ.get("SEND_SCAN_SUMMARY", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 # Notify Telegram when automatic scan finds no confirmed signal (every scan)
 NO_SIGNAL_STATUS_ON_AUTO_SCAN = (
     not SIGNALS_ONLY_TELEGRAM
