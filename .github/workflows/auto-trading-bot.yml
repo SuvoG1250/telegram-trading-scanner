@@ -57,6 +57,7 @@ jobs:
       SEND_DAILY_SUMMARY: "true"
       SEND_SESSION_ALERTS: "true"
       NIFTY_OPTIONS_ENABLED: "true"
+      NIFTY_BTST_ENABLED: "true"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"

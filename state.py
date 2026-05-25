@@ -142,7 +142,12 @@ def _save_session(data: dict[str, Any]) -> None:
 def _session_today() -> dict[str, Any]:
     data = _load_session()
     if data.get("date") != today_key():
-        data = {"date": today_key(), "start_sent": False, "stop_sent": False}
+        data = {
+            "date": today_key(),
+            "start_sent": False,
+            "stop_sent": False,
+            "nifty_btst_sent": False,
+        }
     return data
 
 
@@ -173,6 +178,16 @@ def daily_summary_sent() -> bool:
 def mark_daily_summary() -> None:
     data = _session_today()
     data["daily_summary_sent"] = True
+    _save_session(data)
+
+
+def nifty_btst_sent() -> bool:
+    return bool(_session_today().get("nifty_btst_sent"))
+
+
+def mark_nifty_btst_sent() -> None:
+    data = _session_today()
+    data["nifty_btst_sent"] = True
     _save_session(data)
 
 

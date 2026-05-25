@@ -90,7 +90,10 @@ def _format_option_signal(signal: Signal) -> str:
     else:
         lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")
     if signal.note:
-        lines.append(html.escape(signal.note))
+        if "BTST" in (signal.strategy or "") or "<b>" in signal.note:
+            lines.extend(["", signal.note])
+        else:
+            lines.append(html.escape(signal.note))
     return "\n".join(lines)
 
 

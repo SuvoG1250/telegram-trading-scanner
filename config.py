@@ -146,6 +146,13 @@ NO_SIGNAL_STATUS_ON_AUTO_SCAN = (
     in ("1", "true", "yes")
 )
 # Nifty options — Supertrend (Pine: ATR 10, factor 3)
+# Nifty BTST — one overnight CALL/PUT alert after sentiment + news research (3:20–3:30 PM IST)
+NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
     "1",
     "true",
