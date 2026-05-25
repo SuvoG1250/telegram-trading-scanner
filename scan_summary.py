@@ -13,7 +13,6 @@ from telegram_client import send_plain
 class ScanStats:
     symbols_scanned: int = 0
     symbols_checked: int = 0
-    single_strategy_only: int = 0
     raw_setups: int = 0
     confirmed_ranked: int = 0
     buy_sent: int = 0
@@ -26,14 +25,9 @@ def format_scan_summary(stats: ScanStats) -> str:
     nifty = "1 Nifty option" if stats.nifty_option_sent else "no Nifty option"
     return (
         f"📊 <b>Scan {t}</b>: {stats.symbols_scanned} symbols | "
-        f"{stats.raw_setups} raw (2-strategy) | "
+        f"{stats.raw_setups} setup(s) (1+ strategy) | "
         f"<b>{stats.buy_sent} BUY</b> sent"
         f" | {nifty}"
-        + (
-            f" | {stats.single_strategy_only} had 1/2 strategy only"
-            if stats.single_strategy_only
-            else ""
-        )
     )
 
 

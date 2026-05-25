@@ -37,19 +37,25 @@ class ConfirmedSignal:
     kind: str = "ENTRY"
     risk_mode: str = "playbook"
     suggested_qty: int = 0
+    timeframe: str = ""
 
     def to_telegram_signal(self) -> Signal:
         ts = now_ist().strftime("%d %b %Y, %H:%M IST")
         name = self.strategies[0] if len(self.strategies) == 1 else " + ".join(self.strategies)
+        confirm_tag = ""
+        if len(self.strategies) == 1:
+            confirm_tag = f"Single strategy: {name}"
+        elif len(self.strategies) >= 2:
+            confirm_tag = f"{len(self.strategies)} strategies agree: {name}"
         if SIGNALS_ONLY_TELEGRAM:
             return Signal(
                 symbol=self.symbol,
                 strategy=name,
                 side=self.side,
                 levels=self.levels,
-                note="",
+                note=confirm_tag,
                 kind=self.kind,  # type: ignore[arg-type]
-                timeframe="",
+                timeframe=self.timeframe,
                 timestamp=ts,
                 risk_mode=self.risk_mode,
                 suggested_qty=self.suggested_qty,
@@ -167,6 +173,7 @@ def confirm_single_signal(sig: Signal) -> ConfirmedSignal | None:
         kind="ENTRY",
         risk_mode=getattr(sig, "risk_mode", "playbook"),
         suggested_qty=getattr(sig, "suggested_qty", 0),
+        timeframe=sig.timeframe or "",
     )
 
 
@@ -247,6 +254,8 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
         return None
 
     confidence = "HIGH" if len(group) >= 2 else "MEDIUM"
+    timeframes = [s.timeframe for s in group if s.timeframe]
+    tf = timeframes[0] if len(set(timeframes)) == 1 and timeframes else "Multi"
     return ConfirmedSignal(
         symbol=group[0].symbol,
         side=side,
@@ -257,6 +266,7 @@ def confirm_signals(raw: list[Signal]) -> ConfirmedSignal | None:
         kind="ENTRY",
         risk_mode=getattr(group[0], "risk_mode", "playbook"),
         suggested_qty=max((getattr(s, "suggested_qty", 0) for s in group), default=0),
+        timeframe=tf,
     )
 
 

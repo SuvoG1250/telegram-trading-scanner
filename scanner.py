@@ -16,6 +16,7 @@ from config import (
     MAX_DAILY_BUY_SIGNALS,
     MAX_SELL_ALERTS_PER_SCAN,
     MIN_STOCK_MOVE_POTENTIAL_PCT,
+    MIN_STRATEGIES_TO_CONFIRM,
     MIN_TARGET_PROFIT_PCT,
     REQUIRE_FNO_ELIGIBLE,
     SCAN_FULL_UNIVERSE,
@@ -46,7 +47,12 @@ from position_lifecycle import (
     register_premium_open,
     reconcile_all_positions,
 )
-from signal_aggregator import collect_raw_signals, confirm_signals, ConfirmedSignal
+from signal_aggregator import (
+    collect_raw_signals,
+    confirm_signals,
+    confirm_single_signal,
+    ConfirmedSignal,
+)
 from state import (
     is_watchlist_locked,
     load_watchlist,
@@ -82,7 +88,6 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
     sent_signals: list[Signal] = []
     raw_candidates: list[tuple[str, ConfirmedSignal, Signal, float]] = []
     stats = ScanStats(symbols_scanned=len(watchlist))
-    single_strategy_only = 0
 
     for symbol in watchlist:
         if USE_TRADE_FILTERS:
@@ -99,14 +104,23 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
         if not raw:
             continue
 
-        confirmed = confirm_signals(raw)
-        if confirmed is None:
-            single_strategy_only += 1
-            continue
-        telegram_sig = confirmed.to_telegram_signal()
-        strat = " + ".join(confirmed.strategies)
-        score = equity_candidate_score(telegram_sig)
-        raw_candidates.append((symbol, confirmed, telegram_sig, score))
+        if MIN_STRATEGIES_TO_CONFIRM <= 1:
+            for sig in raw:
+                confirmed = confirm_single_signal(sig)
+                if confirmed is None:
+                    continue
+                telegram_sig = confirmed.to_telegram_signal()
+                strat = confirmed.strategies[0]
+                score = equity_candidate_score(telegram_sig)
+                raw_candidates.append((symbol, confirmed, telegram_sig, score))
+        else:
+            confirmed = confirm_signals(raw)
+            if confirmed is None:
+                continue
+            telegram_sig = confirmed.to_telegram_signal()
+            strat = " + ".join(confirmed.strategies)
+            score = equity_candidate_score(telegram_sig)
+            raw_candidates.append((symbol, confirmed, telegram_sig, score))
 
     best_per_symbol: dict[str, tuple[ConfirmedSignal, float, str]] = {}
     for symbol, confirmed, telegram_sig, score in raw_candidates:
@@ -142,7 +156,11 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
 
         telegram_sig = confirmed.to_telegram_signal()
         peek = peek_stock_exit_flag(symbol)
-        telegram_sig.note = caption_after_prior_exit(peek, basket="equity")
+        reentry = caption_after_prior_exit(peek, basket="equity")
+        if reentry:
+            telegram_sig.note = (
+                f"{telegram_sig.note}\n{reentry}".strip() if telegram_sig.note else reentry
+            )
         logger.info(
             "SIGNAL %s %s [%s] score=%.1f | Entry=%s SL=%s Target=%s",
             symbol,
@@ -170,7 +188,6 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
         else:
             logger.error("Failed to send signal for %s [%s]", symbol, strat)
 
-    stats.single_strategy_only = single_strategy_only
     stats.raw_setups = len(raw_candidates)
     stats.confirmed_ranked = len(best_per_symbol)
     stats.buy_sent = sum(1 for s in sent_signals if s.side == "BUY")

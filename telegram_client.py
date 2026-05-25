@@ -123,19 +123,23 @@ def format_signal_message(signal: Signal) -> str:
         if USE_TRADE_FILTERS and is_fno_eligible(signal.symbol):
             tags = "  ·  <i>F&amp;O · MIS</i>"
         strat = html.escape(signal.strategy or "Intraday")
+        tf = html.escape(signal.timeframe or "15m")
         qty_line = ""
         if signal.suggested_qty > 0:
-            qty_line = f" · Qty <b>{signal.suggested_qty}</b> <i>(₹{RISK_PER_TRADE_INR:,.0f} risk)</i>"
-        extras = ""
-        if signal.note:
-            extras = "\n" + html.escape(signal.note)
+            qty_line = f" · Qty <b>{signal.suggested_qty}</b> <i>(Rs {RISK_PER_TRADE_INR:,.0f} risk)</i>"
+        confirm_line = ""
+        if signal.note and signal.note.startswith(("Single strategy", "2 strategies", "3 strategies")):
+            confirm_line = f"<i>{html.escape(signal.note)}</i>\n"
+        elif signal.note:
+            confirm_line = f"<i>{html.escape(signal.note)}</i>\n"
 
         return (
-            f"{emoji} <b>{action} {sym}</b>{tags}\n"
+            f"{emoji} <b>STOCK {action}: {sym}</b>{tags}\n"
             f"📊 <b>Strategy:</b> {strat}\n"
-            f"Entry <b>₹{lv.entry:,.2f}</b>  ·  SL <b>₹{lv.stop_loss:,.2f}</b>  ·  Target <b>₹{target:,.2f}</b>\n"
+            f"⏱ <b>Chart:</b> {tf}\n"
+            f"{confirm_line}"
+            f"Entry <b>Rs {lv.entry:,.2f}</b>  ·  SL <b>Rs {lv.stop_loss:,.2f}</b>  ·  Target <b>Rs {target:,.2f}</b>\n"
             f"<i>+{lv.target_profit_pct(signal.side):.2f}% · 1:{lv.risk_reward_best} R:R · SL {lv.risk_pct:.2f}%{qty_line} ·  {ts}</i>"
-            f"{extras}"
         )
 
     strat = html.escape(signal.strategy)
