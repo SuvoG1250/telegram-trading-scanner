@@ -79,10 +79,10 @@ def run_loop(max_minutes: int) -> int:
         logger.info("Sleeping %.0f seconds until next scan...", sleep_for)
         time.sleep(sleep_for)
 
-    if is_session_stop_window() or not _should_continue():
-        from session_alerts import handle_session_alerts
+    from session_alerts import handle_session_alerts
 
-        handle_session_alerts()
+    # After 3:30 PM IST: full-day P/L summary + session stop (once per day)
+    handle_session_alerts()
 
     logger.info("Session loop finished after %s iterations.", iteration)
     return 0

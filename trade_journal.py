@@ -169,51 +169,120 @@ def evaluate_trade(trade: TradeRecord) -> tuple[Outcome, float]:
     return _classify_short(trade.entry, trade.stop_loss, trade.target, high, low, close)
 
 
+def _trade_label(trade: TradeRecord) -> str:
+    if trade.instrument == "NIFTY_OPTION":
+        strike = int(trade.strike or 0)
+        opt = trade.option_type or ""
+        return f"NIFTY {strike} {opt} ({trade.side})"
+    side = "SHORT SELL" if trade.side == "SELL" else trade.side
+    return f"{trade.symbol} ({side})"
+
+
+def _format_trade_row(trade: TradeRecord, outcome: Outcome, pnl: float) -> str:
+    tag = _trade_label(trade)
+    strat = trade.strategy or "—"
+    result = "Profit" if outcome == "WIN" else ("Loss" if outcome == "LOSS" else "Flat")
+    return (
+        f"• <b>{tag}</b> · <i>{strat}</i>\n"
+        f"  Entry Rs {trade.entry:,.2f} → <b>{'+' if pnl >= 0 else ''}{pnl:.2f}%</b> ({result})"
+    )
+
+
 def format_daily_summary() -> str:
     trades = load_today_trades()
     date_label = now_ist().strftime("%d %b %Y")
+    close_time = now_ist().strftime("%H:%M IST")
     lines = [
-        f"📊 <b>Full Day Summary</b> — {date_label}",
-        f"<i>All signals sent today · evaluated at market close</i>",
+        f"📊 <b>Full Day Profit &amp; Loss</b> — {date_label}",
+        f"<i>After market close · {close_time}</i>",
         "",
     ]
     if not trades:
-        lines.append("No trades were sent today.")
+        lines.extend(
+            [
+                "No BUY / SHORT SELL / Nifty signals were sent today.",
+                "",
+                "<b>Net P/L:</b> 0.00% · 0 trades",
+            ]
+        )
         return "\n".join(lines)
 
-    winners: list[str] = []
-    losers: list[str] = []
-    flat: list[str] = []
+    equity_win: list[str] = []
+    equity_loss: list[str] = []
+    equity_flat: list[str] = []
+    opt_win: list[str] = []
+    opt_loss: list[str] = []
+    opt_flat: list[str] = []
+    pnl_values: list[float] = []
+    win_pnls: list[float] = []
+    loss_pnls: list[float] = []
 
     for t in trades:
         outcome, pnl = evaluate_trade(t)
-        tag = t.symbol if t.instrument == "EQUITY" else f"{t.symbol} ({t.side})"
-        row = (
-            f"• <b>{tag}</b> @ ₹{t.entry:,.2f} → "
-            f"{'+' if pnl >= 0 else ''}{pnl:.2f}%"
-        )
+        pnl_values.append(pnl)
+        row = _format_trade_row(t, outcome, pnl)
+        is_opt = t.instrument == "NIFTY_OPTION"
         if outcome == "WIN":
-            winners.append(row)
+            win_pnls.append(pnl)
+            (opt_win if is_opt else equity_win).append(row)
         elif outcome == "LOSS":
-            losers.append(row)
+            loss_pnls.append(pnl)
+            (opt_loss if is_opt else equity_loss).append(row)
         else:
-            flat.append(row)
+            (opt_flat if is_opt else equity_flat).append(row)
 
-    lines.append(f"✅ <b>Profited ({len(winners)})</b>")
-    lines.extend(winners if winners else ["• — none —"])
-    lines.append("")
-    lines.append(f"❌ <b>Loss ({len(losers)})</b>")
-    lines.extend(losers if losers else ["• — none —"])
-    if flat:
-        lines.append("")
-        lines.append(f"➖ <b>Flat / open ({len(flat)})</b>")
-        lines.extend(flat)
+    net_pnl = sum(pnl_values)
+    win_sum = sum(win_pnls)
+    loss_sum = sum(loss_pnls)
+    n_win = len(win_pnls)
+    n_loss = len(loss_pnls)
+    n_flat = len(equity_flat) + len(opt_flat)
+
+    lines.extend(
+        [
+            f"💰 <b>Net P/L (day):</b> {'+' if net_pnl >= 0 else ''}{net_pnl:.2f}%",
+            f"✅ <b>Total profit:</b> +{win_sum:.2f}% across {n_win} trade(s)",
+            f"❌ <b>Total loss:</b> {loss_sum:.2f}% across {n_loss} trade(s)",
+            "",
+            f"<b>Stocks</b> — ✅ {len(equity_win)} · ❌ {len(equity_loss)} · ➖ {len(equity_flat)}",
+        ]
+    )
+    if equity_win:
+        lines.append("<b>Profit</b>")
+        lines.extend(equity_win)
+    if equity_loss:
+        lines.append("<b>Loss</b>")
+        lines.extend(equity_loss)
+    if equity_flat:
+        lines.append("<b>Flat</b>")
+        lines.extend(equity_flat)
+    if not (equity_win or equity_loss or equity_flat):
+        lines.append("• — no stock signals today —")
+
+    n_opt = len(opt_win) + len(opt_loss) + len(opt_flat)
+    if n_opt:
+        lines.extend(
+            [
+                "",
+                f"<b>Nifty options</b> — ✅ {len(opt_win)} · ❌ {len(opt_loss)} · ➖ {len(opt_flat)}",
+            ]
+        )
+        if opt_win:
+            lines.append("<b>Profit</b>")
+            lines.extend(opt_win)
+        if opt_loss:
+            lines.append("<b>Loss</b>")
+            lines.extend(opt_loss)
+        if opt_flat:
+            lines.append("<b>Flat</b>")
+            lines.extend(opt_flat)
+
     lines.extend(
         [
             "",
-            f"<b>Total:</b> {len(trades)} signals · "
-            f"✅ {len(winners)} · ❌ {len(losers)} · ➖ {len(flat)}",
-            "<i>New trades blocked after 3:00 PM IST.</i>",
+            f"<b>Day total:</b> {len(trades)} signals · "
+            f"✅ {n_win} · ❌ {n_loss} · ➖ {n_flat}",
+            "<i>P/L % vs entry using session high/low/close (not live fills).</i>",
         ]
     )
     return "\n".join(lines)

@@ -53,6 +53,7 @@ def send_session_stop_alert() -> bool:
     text = (
         "🔴 <b>Trading Scanner STOPPED</b>\n\n"
         f"📅 {_fmt_now()}\n"
+        "📋 Full day Profit &amp; Loss summary sent above.\n"
         "Next session: next trading day ~9:10 AM IST."
     )
     if send_plain(text):
