@@ -1,4 +1,4 @@
-"""Per-scan Telegram summary (symbols scanned, setups, alerts sent)."""
+"""Per-scan stats for logs only — Telegram scan pings disabled."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from config import SEND_SCAN_SUMMARY
 from market_time import now_ist
-from telegram_client import send_plain
 
 
 @dataclass
@@ -21,17 +20,21 @@ class ScanStats:
 
 
 def format_scan_summary(stats: ScanStats) -> str:
+    """Log-friendly one line (not sent to Telegram by default)."""
     t = now_ist().strftime("%H:%M IST")
-    nifty = "1 Nifty option" if stats.nifty_option_sent else "no Nifty option"
+    nifty = "nifty" if stats.nifty_option_sent else "no nifty"
     return (
-        f"📊 <b>Scan {t}</b>: {stats.symbols_scanned} symbols | "
-        f"{stats.raw_setups} setup(s) (1+ strategy) | "
-        f"<b>{stats.buy_sent} BUY</b> sent"
-        f" | {nifty}"
+        f"Scan {t}: {stats.symbols_scanned} symbols | "
+        f"{stats.raw_setups} setups | BUY {stats.buy_sent} | {nifty}"
     )
 
 
 def send_scan_summary(stats: ScanStats) -> bool:
-    if not SEND_SCAN_SUMMARY:
-        return False
-    return send_plain(format_scan_summary(stats), html_mode=True)
+    """Disabled — user wants BUY/SELL/BTST/EOD only, no per-scan Telegram."""
+    if SEND_SCAN_SUMMARY:
+        import logging
+
+        logging.getLogger("scan_summary").warning(
+            "SEND_SCAN_SUMMARY=true ignored; scan Telegram pings are disabled."
+        )
+    return False
