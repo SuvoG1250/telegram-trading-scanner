@@ -21,7 +21,9 @@ def main() -> int:
     eq = load_nse_equity_symbols()
     print(f"NSE EQ symbols loaded: {len(eq)}")
 
-    band = refresh_nse_price_band_universe(force=True)
+    band = refresh_nse_price_band_universe(force=False)
+    if not band:
+        band = refresh_nse_price_band_universe(force=True)
     print(f"Price band Rs {MIN_STOCK_PRICE:.0f}-{MAX_STOCK_PRICE:.0f}: {len(band)} symbols")
 
     fno = load_fno_symbols()

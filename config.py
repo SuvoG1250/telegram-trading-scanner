@@ -35,7 +35,7 @@ MOMENTUM_MIN_TIMEFRAMES = 3  # of 5 TFs must agree (Strong Buy/Sell)
 CONSOLIDATION_ENTRY_START = (9, 18)
 CONSOLIDATION_ENTRY_END = (9, 36)
 MIN_STOCK_PRICE = float(os.environ.get("MIN_STOCK_PRICE", "100"))
-MAX_STOCK_PRICE = float(os.environ.get("MAX_STOCK_PRICE", "1000"))
+MAX_STOCK_PRICE = float(os.environ.get("MAX_STOCK_PRICE", "1500"))
 MIN_AVG_VOLUME = 500_000
 MIN_ATR_PCT = 1.0
 MAX_SL_RISK_PCT = 2.5
@@ -134,7 +134,7 @@ GAP_THRESHOLD_PCT = 0.5
 
 SCAN_INTERVAL_MIN = 5
 # One-line Telegram after each scan (symbols scanned, 2-strategy count, BUY sent)
-SEND_SCAN_SUMMARY = os.environ.get("SEND_SCAN_SUMMARY", "true").lower() in (
+SEND_SCAN_SUMMARY = os.environ.get("SEND_SCAN_SUMMARY", "false").lower() in (
     "1",
     "true",
     "yes",
@@ -213,7 +213,7 @@ MAX_DAILY_BUY_SIGNALS = max(
 # Each 5m scan: emit at most this many new BUY signals (so 5–10 buys fill over the day, not in one burst)
 MAX_BUY_ALERTS_PER_SCAN = max(1, min(3, int(os.environ.get("MAX_BUY_ALERTS_PER_SCAN", "1"))))
 # SELL ideas: max per 5m scan (0 = equity short setups are not alerted)
-MAX_SELL_ALERTS_PER_SCAN = max(0, min(5, int(os.environ.get("MAX_SELL_ALERTS_PER_SCAN", "2"))))
+MAX_SELL_ALERTS_PER_SCAN = max(0, min(5, int(os.environ.get("MAX_SELL_ALERTS_PER_SCAN", "1"))))
 # Optional pings when lifecycle marks SL/Target hit before new alert rules
 SLTP_CLOSE_ALERT_TELEGRAM = os.environ.get("SLTP_CLOSE_ALERT_TELEGRAM", "false").lower() in (
     "1",

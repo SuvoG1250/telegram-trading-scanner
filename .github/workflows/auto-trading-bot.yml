@@ -52,8 +52,9 @@ jobs:
       NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS: "100"
       SCAN_UNIVERSE_MODE: nse_price_band
       MIN_STOCK_PRICE: "100"
-      MAX_STOCK_PRICE: "1000"
-      SEND_SCAN_SUMMARY: "true"
+      MAX_STOCK_PRICE: "1500"
+      SEND_SCAN_SUMMARY: "false"
+      NIFTY_OPTIONS_ENABLED: "false"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"
@@ -66,7 +67,7 @@ jobs:
       EMA_MAX_SL_PCT: "0.5"
       MAX_DAILY_BUY_SIGNALS: "10"
       MAX_BUY_ALERTS_PER_SCAN: "1"
-      MAX_SELL_ALERTS_PER_SCAN: "0"
+      MAX_SELL_ALERTS_PER_SCAN: "1"
       SLTP_CLOSE_ALERT_TELEGRAM: "false"
       SCANNER_DATA_DIR: data
       GITHUB_EVENT_NAME: ${{ github.event_name }}
@@ -107,7 +108,7 @@ jobs:
           echo "mins=$DIFF" >> "$GITHUB_OUTPUT"
           echo "Minutes until 15:30 IST: $DIFF"
 
-      - name: Refresh NSE universe (₹100–₹1000)
+      - name: Refresh NSE universe (Rs 100-1500)
         run: python scripts/refresh_nse_universe.py
 
       - name: Automation boot (once per day)

@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pytz
 
-from config import DATA_DIR, SESSION_FILE, SIGNALS_FILE, WATCHLIST_FILE
+from config import DATA_DIR, MAX_STOCK_PRICE, MIN_STOCK_PRICE, SESSION_FILE, SIGNALS_FILE, WATCHLIST_FILE
 from market_time import IST, today_key
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,10 @@ def load_watchlist() -> list[str]:
         payload = json.loads(WATCHLIST_FILE.read_text(encoding="utf-8"))
         if payload.get("date") != today_key():
             return []
+        if float(payload.get("min_price", 0) or 0) != MIN_STOCK_PRICE:
+            return []
+        if float(payload.get("max_price", 0) or 0) != MAX_STOCK_PRICE:
+            return []
         return list(payload.get("symbols", []))
     except (json.JSONDecodeError, OSError):
         logger.exception("Could not read watchlist")
@@ -37,7 +41,13 @@ def load_watchlist() -> list[str]:
 
 def save_watchlist(symbols: list[str], *, locked: bool = False) -> None:
     ensure_data_dir()
-    payload = {"date": today_key(), "symbols": symbols, "locked": locked}
+    payload = {
+        "date": today_key(),
+        "symbols": symbols,
+        "locked": locked,
+        "min_price": MIN_STOCK_PRICE,
+        "max_price": MAX_STOCK_PRICE,
+    }
     WATCHLIST_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 

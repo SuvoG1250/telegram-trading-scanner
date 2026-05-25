@@ -182,7 +182,8 @@ _NIFTY500_CSV_URL = (
     "https://nsearchives.nseindia.com/content/indices/ind_nifty500list.csv"
 )
 _NSE_EQUITY_CSV_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
-_PRICE_BAND_CACHE = Path(__file__).resolve().parent / "data" / "nse_universe_100_1000.json"
+_PRICE_BAND_CACHE = Path(__file__).resolve().parent / "data" / "nse_universe_price_band.json"
+_LEGACY_PRICE_BAND_CACHE = Path(__file__).resolve().parent / "data" / "nse_universe_100_1000.json"
 
 
 def _try_download_nifty500_csv(path) -> None:
@@ -446,6 +447,8 @@ def refresh_nse_price_band_universe(*, force: bool = False) -> list[str]:
     from market_time import today_key
 
     day = today_key()
+    if not _PRICE_BAND_CACHE.is_file() and _LEGACY_PRICE_BAND_CACHE.is_file():
+        _LEGACY_PRICE_BAND_CACHE.replace(_PRICE_BAND_CACHE)
     if _PRICE_BAND_CACHE.is_file() and not force:
         try:
             cached = json.loads(_PRICE_BAND_CACHE.read_text(encoding="utf-8"))

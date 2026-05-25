@@ -59,7 +59,7 @@ from state import (
     save_watchlist,
 )
 from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
-from scan_summary import ScanStats, send_scan_summary
+from scan_summary import ScanStats
 from telegram_client import Signal, send_plain, send_signal
 from trade_journal import record_trade
 
@@ -333,14 +333,16 @@ def main() -> int:
 
     equity_signals, scan_stats = run_intraday_scan(watchlist)
     signals = list(equity_signals)
-    nifty_sig = run_nifty_options_scan()
-    if nifty_sig:
-        signals.append(nifty_sig)
-        scan_stats.nifty_option_sent = True
+
+    from config import NIFTY_OPTIONS_ENABLED
+
+    if NIFTY_OPTIONS_ENABLED:
+        nifty_sig = run_nifty_options_scan()
+        if nifty_sig:
+            signals.append(nifty_sig)
+            scan_stats.nifty_option_sent = True
 
     try_send_delayed_boot()
-
-    send_scan_summary(scan_stats)
 
     logger.info(
         "Done. Signals sent: %d / %d symbols | raw=%d BUY=%d",

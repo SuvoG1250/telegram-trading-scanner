@@ -111,7 +111,7 @@ def format_signal_message(signal: Signal) -> str:
 
     is_buy = signal.side == "BUY"
     emoji = "🟢" if is_buy else "🔴"
-    action = "BUY" if is_buy else "SELL"
+    action = "BUY" if is_buy else "SHORT SELL"
 
     if SIGNALS_ONLY_TELEGRAM:
         from config import USE_TRADE_FILTERS
