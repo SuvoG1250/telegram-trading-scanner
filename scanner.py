@@ -285,11 +285,18 @@ def main() -> int:
         return 0
 
     mode = "signals-only" if SIGNALS_ONLY_TELEGRAM else "verbose"
+    from strategies import EQUITY_STRATEGY_LABELS
+
+    strat_mode = (
+        f"all ({len(EQUITY_STRATEGY_LABELS)} setups)"
+        if SCAN_STRATEGIES == "all"
+        else SCAN_STRATEGIES
+    )
     logger.info(
-        "Scan %s IST | %s | strategy=%s | filters=%s F&O=%s | min move %.1f%% | opt target %.1f%%",
+        "Scan %s IST | %s | strategies=%s | filters=%s F&O=%s | min move %.1f%% | opt target %.1f%%",
         now_ist().strftime("%H:%M"),
         mode,
-        SCAN_STRATEGIES,
+        strat_mode,
         USE_TRADE_FILTERS,
         REQUIRE_FNO_ELIGIBLE,
         MIN_STOCK_MOVE_POTENTIAL_PCT,

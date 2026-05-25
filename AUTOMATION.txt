@@ -88,6 +88,6 @@ SIGNAL LIFECYCLE (scanner)
 WORKFLOW ENV (in auto-trading-bot.yml — no secret needed)
 -----------------------------------------------
   MAX_DAILY_BUY_SIGNALS=10 · MAX_BUY_ALERTS_PER_SCAN=1 · MAX_SELL_ALERTS_PER_SCAN=0 · SLTP_CLOSE_ALERT_TELEGRAM=false
-  USE_TRADE_FILTERS=true, SCAN_STRATEGIES=both (Chaitu50c + 9/15 EMA + 9/21 EMA), OPTION_DATA_PROVIDER=upstoxNOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
+  USE_TRADE_FILTERS=true, SCAN_STRATEGIES=all (5 equity setups, any 1 alerts) + Nifty options, OPTION_DATA_PROVIDER=upstoxNOTE: cron-job.org free tier ≈ 100 API calls/day (~78 scans/day fits).
 
 OPTION A (Windows Task Scheduler): scripts/install_windows_autoscan.ps1

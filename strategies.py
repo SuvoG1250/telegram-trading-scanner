@@ -313,3 +313,12 @@ else:
     STRATEGY_SCANNERS = _CHAITU_ONLY
 
 STRATEGY_NAMES = [fn.__name__ for fn in STRATEGY_SCANNERS]
+
+# Human labels for logs / docs (5 equity + Nifty options = 6 total alerts)
+EQUITY_STRATEGY_LABELS = [
+    "Setup 1: 1-Min Morning Breakout",
+    "Setup 2: Core Price Action (5m/15m)",
+    "Chaitu50c",
+    "EMA 9/15 Crossover",
+    "EMA 9/21 Crossover",
+]
