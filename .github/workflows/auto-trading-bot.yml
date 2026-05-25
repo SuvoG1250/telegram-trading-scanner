@@ -26,7 +26,7 @@ permissions:
 
 concurrency:
   group: intraday-scan
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   scan:
@@ -111,8 +111,13 @@ jobs:
           echo "mins=$DIFF" >> "$GITHUB_OUTPUT"
           echo "Minutes until 15:30 IST: $DIFF"
 
-      - name: Refresh NSE universe (Rs 100-1500)
-        run: python scripts/refresh_nse_universe.py
+      - name: Refresh NSE universe (Rs 100-1500, skip if cached)
+        run: |
+          if [ -f data/nse_universe_price_band.json ]; then
+            echo "Price-band cache present — skip slow refresh"
+          else
+            python scripts/refresh_nse_universe.py
+          fi
 
       - name: Automation boot (once per day)
         run: python automation_boot.py

@@ -149,9 +149,17 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
 
         if side == "BUY":
             if buy_scan_emitted >= MAX_BUY_ALERTS_PER_SCAN or daily_buy_left <= 0:
+                logger.info(
+                    "Skip BUY %s [%s] — scan cap %d or daily left %d.",
+                    symbol,
+                    strat,
+                    MAX_BUY_ALERTS_PER_SCAN,
+                    daily_buy_left,
+                )
                 continue
         else:
             if sell_scan_emitted >= MAX_SELL_ALERTS_PER_SCAN:
+                logger.info("Skip SHORT SELL %s [%s] — scan cap reached.", symbol, strat)
                 continue
 
         telegram_sig = confirmed.to_telegram_signal()
@@ -253,26 +261,17 @@ def _needs_full_universe_refresh(watchlist: list[str]) -> bool:
 
 
 def _get_daily_watchlist() -> list[str]:
+    """Always return today's filtered universe during market hours (never stale/empty)."""
     watchlist = load_watchlist()
 
-    if _needs_full_universe_refresh(watchlist):
-        logger.info("Refreshing scan list to full universe.")
-        watchlist, _ = build_watchlist()
-        if watchlist:
-            save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
+    if watchlist and is_watchlist_locked() and not _needs_full_universe_refresh(watchlist):
         return watchlist
 
-    if watchlist and is_watchlist_locked():
-        return watchlist
-
-    if watchlist:
-        save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
-        return watchlist
-
-    if is_premarket_window():
-        return []
-
-    logger.info("Building initial watchlist.")
+    logger.info(
+        "Building watchlist (cached=%s symbols, locked=%s).",
+        len(watchlist),
+        is_watchlist_locked(),
+    )
     watchlist, _ = build_watchlist()
     if watchlist:
         save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)

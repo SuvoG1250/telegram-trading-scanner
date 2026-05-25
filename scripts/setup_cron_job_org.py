@@ -131,14 +131,42 @@ def test_github_dispatch(github_pat: str) -> None:
             "Authorization": f"Bearer {github_pat}",
             "X-GitHub-Api-Version": "2022-11-28",
         },
-        json={"ref": "main", "inputs": {"mode": "scan_once"}},
+        json={"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "0"}},
         timeout=30,
     )
     if r.status_code == 204:
-        print("GitHub dispatch OK — check Actions and Telegram in ~1 min.")
+        print("GitHub dispatch OK — full_session started (BUY/SELL/BTST/EOD only).")
         return
     print(f"GitHub dispatch failed ({r.status_code}): {r.text}")
     sys.exit(1)
+
+
+def disable_job(api_key: str, job_id: int) -> None:
+    r = requests.patch(
+        f"{CRONJOB_API}/jobs/{job_id}",
+        headers=_cron_headers(api_key),
+        json={"job": {"enabled": False}},
+        timeout=30,
+    )
+    r.raise_for_status()
+
+
+def prune_legacy_cron_jobs(api_key: str) -> int:
+    """Disable extra cron-job.org jobs that hit this workflow (stops 5-min scan spam)."""
+    disabled = 0
+    for job in list_jobs(api_key):
+        if job.get("title") == JOB_TITLE:
+            continue
+        url = str(job.get("url") or "")
+        if "actions/workflows" not in url and str(WORKFLOW_ID) not in url:
+            continue
+        if not job.get("enabled"):
+            continue
+        jid = int(job["jobId"])
+        disable_job(api_key, jid)
+        print(f"Disabled legacy job [{jid}] {job.get('title')}")
+        disabled += 1
+    return disabled
 
 
 def main() -> int:
@@ -212,6 +240,10 @@ def main() -> int:
         print("Missing CRONJOB_API_KEY in .env")
         print("Create: https://console.cron-job.org/settings -> API key")
         return 1
+
+    n_off = prune_legacy_cron_jobs(cron_key)
+    if n_off:
+        print(f"Disabled {n_off} legacy cron job(s) that caused scan spam.")
 
     existing = find_job_id(cron_key)
     if existing:

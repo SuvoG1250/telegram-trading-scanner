@@ -1,4 +1,5 @@
-# Run once as Administrator. Triggers GitHub scan every 5 min during NSE hours (Mon-Fri).
+# NOT RECOMMENDED — causes extra GitHub runs. Use cron-job.org once-daily job instead.
+# Run only if you intentionally want local PC to trigger scan_once every 5 min.
 # Requires: gh auth login
 
 $ErrorActionPreference = "Stop"
