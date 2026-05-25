@@ -34,7 +34,7 @@ def send_session_start_alert() -> bool:
     text = (
         "🟢 <b>Trading Scanner STARTED</b>\n\n"
         f"📅 {_fmt_now()}\n"
-        "📊 NSE Rs 100–1500 · stock <b>BUY</b> + <b>SHORT SELL</b> (5 setups, any 1).\n"
+        "📊 NSE Rs 100–1500 · stock <b>BUY</b> + <b>SHORT SELL</b> + Nifty options.\n"
         "⏱ New trades: <b>9:26 AM – 3:00 PM IST</b> · no scan-status pings.\n"
         "📋 Full day P/L summary after 3:30 PM."
     )

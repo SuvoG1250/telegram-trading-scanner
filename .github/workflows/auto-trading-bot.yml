@@ -54,7 +54,7 @@ jobs:
       MIN_STOCK_PRICE: "100"
       MAX_STOCK_PRICE: "1500"
       SEND_SCAN_SUMMARY: "false"
-      NIFTY_OPTIONS_ENABLED: "false"
+      NIFTY_OPTIONS_ENABLED: "true"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"
