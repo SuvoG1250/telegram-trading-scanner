@@ -1,4 +1,4 @@
-"""Shared Google Gemini API client (no extra dependencies)."""
+"""LLM client: Google Gemini primary, Groq fallback on quota/errors."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from config import GEMINI_API_KEY, GEMINI_MODEL
+from config import GEMINI_API_KEY, GEMINI_MODEL, GROQ_FALLBACK_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +25,22 @@ def gemini_available() -> bool:
     return bool(GEMINI_API_KEY)
 
 
-def gemini_generate(
+def llm_available() -> bool:
+    """True if Gemini and/or Groq can serve requests."""
+    from groq_client import groq_available
+
+    return gemini_available() or groq_available()
+
+
+def _gemini_only_generate(
     prompt: str,
     *,
     max_tokens: int = 220,
     temperature: float = 0.3,
-) -> str:
+) -> tuple[str, bool]:
+    """Returns (text, should_try_groq). should_try_groq=True on quota/total failure."""
     if not GEMINI_API_KEY:
-        return ""
+        return "", True
 
     payload = json.dumps(
         {
@@ -51,6 +59,7 @@ def gemini_generate(
         if m not in models:
             models.append(m)
 
+    saw_quota = False
     last_err: Exception | None = None
     for model in models:
         url = (
@@ -69,17 +78,48 @@ def gemini_generate(
             parts = data["candidates"][0]["content"]["parts"]
             text = parts[0].get("text", "").strip()
             if text:
-                return text
+                return text, False
         except urllib.error.HTTPError as exc:
             last_err = exc
+            if exc.code == 429:
+                saw_quota = True
             if exc.code in (404, 429):
                 continue
+            return "", True
         except Exception as exc:
             last_err = exc
             continue
 
     if last_err:
         logger.warning("Gemini request failed: %s", last_err)
+    return "", saw_quota or last_err is not None
+
+
+def gemini_generate(
+    prompt: str,
+    *,
+    max_tokens: int = 220,
+    temperature: float = 0.3,
+) -> str:
+    text = ""
+    try_groq = False
+
+    if GEMINI_API_KEY:
+        text, try_groq = _gemini_only_generate(
+            prompt, max_tokens=max_tokens, temperature=temperature
+        )
+        if text:
+            return text
+
+    if GROQ_FALLBACK_ENABLED and (try_groq or not GEMINI_API_KEY):
+        from groq_client import groq_generate
+
+        groq_text = groq_generate(
+            prompt, max_tokens=max_tokens, temperature=temperature
+        )
+        if groq_text:
+            return groq_text
+
     return ""
 
 
@@ -110,7 +150,6 @@ def gemini_json(prompt: str, *, max_tokens: int = 400) -> dict | list | None:
             return parsed
     except json.JSONDecodeError:
         pass
-    # Loose recovery: {"key": [...]} substrings
     out: dict[str, Any] = {}
     for key in ("focus", "priority", "skip", "avoid"):
         m = re.search(rf'"{key}"\s*:\s*\[(.*?)\]', raw, re.DOTALL)
@@ -123,5 +162,5 @@ def gemini_json(prompt: str, *, max_tokens: int = 400) -> dict | list | None:
         out["summary"] = sm.group(1)
     if out:
         return out
-    logger.warning("Gemini JSON parse failed.")
+    logger.warning("LLM JSON parse failed.")
     return None

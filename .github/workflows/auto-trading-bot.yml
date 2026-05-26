@@ -65,6 +65,9 @@ jobs:
       GEMINI_STOCK_SELECTION: "true"
       GEMINI_STOCK_RANK: "true"
       GEMINI_STOCK_ALERTS: "true"
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: llama-3.1-8b-instant
+      GROQ_FALLBACK_ENABLED: "true"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"

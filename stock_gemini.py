@@ -16,7 +16,7 @@ from config import (
     GEMINI_STOCK_RANK_MAX,
     GEMINI_STOCK_SELECTION,
 )
-from gemini_client import gemini_available, gemini_generate, gemini_json
+from gemini_client import gemini_generate, gemini_json, llm_available
 from market_sentiment import assess_market_sentiment
 from market_time import now_ist
 from sector_map import sector_for
@@ -28,7 +28,7 @@ _FOCUS_BOOST = 2.5
 
 
 def gemini_stock_enabled() -> bool:
-    return gemini_available() and GEMINI_STOCK_ENABLED
+    return llm_available() and GEMINI_STOCK_ENABLED
 
 
 def _load_cache() -> dict[str, Any]:

@@ -178,6 +178,14 @@ GEMINI_STOCK_ALERTS = os.environ.get("GEMINI_STOCK_ALERTS", "true").lower() in (
     "yes",
 )
 GEMINI_STOCK_RANK_MAX = max(2, min(8, int(os.environ.get("GEMINI_STOCK_RANK_MAX", "5"))))
+# Groq fallback when Gemini returns 429 or all models fail (https://console.groq.com/keys)
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_FALLBACK_ENABLED = os.environ.get("GROQ_FALLBACK_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
     "1",
     "true",
