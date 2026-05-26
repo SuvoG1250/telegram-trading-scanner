@@ -191,6 +191,16 @@ def mark_nifty_btst_sent() -> None:
     _save_session(data)
 
 
+def health_check_sent() -> bool:
+    return bool(_session_today().get("health_check_sent"))
+
+
+def mark_health_check_sent() -> None:
+    data = _session_today()
+    data["health_check_sent"] = True
+    _save_session(data)
+
+
 def automation_boot_sent() -> bool:
     return bool(_session_today().get("automation_boot_sent"))
 

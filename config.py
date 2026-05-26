@@ -70,6 +70,11 @@ SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
     "true",
     "yes",
 )
+SEND_HEALTH_CHECK = os.environ.get("SEND_HEALTH_CHECK", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "false").lower() in ("1", "true", "yes")
 BOOT_DELAY_MINUTES = int(os.environ.get("BOOT_DELAY_MINUTES", "30"))
 # all/stocks = 5 setups (no Chaitu50c) | ema | ema20_st | chaitu (legacy only)

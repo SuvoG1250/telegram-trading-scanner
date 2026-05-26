@@ -364,6 +364,9 @@ def main() -> int:
 
     if is_premarket_window():
         run_premarket()
+        from health_check import send_morning_health_check
+
+        send_morning_health_check()
         return 0
 
     if not is_market_open():
@@ -388,6 +391,9 @@ def main() -> int:
     record_trading_started_at()
 
     watchlist = _get_daily_watchlist()
+    from health_check import send_morning_health_check
+
+    send_morning_health_check()
     if not watchlist:
         logger.warning("Empty watchlist.")
         return 0
