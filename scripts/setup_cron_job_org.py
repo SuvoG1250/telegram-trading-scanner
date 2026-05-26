@@ -169,10 +169,54 @@ def prune_legacy_cron_jobs(api_key: str) -> int:
     return disabled
 
 
+def cancel_github_runs() -> int:
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            [
+                "gh",
+                "run",
+                "list",
+                "--repo",
+                f"{GITHUB_OWNER}/{GITHUB_REPO}",
+                "--workflow",
+                "Auto Trading Bot",
+                "--status",
+                "in_progress",
+                "--json",
+                "databaseId",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if out.returncode != 0:
+            return 0
+        rows = json.loads(out.stdout or "[]")
+        for row in rows:
+            rid = row.get("databaseId")
+            if rid:
+                subprocess.run(
+                    ["gh", "run", "cancel", str(rid), "--repo", f"{GITHUB_OWNER}/{GITHUB_REPO}"],
+                    check=False,
+                )
+                print(f"Cancelled GitHub run {rid}")
+        return len(rows)
+    except (OSError, json.JSONDecodeError):
+        return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Setup cron-job.org for trading bot")
     parser.add_argument("--test", action="store_true", help="Trigger one GitHub scan now")
     parser.add_argument("--list", action="store_true", help="List cron-job.org jobs")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Disable legacy cron jobs + cancel stuck GitHub runs, then enable single daily job",
+    )
     args = parser.parse_args()
 
     github_pat = os.environ.get("GITHUB_PAT") or os.environ.get("GITHUB_TOKEN", "")
@@ -240,6 +284,11 @@ def main() -> int:
         print("Missing CRONJOB_API_KEY in .env")
         print("Create: https://console.cron-job.org/settings -> API key")
         return 1
+
+    if args.reset:
+        n_cancel = cancel_github_runs()
+        if n_cancel:
+            print(f"Cancelled {n_cancel} in-progress GitHub run(s).")
 
     n_off = prune_legacy_cron_jobs(cron_key)
     if n_off:

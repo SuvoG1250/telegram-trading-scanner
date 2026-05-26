@@ -152,6 +152,8 @@ NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
     "true",
     "yes",
 )
+# BTST CALL/PUT only when all confirmation checks pass (else risky warning)
+NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
     "1",
