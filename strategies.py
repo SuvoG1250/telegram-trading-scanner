@@ -16,10 +16,7 @@ import logging
 
 import pandas as pd
 
-from chaitu50c import ChaituParams, replay_last_bar_signal
 from config import (
-    CHAITU_ENHANCED_MODE,
-    CHAITU_INTERVAL,
     EMA_FAST,
     EMA_INTERVAL,
     EMA_SLOW,
@@ -30,6 +27,7 @@ from config import (
     SCAN_STRATEGIES,
     SIGNALS_ONLY_TELEGRAM,
 )
+from ema20_supertrend import scan_ema20_supertrend_bearish
 from ema_crossover import (
     add_emas,
     crossover_signal,
@@ -38,8 +36,8 @@ from ema_crossover import (
 )
 from data_fetcher import Interval, get_today_session
 from market_time import (
-    is_chaitu_session,
     is_core_price_action_window,
+    is_equity_entry_session,
     is_market_open,
     is_morning_1m_playbook_window,
     now_ist,
@@ -177,52 +175,9 @@ def _session_interval(symbol: str, interval: Interval) -> pd.DataFrame:
     return get_today_session(symbol, interval)
 
 
-def setup_3_chaitu50c_breakout(symbol: str) -> Signal | None:
-    """
-    Setup 3 — Pine port "Intraday BUY/SELL & AUTO SL by chaitu50c".
-    Single/double candle color flips + close beyond prior opposite candle extreme.
-    Session 9:15–15:25 IST; enhanced mode: zone suppression + SL→opposite + slModeOnly.
-    """
-    if not is_market_open() or not is_chaitu_session():
-        return None
-
-    interval: Interval = CHAITU_INTERVAL if CHAITU_INTERVAL in ("1m", "3m", "5m", "15m") else "5m"
-    session = _session_interval(symbol, interval)
-    if len(session) < 5:
-        return None
-
-    params = ChaituParams(enhanced_mode=CHAITU_ENHANCED_MODE)
-    fire = replay_last_bar_signal(session, params)
-    if fire is None:
-        return None
-
-    tf_label = interval.upper().replace("M", " Min")
-    double_tag = " (double-candle)" if fire.double_candle else ""
-    exit_note = STANDARD_EXIT
-
-    note = "" if SIGNALS_ONLY_TELEGRAM else (
-        f"Chaitu50c{double_tag} · SL ₹{fire.stop_level:.2f}. {exit_note}"
-    )
-    name = "Chaitu50c"
-
-    if fire.side == "BUY":
-        return playbook_entry_long(
-            symbol,
-            name,
-            fire.entry,
-            fire.stop_level,
-            note=note,
-            timeframe=tf_label,
-        )
-
-    return playbook_entry_short(
-        symbol,
-        name,
-        fire.entry,
-        fire.stop_level,
-        note=note,
-        timeframe=tf_label,
-    )
+def setup_6_ema20_supertrend_bearish(symbol: str) -> Signal | None:
+    """EMA20 below price + Supertrend flip to red — SHORT on signal candle low break."""
+    return scan_ema20_supertrend_bearish(symbol)
 
 
 def _ema_crossover_setup(
@@ -233,10 +188,10 @@ def _ema_crossover_setup(
     strategy_name: str,
 ) -> Signal | None:
     """9/x EMA crossover on 5m with volume momentum. SL: prior bar low/high."""
-    if not is_market_open() or not is_chaitu_session():
+    if not is_market_open() or not is_equity_entry_session():
         return None
 
-    interval: Interval = EMA_INTERVAL if EMA_INTERVAL in ("1m", "3m", "5m", "15m") else "5m"
+    interval: Interval = EMA_INTERVAL if EMA_INTERVAL in ("1m", "3m", "5m", "15m") else "15m"
     session = _session_interval(symbol, interval)
     if len(session) < max(slow, 20) + 2:
         return None
@@ -287,38 +242,59 @@ def setup_5_ema_9_21_crossover(symbol: str) -> Signal | None:
     )
 
 
-_ALL_SCANNERS = [
+_STOCK_SCANNERS = [
     setup_1_morning_1m_breakout,
     setup_2_core_price_action_5m_15m,
-    setup_3_chaitu50c_breakout,
     setup_4_ema_crossover,
     setup_5_ema_9_21_crossover,
+    setup_6_ema20_supertrend_bearish,
 ]
-_CHAITU_ONLY = [setup_3_chaitu50c_breakout]
 _EMA_915 = [setup_4_ema_crossover]
 _EMA_921 = [setup_5_ema_9_21_crossover]
 _EMA_ALL = _EMA_915 + _EMA_921
+_EMA20_ST = [setup_6_ema20_supertrend_bearish]
 
-if SCAN_STRATEGIES == "all":
-    STRATEGY_SCANNERS = _ALL_SCANNERS
+if SCAN_STRATEGIES in ("all", "stocks", "default"):
+    STRATEGY_SCANNERS = _STOCK_SCANNERS
 elif SCAN_STRATEGIES == "both":
-    STRATEGY_SCANNERS = _CHAITU_ONLY + _EMA_ALL
+    STRATEGY_SCANNERS = _EMA_ALL + _EMA20_ST
 elif SCAN_STRATEGIES == "ema":
-    STRATEGY_SCANNERS = _EMA_ALL
+    STRATEGY_SCANNERS = _EMA_ALL + _EMA20_ST
 elif SCAN_STRATEGIES in ("ema15", "ema_15"):
     STRATEGY_SCANNERS = _EMA_915
 elif SCAN_STRATEGIES in ("ema21", "ema_21"):
     STRATEGY_SCANNERS = _EMA_921
+elif SCAN_STRATEGIES in ("ema20_st", "ema20st"):
+    STRATEGY_SCANNERS = _EMA20_ST
+elif SCAN_STRATEGIES == "chaitu":
+    from chaitu50c import ChaituParams, replay_last_bar_signal
+    from config import CHAITU_ENHANCED_MODE, CHAITU_INTERVAL
+
+    def _legacy_chaitu(symbol: str) -> Signal | None:
+        if not is_market_open() or not is_equity_entry_session():
+            return None
+        interval: Interval = CHAITU_INTERVAL if CHAITU_INTERVAL in ("1m", "3m", "5m", "15m") else "5m"
+        session = _session_interval(symbol, interval)
+        if len(session) < 5:
+            return None
+        fire = replay_last_bar_signal(session, ChaituParams(enhanced_mode=CHAITU_ENHANCED_MODE))
+        if fire is None:
+            return None
+        tf = interval.upper().replace("M", " Min")
+        if fire.side == "BUY":
+            return playbook_entry_long(symbol, "Chaitu50c", fire.entry, fire.stop_level, timeframe=tf)
+        return playbook_entry_short(symbol, "Chaitu50c", fire.entry, fire.stop_level, timeframe=tf)
+
+    STRATEGY_SCANNERS = [_legacy_chaitu]
 else:
-    STRATEGY_SCANNERS = _CHAITU_ONLY
+    STRATEGY_SCANNERS = _STOCK_SCANNERS
 
 STRATEGY_NAMES = [fn.__name__ for fn in STRATEGY_SCANNERS]
 
-# Human labels for logs / docs (5 equity + Nifty options = 6 total alerts)
 EQUITY_STRATEGY_LABELS = [
     "Setup 1: 1-Min Morning Breakout",
     "Setup 2: Core Price Action (5m/15m)",
-    "Chaitu50c",
     "EMA 9/15 Crossover",
     "EMA 9/21 Crossover",
+    "EMA20 + Supertrend Bearish",
 ]

@@ -287,8 +287,8 @@ def main() -> int:
     from strategies import EQUITY_STRATEGY_LABELS
 
     strat_mode = (
-        f"all ({len(EQUITY_STRATEGY_LABELS)} setups)"
-        if SCAN_STRATEGIES == "all"
+        f"stocks ({len(EQUITY_STRATEGY_LABELS)} setups, no Chaitu)"
+        if SCAN_STRATEGIES in ("all", "stocks", "default")
         else SCAN_STRATEGIES
     )
     logger.info(

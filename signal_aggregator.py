@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 ENTRY_STRATEGIES = {
     "Setup 1: 1-Min Morning Breakout",
     "Setup 2: Core Price Action (5m/15m)",
-    "Setup 3: Chaitu50c BUY/SELL",
     "Chaitu50c",
     "EMA 9/15 Crossover",
     "EMA 9/21 Crossover",
+    "EMA20 + Supertrend Bearish",
 }
 
 

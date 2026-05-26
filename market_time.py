@@ -116,12 +116,30 @@ def is_new_trade_window(dt: datetime | None = None) -> bool:
     return _before(cutoff, t)
 
 
-def is_chaitu_session(dt: datetime | None = None) -> bool:
-    """Setup 3 (Chaitu50c): Pine session 09:15–15:00 IST (no new trades after 3 PM)."""
+def is_equity_entry_session(dt: datetime | None = None) -> bool:
+    """Stock intraday entries: 9:15 AM – before 3:00 PM IST."""
     dt = dt or now_ist()
     if not is_weekday(dt) or not is_market_open(dt):
         return False
     return is_new_trade_window(dt) and _after((9, 15), ist_time_tuple(dt))
+
+
+def is_chaitu_session(dt: datetime | None = None) -> bool:
+    """Legacy Chaitu50c window (disabled in default scan)."""
+    return is_equity_entry_session(dt)
+
+
+def is_ema20_st_entry_window(dt: datetime | None = None) -> bool:
+    """EMA20+ST bearish: after 9:30, avoid last 15m; best 9:30–11:30 & 1:30–2:30."""
+    dt = dt or now_ist()
+    if not is_equity_entry_session(dt):
+        return False
+    t = ist_time_tuple(dt)
+    if not _after((9, 30), t) or not _before((15, 15), t):
+        return False
+    morning = _after((9, 30), t) and _before((11, 30), t)
+    afternoon = _after((13, 30), t) and _before((14, 30), t)
+    return morning or afternoon
 
 
 def is_core_price_action_window(dt: datetime | None = None) -> bool:

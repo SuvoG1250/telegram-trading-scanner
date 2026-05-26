@@ -72,7 +72,7 @@ SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
 )
 SEND_BOOT_ALERT = os.environ.get("SEND_BOOT_ALERT", "false").lower() in ("1", "true", "yes")
 BOOT_DELAY_MINUTES = int(os.environ.get("BOOT_DELAY_MINUTES", "30"))
-# all = 5 equity setups | both = chaitu + both EMAs | ema | chaitu | ema15 | ema21
+# all/stocks = 5 setups (no Chaitu50c) | ema | ema20_st | chaitu (legacy only)
 SCAN_STRATEGIES = os.environ.get("SCAN_STRATEGIES", "all").lower()
 # 9/15 EMA crossover (5m)
 EMA_FAST = int(os.environ.get("EMA_FAST", "9"))
