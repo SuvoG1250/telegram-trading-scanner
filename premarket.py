@@ -21,6 +21,7 @@ from state import long_term_picks_sent, mark_long_term_picks_sent
 from config import USE_TRADE_FILTERS
 from stocks import get_scan_universe, get_tradeable_universe
 from trade_filters import filter_symbols
+from stock_gemini import run_premarket_stock_selection
 
 logger = logging.getLogger(__name__)
 
@@ -121,6 +122,10 @@ def format_watchlist_message(rows: list[dict]) -> str:
         extra = len(by_sec[sector]) - len(sec_rows)
         suffix = f" +{extra}" if extra > 0 else ""
         lines.append(f"• <b>{sector}</b>: {tickers}{suffix}")
+
+    ai_block = run_premarket_stock_selection(rows)
+    if ai_block:
+        lines.extend(["", ai_block])
 
     lines.extend(
         [

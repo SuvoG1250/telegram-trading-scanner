@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from config import GEMINI_API_KEY  # noqa: E402
+from gemini_client import gemini_generate  # noqa: E402
 from nifty_btst import _optional_gemini_summary  # noqa: E402
 
 

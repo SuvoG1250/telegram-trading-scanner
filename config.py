@@ -155,8 +155,29 @@ NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
 # BTST CALL/PUT only when all confirmation checks pass (else risky warning)
 NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-# BTST AI summary model (fallbacks tried in nifty_btst if this fails)
+# BTST AI summary model (fallbacks tried in gemini_client if this fails)
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_STOCK_ENABLED = os.environ.get("GEMINI_STOCK_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GEMINI_STOCK_SELECTION = os.environ.get("GEMINI_STOCK_SELECTION", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GEMINI_STOCK_RANK = os.environ.get("GEMINI_STOCK_RANK", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GEMINI_STOCK_ALERTS = os.environ.get("GEMINI_STOCK_ALERTS", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GEMINI_STOCK_RANK_MAX = max(2, min(8, int(os.environ.get("GEMINI_STOCK_RANK_MAX", "5"))))
 NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
     "1",
     "true",

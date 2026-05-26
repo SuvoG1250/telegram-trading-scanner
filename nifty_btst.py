@@ -17,7 +17,6 @@ import yfinance as yf
 
 from config import (
     GEMINI_API_KEY,
-    GEMINI_MODEL,
     NIFTY_BTST_ENABLED,
     NIFTY_BTST_MIN_SCORE,
     NIFTY_EXIT490_ATR_BARS,
@@ -42,6 +41,7 @@ from nifty_options import (
 )
 from option_quotes import fetch_nifty_option_quote as get_option_quote
 from state import mark_nifty_btst_sent, nifty_btst_sent
+from gemini_client import gemini_generate
 from telegram_client import Signal, send_plain
 
 logger = logging.getLogger(__name__)
@@ -103,64 +103,6 @@ def _supertrend_bias(session: pd.DataFrame) -> str:
     return "bullish" if direction > 0 else "bearish"
 
 
-_GEMINI_MODEL_FALLBACKS = (
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
-)
-
-
-def _gemini_generate(prompt: str, max_tokens: int = 220) -> str:
-    import urllib.error
-    import urllib.request
-
-    payload = json.dumps(
-        {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
-        }
-    ).encode("utf-8")
-
-    models: list[str] = []
-    if GEMINI_MODEL:
-        models.append(GEMINI_MODEL)
-    for m in _GEMINI_MODEL_FALLBACKS:
-        if m not in models:
-            models.append(m)
-
-    last_err: Exception | None = None
-    for model in models:
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={GEMINI_API_KEY}"
-        )
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                data = json.loads(resp.read())
-            parts = data["candidates"][0]["content"]["parts"]
-            text = parts[0].get("text", "").strip()
-            if text:
-                return text[:500]
-        except urllib.error.HTTPError as exc:
-            last_err = exc
-            if exc.code in (404, 429):
-                continue
-            raise
-        except Exception as exc:
-            last_err = exc
-            continue
-    if last_err:
-        logger.warning("Gemini BTST summary skipped: %s", last_err)
-    return ""
-
-
 def _optional_gemini_summary(headlines: list[str], sentiment: dict, bias: str) -> str:
     if not GEMINI_API_KEY or not headlines:
         return ""
@@ -170,7 +112,8 @@ def _optional_gemini_summary(headlines: list[str], sentiment: dict, bias: str) -
         f"Sentiment: {sentiment.get('summary', '')}. "
         f"Headlines: {' | '.join(headlines[:8])}"
     )
-    return _gemini_generate(prompt)
+    text = gemini_generate(prompt, max_tokens=220)
+    return text[:500] if text else ""
 
 
 def _preliminary_decision(score: float, day_pct: float, st_bias: str) -> str:

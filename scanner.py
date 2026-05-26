@@ -62,6 +62,11 @@ from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 from scan_summary import ScanStats
 from telegram_client import Signal, send_plain, send_signal
 from trade_journal import record_trade
+from stock_gemini import (
+    apply_focus_score_boost,
+    build_alert_ai_note,
+    rank_scan_candidates,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,7 +116,9 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
                     continue
                 telegram_sig = confirmed.to_telegram_signal()
                 strat = confirmed.strategies[0]
-                score = equity_candidate_score(telegram_sig)
+                score = apply_focus_score_boost(
+                    symbol, equity_candidate_score(telegram_sig)
+                )
                 raw_candidates.append((symbol, confirmed, telegram_sig, score))
         else:
             confirmed = confirm_signals(raw)
@@ -119,7 +126,9 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
                 continue
             telegram_sig = confirmed.to_telegram_signal()
             strat = " + ".join(confirmed.strategies)
-            score = equity_candidate_score(telegram_sig)
+            score = apply_focus_score_boost(
+                symbol, equity_candidate_score(telegram_sig)
+            )
             raw_candidates.append((symbol, confirmed, telegram_sig, score))
 
     best_per_symbol: dict[str, tuple[ConfirmedSignal, float, str]] = {}
@@ -130,6 +139,7 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
             best_per_symbol[symbol] = (confirmed, score, strat)
 
     ranked = sorted(best_per_symbol.values(), key=lambda t: -t[1])
+    ranked = rank_scan_candidates(ranked)
     buy_scan_emitted = 0
     sell_scan_emitted = 0
     daily_buy_left = max(0, MAX_DAILY_BUY_SIGNALS - equity_buy_sent_today())
@@ -168,6 +178,21 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
         if reentry:
             telegram_sig.note = (
                 f"{telegram_sig.note}\n{reentry}".strip() if telegram_sig.note else reentry
+            )
+        lv = telegram_sig.levels
+        ai_note = build_alert_ai_note(
+            symbol=symbol,
+            side=telegram_sig.side,
+            strategy=strat,
+            entry=float(lv.entry),
+            stop_loss=float(lv.stop_loss),
+            target=float(lv.primary_target),
+            timeframe=telegram_sig.timeframe or "",
+        )
+        if ai_note:
+            ai_block = f"🤖 AI: {ai_note}"
+            telegram_sig.note = (
+                f"{telegram_sig.note}\n{ai_block}".strip() if telegram_sig.note else ai_block
             )
         logger.info(
             "SIGNAL %s %s [%s] score=%.1f | Entry=%s SL=%s Target=%s",
@@ -272,8 +297,12 @@ def _get_daily_watchlist() -> list[str]:
         len(watchlist),
         is_watchlist_locked(),
     )
-    watchlist, _ = build_watchlist()
+    watchlist, ranked = build_watchlist()
     if watchlist:
+        from stock_gemini import run_premarket_stock_selection
+
+        if ranked:
+            run_premarket_stock_selection(ranked)
         save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
     return watchlist
 
