@@ -17,6 +17,7 @@ import yfinance as yf
 
 from config import (
     GEMINI_API_KEY,
+    GEMINI_MODEL,
     NIFTY_BTST_ENABLED,
     NIFTY_BTST_MIN_SCORE,
     NIFTY_EXIT490_ATR_BARS,
@@ -102,42 +103,74 @@ def _supertrend_bias(session: pd.DataFrame) -> str:
     return "bullish" if direction > 0 else "bearish"
 
 
-def _optional_gemini_summary(headlines: list[str], sentiment: dict, bias: str) -> str:
-    if not GEMINI_API_KEY or not headlines:
-        return ""
-    try:
-        import urllib.request
+_GEMINI_MODEL_FALLBACKS = (
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+)
 
-        prompt = (
-            "You are an Indian NSE Nifty options analyst. In 3 short bullet points, "
-            f"summarize market mood for a BTST (overnight) {bias} trade. "
-            f"Sentiment: {sentiment.get('summary', '')}. "
-            f"Headlines: {' | '.join(headlines[:8])}"
-        )
-        body = json.dumps(
-            {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"maxOutputTokens": 220, "temperature": 0.3},
-            }
-        ).encode("utf-8")
+
+def _gemini_generate(prompt: str, max_tokens: int = 220) -> str:
+    import urllib.error
+    import urllib.request
+
+    payload = json.dumps(
+        {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.3},
+        }
+    ).encode("utf-8")
+
+    models: list[str] = []
+    if GEMINI_MODEL:
+        models.append(GEMINI_MODEL)
+    for m in _GEMINI_MODEL_FALLBACKS:
+        if m not in models:
+            models.append(m)
+
+    last_err: Exception | None = None
+    for model in models:
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+            f"{model}:generateContent?key={GEMINI_API_KEY}"
         )
         req = urllib.request.Request(
             url,
-            data=body,
+            data=payload,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=25) as resp:
-            data = json.loads(resp.read())
-        parts = data["candidates"][0]["content"]["parts"]
-        text = parts[0].get("text", "").strip()
-        return text[:500] if text else ""
-    except Exception:
-        logger.warning("Gemini BTST summary skipped.")
+        try:
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                data = json.loads(resp.read())
+            parts = data["candidates"][0]["content"]["parts"]
+            text = parts[0].get("text", "").strip()
+            if text:
+                return text[:500]
+        except urllib.error.HTTPError as exc:
+            last_err = exc
+            if exc.code in (404, 429):
+                continue
+            raise
+        except Exception as exc:
+            last_err = exc
+            continue
+    if last_err:
+        logger.warning("Gemini BTST summary skipped: %s", last_err)
+    return ""
+
+
+def _optional_gemini_summary(headlines: list[str], sentiment: dict, bias: str) -> str:
+    if not GEMINI_API_KEY or not headlines:
         return ""
+    prompt = (
+        "You are an Indian NSE Nifty options analyst. In 3 short bullet points, "
+        f"summarize market mood for a BTST (overnight) {bias} trade. "
+        f"Sentiment: {sentiment.get('summary', '')}. "
+        f"Headlines: {' | '.join(headlines[:8])}"
+    )
+    return _gemini_generate(prompt)
 
 
 def _preliminary_decision(score: float, day_pct: float, st_bias: str) -> str:
