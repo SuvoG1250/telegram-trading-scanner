@@ -104,7 +104,9 @@ def _supertrend_bias(session: pd.DataFrame) -> str:
 
 
 def _optional_gemini_summary(headlines: list[str], sentiment: dict, bias: str) -> str:
-    if not GEMINI_API_KEY or not headlines:
+    from gemini_client import llm_available
+
+    if not llm_available() or not headlines:
         return ""
     prompt = (
         "You are an Indian NSE Nifty options analyst. In 3 short bullet points, "

@@ -186,6 +186,13 @@ GROQ_FALLBACK_ENABLED = os.environ.get("GROQ_FALLBACK_ENABLED", "true").lower() 
     "true",
     "yes",
 )
+# AI quality gate on equity alerts (fail-open if API down)
+AI_SIGNAL_VALIDATE = os.environ.get("AI_SIGNAL_VALIDATE", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+AI_MIN_CONFIDENCE = max(1, min(10, int(os.environ.get("AI_MIN_CONFIDENCE", "6"))))
 NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() in (
     "1",
     "true",

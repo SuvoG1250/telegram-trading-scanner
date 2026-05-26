@@ -68,6 +68,8 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_MODEL: llama-3.1-8b-instant
       GROQ_FALLBACK_ENABLED: "true"
+      AI_SIGNAL_VALIDATE: "true"
+      AI_MIN_CONFIDENCE: "6"
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"

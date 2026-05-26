@@ -62,6 +62,7 @@ from strategies import STRATEGY_NAMES, STRATEGY_SCANNERS
 from scan_summary import ScanStats
 from telegram_client import Signal, send_plain, send_signal
 from trade_journal import record_trade
+from ai_improvements import build_nifty_option_ai_note, should_send_equity_signal
 from stock_gemini import (
     apply_focus_score_boost,
     build_alert_ai_note,
@@ -180,6 +181,20 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
                 f"{telegram_sig.note}\n{reentry}".strip() if telegram_sig.note else reentry
             )
         lv = telegram_sig.levels
+        ok_send, filter_reason = should_send_equity_signal(
+            symbol=symbol,
+            side=telegram_sig.side,
+            strategy=strat,
+            entry=float(lv.entry),
+            stop_loss=float(lv.stop_loss),
+            target=float(lv.primary_target),
+            score=score,
+            timeframe=telegram_sig.timeframe or "",
+        )
+        if not ok_send:
+            logger.info("Skip %s [%s] — AI filter: %s", symbol, strat, filter_reason)
+            continue
+
         ai_note = build_alert_ai_note(
             symbol=symbol,
             side=telegram_sig.side,
@@ -239,6 +254,18 @@ def run_nifty_options_scan() -> Signal | None:
 
     peek = peek_option_exit_flag(sig.side)
     sig.note = caption_after_prior_exit(peek, basket="option")
+    lv = sig.levels
+    opt_ai = build_nifty_option_ai_note(
+        side=sig.side,
+        strike=float(sig.strike or 0),
+        option_type=str(sig.option_type or "CE"),
+        entry=float(lv.entry),
+        stop_loss=float(lv.stop_loss),
+        target=float(lv.primary_target),
+    )
+    if opt_ai:
+        block = f"🤖 AI: {opt_ai}"
+        sig.note = f"{sig.note}\n{block}".strip() if sig.note else block
 
     ok = send_signal(sig)
     if ok:

@@ -285,6 +285,14 @@ def format_daily_summary() -> str:
             "<i>P/L % vs entry using session high/low/close (not live fills).</i>",
         ]
     )
+    try:
+        from ai_improvements import build_daily_ai_insight
+
+        insight = build_daily_ai_insight(len(trades), net_pnl, n_win, n_loss)
+        if insight:
+            lines.extend(["", f"🤖 <b>AI day note:</b> <i>{insight}</i>"])
+    except Exception:
+        logger.debug("Daily AI insight skipped.", exc_info=True)
     return "\n".join(lines)
 
 
