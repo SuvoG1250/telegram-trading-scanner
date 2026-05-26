@@ -1,5 +1,5 @@
-# Scans every 5 min until NSE close. GitHub schedule often does NOT fire — use
-# scripts/install_windows_autoscan.ps1 on your PC OR cron-job.org (AUTOMATION.txt).
+# One daily full_session via cron-job.org (9:15 IST). Internal scan every 3 min.
+# Do not use install_windows_autoscan.ps1 — use scripts/setup_cron_job_org.py
 
 name: Auto Trading Bot
 
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "full_session = loop every 5 min | scan_once = single scan"
+        description: "full_session = loop every 3 min | scan_once = single scan"
         required: false
         default: "full_session"
         type: choice
@@ -58,6 +58,8 @@ jobs:
       SEND_SESSION_ALERTS: "true"
       NIFTY_OPTIONS_ENABLED: "true"
       NIFTY_BTST_ENABLED: "true"
+      NIFTY_BTST_MIN_SCORE: "2.5"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       USE_TRADE_FILTERS: "true"
       REQUIRE_FNO_ELIGIBLE: "true"
       REQUIRE_INTRADAY_MARGIN: "true"
@@ -128,7 +130,7 @@ jobs:
           mkdir -p data
           python scanner.py
 
-      - name: Scan loop every 5 min until market close
+      - name: Scan loop every 3 min until market close
         if: github.event_name == 'schedule' || github.event.inputs.mode != 'scan_once'
         run: |
           mkdir -p data
