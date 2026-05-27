@@ -200,7 +200,7 @@ GH_MODELS_MODEL = os.environ.get("GH_MODELS_MODEL") or os.environ.get(
 )
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get(
-    "OPENROUTER_MODEL", "nvidia/nemotron-nano-9b-v2:free"
+    "OPENROUTER_MODEL", "openrouter/free"
 )
 # Provider order for stock/BTST AI (comma-separated)
 LLM_PROVIDER_ORDER = os.environ.get(

@@ -7,6 +7,7 @@ from openai_chat import chat_completion
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _MODEL_FALLBACKS = (
+    "openrouter/free",
     "nvidia/nemotron-nano-9b-v2:free",
     "meta-llama/llama-3.2-3b-instruct:free",
     "meta-llama/llama-3.3-70b-instruct:free",
