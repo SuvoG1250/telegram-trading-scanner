@@ -1,4 +1,4 @@
-"""LLM client: Google Gemini primary, Groq fallback on quota/errors."""
+"""LLM client: multi-provider chain (Cerebras, GitHub Models, Groq, Gemini)."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import logging
 import re
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
-from config import GEMINI_API_KEY, GEMINI_MODEL, GROQ_FALLBACK_ENABLED
+from config import GEMINI_API_KEY, GEMINI_MODEL, GROQ_FALLBACK_ENABLED, LLM_PROVIDER_ORDER
 
 logger = logging.getLogger(__name__)
 
-_MODEL_FALLBACKS = (
+_GEMINI_MODEL_FALLBACKS = (
     "gemini-2.5-flash",
     "gemini-flash-latest",
     "gemini-2.0-flash-lite",
@@ -26,10 +26,16 @@ def gemini_available() -> bool:
 
 
 def llm_available() -> bool:
-    """True if Gemini and/or Groq can serve requests."""
+    from cerebras_client import cerebras_available
+    from github_models_client import github_models_available
     from groq_client import groq_available
 
-    return gemini_available() or groq_available()
+    return (
+        gemini_available()
+        or groq_available()
+        or cerebras_available()
+        or github_models_available()
+    )
 
 
 def _gemini_only_generate(
@@ -37,10 +43,9 @@ def _gemini_only_generate(
     *,
     max_tokens: int = 220,
     temperature: float = 0.3,
-) -> tuple[str, bool]:
-    """Returns (text, should_try_groq). should_try_groq=True on quota/total failure."""
+) -> str:
     if not GEMINI_API_KEY:
-        return "", True
+        return ""
 
     payload = json.dumps(
         {
@@ -55,11 +60,10 @@ def _gemini_only_generate(
     models: list[str] = []
     if GEMINI_MODEL:
         models.append(GEMINI_MODEL)
-    for m in _MODEL_FALLBACKS:
+    for m in _GEMINI_MODEL_FALLBACKS:
         if m not in models:
             models.append(m)
 
-    saw_quota = False
     last_err: Exception | None = None
     for model in models:
         url = (
@@ -78,21 +82,40 @@ def _gemini_only_generate(
             parts = data["candidates"][0]["content"]["parts"]
             text = parts[0].get("text", "").strip()
             if text:
-                return text, False
+                return text
         except urllib.error.HTTPError as exc:
             last_err = exc
-            if exc.code == 429:
-                saw_quota = True
             if exc.code in (404, 429):
                 continue
-            return "", True
         except Exception as exc:
             last_err = exc
             continue
 
     if last_err:
         logger.warning("Gemini request failed: %s", last_err)
-    return "", saw_quota or last_err is not None
+    return ""
+
+
+def _provider_generators() -> dict[str, Callable[..., str]]:
+    from cerebras_client import cerebras_generate
+    from github_models_client import github_models_generate
+    from groq_client import groq_generate
+
+    out: dict[str, Callable[..., str]] = {
+        "cerebras": cerebras_generate,
+        "github_models": github_models_generate,
+        "github": github_models_generate,
+        "groq": groq_generate,
+        "gemini": lambda p, **kw: _gemini_only_generate(p, **kw),
+    }
+    return out
+
+
+def _provider_order() -> list[str]:
+    raw = [p.strip().lower() for p in LLM_PROVIDER_ORDER.split(",") if p.strip()]
+    if raw:
+        return raw
+    return ["cerebras", "github_models", "groq", "gemini"]
 
 
 def gemini_generate(
@@ -101,25 +124,18 @@ def gemini_generate(
     max_tokens: int = 220,
     temperature: float = 0.3,
 ) -> str:
-    text = ""
-    try_groq = False
-
-    if GEMINI_API_KEY:
-        text, try_groq = _gemini_only_generate(
-            prompt, max_tokens=max_tokens, temperature=temperature
-        )
+    """Try providers in LLM_PROVIDER_ORDER until one returns text."""
+    generators = _provider_generators()
+    for name in _provider_order():
+        if name == "groq" and not GROQ_FALLBACK_ENABLED:
+            continue
+        gen = generators.get(name)
+        if not gen:
+            logger.debug("Unknown LLM provider in order: %s", name)
+            continue
+        text = gen(prompt, max_tokens=max_tokens, temperature=temperature)
         if text:
             return text
-
-    if GROQ_FALLBACK_ENABLED and (try_groq or not GEMINI_API_KEY):
-        from groq_client import groq_generate
-
-        groq_text = groq_generate(
-            prompt, max_tokens=max_tokens, temperature=temperature
-        )
-        if groq_text:
-            return groq_text
-
     return ""
 
 

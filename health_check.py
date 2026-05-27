@@ -9,15 +9,20 @@ import requests
 
 from config import (
     AI_SIGNAL_VALIDATE,
+    CEREBRAS_API_KEY,
     GEMINI_API_KEY,
+    GH_MODELS_TOKEN,
     GROQ_API_KEY,
+    LLM_PROVIDER_ORDER,
     MAX_STOCK_PRICE,
     MIN_STOCK_PRICE,
     SCAN_STRATEGIES,
     SEND_HEALTH_CHECK,
     TELEGRAM_TOKEN,
 )
-from gemini_client import gemini_generate, llm_available
+from cerebras_client import cerebras_generate
+from gemini_client import _gemini_only_generate, llm_available
+from github_models_client import github_models_generate
 from groq_client import groq_generate
 from market_time import now_ist
 from state import health_check_sent, load_watchlist, mark_health_check_sent
@@ -53,22 +58,35 @@ def _check_telegram() -> tuple[bool | None, str]:
         return False, str(exc)[:40]
 
 
+def _check_llm_ping(
+    key: str,
+    generate_fn,
+) -> tuple[bool | None, str]:
+    if not key:
+        return None, "not configured"
+    text = generate_fn("Reply OK only.", max_tokens=8, temperature=0.0)
+    if text:
+        return True, "responding"
+    return False, "quota/error"
+
+
 def _check_gemini() -> tuple[bool | None, str]:
     if not GEMINI_API_KEY:
         return None, "not configured"
-    text = gemini_generate("Reply OK only.", max_tokens=8, temperature=0.0)
-    if text:
-        return True, "responding"
-    return False, "quota/error (use Groq fallback)"
+    text = _gemini_only_generate("Reply OK only.", max_tokens=8, temperature=0.0)
+    return (True, "responding") if text else (False, "quota/error")
 
 
 def _check_groq() -> tuple[bool | None, str]:
-    if not GROQ_API_KEY:
-        return None, "not configured"
-    text = groq_generate("Reply OK only.", max_tokens=8, temperature=0.0)
-    if text:
-        return True, "responding"
-    return False, "blocked or invalid key"
+    return _check_llm_ping(GROQ_API_KEY, groq_generate)
+
+
+def _check_cerebras() -> tuple[bool | None, str]:
+    return _check_llm_ping(CEREBRAS_API_KEY, cerebras_generate)
+
+
+def _check_github_models() -> tuple[bool | None, str]:
+    return _check_llm_ping(GH_MODELS_TOKEN, github_models_generate)
 
 
 def _check_broker(name: str, configured: bool, extra: str = "") -> tuple[bool | None, str]:
@@ -88,8 +106,10 @@ def build_health_report() -> str:
     host = "GitHub Actions" if os.environ.get("GITHUB_ACTIONS") == "true" else "local"
 
     tg_ok, tg_detail = _check_telegram()
-    gem_ok, gem_detail = _check_gemini()
+    cb_ok, cb_detail = _check_cerebras()
+    gh_ok, gh_detail = _check_github_models()
     groq_ok, groq_detail = _check_groq()
+    gem_ok, gem_detail = _check_gemini()
     up_ok, up_detail = _check_broker("Upstox", upstox_configured())
     dh_ok, dh_detail = _check_broker("Dhan", dhan_configured())
     fy_ok, fy_detail = _check_broker("Fyers", fyers_configured())
@@ -106,8 +126,11 @@ def build_health_report() -> str:
         "",
         "<b>API status</b>",
         f"{_icon(tg_ok)} <b>Telegram</b> — {tg_detail}",
-        f"{_icon(gem_ok)} <b>Gemini</b> — {gem_detail}",
+        f"{_icon(cb_ok)} <b>Cerebras</b> — {cb_detail}",
+        f"{_icon(gh_ok)} <b>GitHub Models</b> — {gh_detail}",
         f"{_icon(groq_ok)} <b>Groq</b> — {groq_detail}",
+        f"{_icon(gem_ok)} <b>Gemini</b> — {gem_detail}",
+        f"🔗 LLM order: <i>{LLM_PROVIDER_ORDER}</i>",
         f"{_icon(up_ok)} <b>Upstox</b> — {up_detail}",
         f"{_icon(dh_ok)} <b>Dhan</b> — {dh_detail}",
         f"{_icon(fy_ok)} <b>Fyers</b> — {fy_detail}",

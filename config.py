@@ -191,6 +191,18 @@ GROQ_FALLBACK_ENABLED = os.environ.get("GROQ_FALLBACK_ENABLED", "true").lower() 
     "true",
     "yes",
 )
+CEREBRAS_API_KEY = os.environ.get("CEREBRAS_API_KEY", "")
+CEREBRAS_MODEL = os.environ.get("CEREBRAS_MODEL", "llama-3.3-70b")
+# GitHub forbids secret names starting with GITHUB_ — use GH_MODELS_TOKEN in Actions secrets
+GH_MODELS_TOKEN = os.environ.get("GH_MODELS_TOKEN") or os.environ.get("GITHUB_MODELS_TOKEN", "")
+GH_MODELS_MODEL = os.environ.get("GH_MODELS_MODEL") or os.environ.get(
+    "GITHUB_MODELS_MODEL", "meta-llama/llama-3.3-70b-instruct"
+)
+# Provider order for stock/BTST AI (comma-separated)
+LLM_PROVIDER_ORDER = os.environ.get(
+    "LLM_PROVIDER_ORDER",
+    "cerebras,github_models,groq,gemini",
+)
 # AI quality gate on equity alerts (fail-open if API down)
 AI_SIGNAL_VALIDATE = os.environ.get("AI_SIGNAL_VALIDATE", "true").lower() in (
     "1",
