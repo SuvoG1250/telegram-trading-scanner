@@ -60,6 +60,7 @@ jobs:
       NIFTY_OPTIONS_ENABLED: "true"
       NIFTY_BTST_ENABLED: "true"
       NIFTY_BTST_MIN_SCORE: "2.5"
+      NIFTY_BTST_MIN_CONFIRM_PCT: "80"
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash
       GEMINI_STOCK_ENABLED: "true"

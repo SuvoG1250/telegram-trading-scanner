@@ -159,6 +159,8 @@ NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
 )
 # BTST CALL/PUT only when all confirmation checks pass (else risky warning)
 NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
+# Minimum confirmation % to send BUY CALL/PUT (default 80 = 5/6 checks pass)
+NIFTY_BTST_MIN_CONFIRM_PCT = float(os.environ.get("NIFTY_BTST_MIN_CONFIRM_PCT", "80"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # BTST AI summary model (fallbacks tried in gemini_client if this fails)
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")

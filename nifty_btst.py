@@ -1,8 +1,8 @@
 """
 Nifty BTST (Buy Today Sell Tomorrow) — one alert between 3:20–3:30 PM IST.
 
-100% confirmed → BUY CALL or PUT with full research.
-Not confirmed → "BTST is risky today — do not take BTST".
+>80% confirmed (default) → BUY CALL or PUT with full research.
+Below threshold → "BTST is risky today — do not take BTST".
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ import yfinance as yf
 from config import (
     GEMINI_API_KEY,
     NIFTY_BTST_ENABLED,
+    NIFTY_BTST_MIN_CONFIRM_PCT,
     NIFTY_BTST_MIN_SCORE,
     NIFTY_EXIT490_ATR_BARS,
     NIFTY_EXIT490_ATR_MULT,
@@ -131,7 +132,7 @@ def _preliminary_decision(score: float, day_pct: float, st_bias: str) -> str:
 
 
 def assess_btst_confirmation() -> BtstConfirmation:
-    """Score market + require ALL checks to pass for 100% BTST confirm."""
+    """Score market; confirm when confidence_pct >= NIFTY_BTST_MIN_CONFIRM_PCT (default 80%)."""
     sentiment = assess_market_sentiment()
     news = build_market_news_digest()
     day_pct, day_dir = _nifty_intraday_bias()
@@ -180,7 +181,7 @@ def assess_btst_confirmation() -> BtstConfirmation:
     passed = sum(1 for _, ok in checks if ok)
     total = len(checks)
     confidence = round(100.0 * passed / total, 0) if total else 0.0
-    confirmed = passed == total
+    confirmed = confidence >= NIFTY_BTST_MIN_CONFIRM_PCT
 
     gemini = _optional_gemini_summary(news.headlines, sentiment, decision) if confirmed else ""
 
@@ -204,10 +205,10 @@ def _build_btst_note(assessment: BtstConfirmation) -> str:
     s = assessment.sentiment
     n = assessment.news
     lines = [
-        "<b>BTST CONFIRMED</b> — buy today, exit tomorrow morning.",
-        f"Confidence: <b>{assessment.confidence_pct:.0f}%</b> · Score {assessment.score:+.2f} → <b>{assessment.decision}</b>",
+        f"✅ <b>BTST CONFIRMED ({assessment.confidence_pct:.0f}%)</b> — buy today, exit tomorrow morning.",
+        f"Score {assessment.score:+.2f} → <b>{assessment.decision}</b> · threshold &gt;{NIFTY_BTST_MIN_CONFIRM_PCT:.0f}%",
         "",
-        "<b>All checks passed:</b>",
+        "<b>Checks:</b>",
     ]
     for label, ok in assessment.checks:
         mark = "✅" if ok else "❌"
@@ -234,7 +235,7 @@ def format_btst_risky_message(assessment: BtstConfirmation) -> str:
         f"⚠️ <b>BTST RISKY TODAY — DO NOT TAKE BTST</b>",
         f"<i>{ts}</i>",
         "",
-        f"Confirmation: <b>{assessment.confidence_pct:.0f}%</b> (need 100% for CALL/PUT alert)",
+        f"Confirmation: <b>{assessment.confidence_pct:.0f}%</b> (need &gt;{NIFTY_BTST_MIN_CONFIRM_PCT:.0f}% for CALL/PUT alert)",
         f"Preliminary bias was <b>{assessment.decision}</b> but setup is <b>not fully confirmed</b>.",
         "",
         "<b>Checklist:</b>",
