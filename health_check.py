@@ -12,6 +12,7 @@ from config import (
     CEREBRAS_API_KEY,
     GEMINI_API_KEY,
     GH_MODELS_TOKEN,
+    OPENROUTER_API_KEY,
     GROQ_API_KEY,
     LLM_PROVIDER_ORDER,
     MAX_STOCK_PRICE,
@@ -24,6 +25,7 @@ from cerebras_client import cerebras_generate
 from gemini_client import _gemini_only_generate, llm_available
 from github_models_client import github_models_generate
 from groq_client import groq_generate
+from openrouter_client import openrouter_generate
 from market_time import now_ist
 from state import health_check_sent, load_watchlist, mark_health_check_sent
 from telegram_client import send_plain, telegram_chat_ids
@@ -89,6 +91,10 @@ def _check_github_models() -> tuple[bool | None, str]:
     return _check_llm_ping(GH_MODELS_TOKEN, github_models_generate)
 
 
+def _check_openrouter() -> tuple[bool | None, str]:
+    return _check_llm_ping(OPENROUTER_API_KEY, openrouter_generate)
+
+
 def _check_broker(name: str, configured: bool, extra: str = "") -> tuple[bool | None, str]:
     if not configured:
         return None, "not configured"
@@ -107,6 +113,7 @@ def build_health_report() -> str:
 
     tg_ok, tg_detail = _check_telegram()
     cb_ok, cb_detail = _check_cerebras()
+    or_ok, or_detail = _check_openrouter()
     gh_ok, gh_detail = _check_github_models()
     groq_ok, groq_detail = _check_groq()
     gem_ok, gem_detail = _check_gemini()
@@ -127,6 +134,7 @@ def build_health_report() -> str:
         "<b>API status</b>",
         f"{_icon(tg_ok)} <b>Telegram</b> — {tg_detail}",
         f"{_icon(cb_ok)} <b>Cerebras</b> — {cb_detail}",
+        f"{_icon(or_ok)} <b>OpenRouter</b> — {or_detail}",
         f"{_icon(gh_ok)} <b>GitHub Models</b> — {gh_detail}",
         f"{_icon(groq_ok)} <b>Groq</b> — {groq_detail}",
         f"{_icon(gem_ok)} <b>Gemini</b> — {gem_detail}",

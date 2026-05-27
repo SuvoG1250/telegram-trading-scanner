@@ -29,12 +29,14 @@ def llm_available() -> bool:
     from cerebras_client import cerebras_available
     from github_models_client import github_models_available
     from groq_client import groq_available
+    from openrouter_client import openrouter_available
 
     return (
         gemini_available()
         or groq_available()
         or cerebras_available()
         or github_models_available()
+        or openrouter_available()
     )
 
 
@@ -100,9 +102,11 @@ def _provider_generators() -> dict[str, Callable[..., str]]:
     from cerebras_client import cerebras_generate
     from github_models_client import github_models_generate
     from groq_client import groq_generate
+    from openrouter_client import openrouter_generate
 
     out: dict[str, Callable[..., str]] = {
         "cerebras": cerebras_generate,
+        "openrouter": openrouter_generate,
         "github_models": github_models_generate,
         "github": github_models_generate,
         "groq": groq_generate,
@@ -115,7 +119,7 @@ def _provider_order() -> list[str]:
     raw = [p.strip().lower() for p in LLM_PROVIDER_ORDER.split(",") if p.strip()]
     if raw:
         return raw
-    return ["cerebras", "github_models", "groq", "gemini"]
+    return ["cerebras", "openrouter", "github_models", "groq", "gemini"]
 
 
 def gemini_generate(

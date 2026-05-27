@@ -198,10 +198,14 @@ GH_MODELS_TOKEN = os.environ.get("GH_MODELS_TOKEN") or os.environ.get("GITHUB_MO
 GH_MODELS_MODEL = os.environ.get("GH_MODELS_MODEL") or os.environ.get(
     "GITHUB_MODELS_MODEL", "meta-llama/llama-3.3-70b-instruct"
 )
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.environ.get(
+    "OPENROUTER_MODEL", "nvidia/nemotron-nano-9b-v2:free"
+)
 # Provider order for stock/BTST AI (comma-separated)
 LLM_PROVIDER_ORDER = os.environ.get(
     "LLM_PROVIDER_ORDER",
-    "cerebras,github_models,groq,gemini",
+    "cerebras,openrouter,github_models,groq,gemini",
 )
 # AI quality gate on equity alerts (fail-open if API down)
 AI_SIGNAL_VALIDATE = os.environ.get("AI_SIGNAL_VALIDATE", "true").lower() in (
