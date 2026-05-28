@@ -31,6 +31,33 @@ logger = logging.getLogger("session_runner")
 SCAN_INTERVAL_SEC = 180
 
 
+def _send_global_window_banner(event: str) -> None:
+    import os
+
+    # Keep this banner for automation runs only (not local manual runs).
+    if os.environ.get("GITHUB_ACTIONS", "").lower() != "true":
+        return
+    if not is_global_alert_window():
+        return
+
+    from telegram_client import send_plain
+
+    mode = "NSE + Global" if is_market_open() else "Global only"
+    ts = now_ist().strftime("%d %b %Y, %H:%M IST")
+    send_plain(
+        "\n".join(
+            [
+                "🌐 <b>GLOBAL WINDOW RUN</b>",
+                f"<b>Mode:</b> {mode}",
+                "<b>Assets:</b> BTCUSD, ETHUSD, XAUUSD",
+                "<b>Window:</b> 07:00–23:00 IST",
+                f"<i>Trigger: {event} · {ts}</i>",
+            ]
+        ),
+        html_mode=True,
+    )
+
+
 def _should_continue() -> bool:
     if is_global_alert_window():
         return True
@@ -62,6 +89,7 @@ def run_loop(max_minutes: int) -> int:
         max_minutes,
         now_ist().strftime("%H:%M:%S"),
     )
+    _send_global_window_banner(event)
 
     while time.time() < deadline:
         if not _should_continue():
