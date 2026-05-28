@@ -13,6 +13,7 @@ import sys
 import time
 
 from market_time import (
+    is_global_alert_window,
     is_market_open,
     is_premarket_window,
     is_session_stop_window,
@@ -31,6 +32,8 @@ SCAN_INTERVAL_SEC = 180
 
 
 def _should_continue() -> bool:
+    if is_global_alert_window():
+        return True
     if not is_weekday():
         return False
     if is_premarket_window():

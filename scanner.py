@@ -335,8 +335,14 @@ def _get_daily_watchlist() -> list[str]:
 
 
 def main() -> int:
+    from global_markets import run_global_assets_alerts
+
+    global_sent = run_global_assets_alerts()
+    if global_sent:
+        logger.info("Global assets alerts sent: %s", global_sent)
+
     if not is_weekday():
-        logger.info("Weekend — no scan.")
+        logger.info("Weekend — NSE scan skipped.")
         return 0
 
     mode = "signals-only" if SIGNALS_ONLY_TELEGRAM else "verbose"

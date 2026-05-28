@@ -20,6 +20,10 @@ from config import (
     ORB_MIN_TIME,
     PREMARKET_END,
     PREMARKET_START,
+    GLOBAL_ALERT_END_HOUR,
+    GLOBAL_ALERT_END_MINUTE,
+    GLOBAL_ALERT_START_HOUR,
+    GLOBAL_ALERT_START_MINUTE,
 )
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -167,3 +171,12 @@ def is_session_stop_window(dt: datetime | None = None) -> bool:
         return False
     t = ist_time_tuple(dt)
     return _after((MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE), t) and _before((22, 0), t)
+
+
+def is_global_alert_window(dt: datetime | None = None) -> bool:
+    """Global assets alerts (BTC/ETH/XAU): 07:00–23:00 IST by default."""
+    dt = dt or now_ist()
+    t = ist_time_tuple(dt)
+    start = (GLOBAL_ALERT_START_HOUR, GLOBAL_ALERT_START_MINUTE)
+    end = (GLOBAL_ALERT_END_HOUR, GLOBAL_ALERT_END_MINUTE)
+    return _after(start, t) and _before(end, t)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create/update cron-job.org job to trigger one full-session GitHub run at NSE open.
+Create/update cron-job.org jobs for global + NSE scanner windows.
 
 Requires in .env or environment:
   CRONJOB_API_KEY  — from https://console.cron-job.org/settings
@@ -38,7 +38,7 @@ CRONJOB_API = "https://api.cron-job.org"
 GITHUB_OWNER = "SuvoG1250"
 GITHUB_REPO = "telegram-trading-scanner"
 WORKFLOW_ID = "278548320"
-JOB_TITLE = "Telegram Trading Bot — NSE full session"
+JOB_TITLE = "Telegram Trading Bot — Global hourly window"
 
 DISPATCH_URL = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
@@ -65,11 +65,13 @@ def build_job_payload(github_pat: str) -> dict:
             "schedule": {
                 "timezone": "Asia/Kolkata",
                 "expiresAt": 0,
-                "hours": [9],
-                "minutes": [15],
+                # Hourly triggers across 07:00-22:00 IST (23:00 is exclusive end window).
+                "hours": list(range(7, 23)),
+                "minutes": [0],
                 "mdays": [-1],
                 "months": [-1],
-                "wdays": [1, 2, 3, 4, 5],
+                # Crypto/Gold are active on weekends too.
+                "wdays": [-1],
             },
             "extendedData": {
                 "headers": {
@@ -78,7 +80,8 @@ def build_job_payload(github_pat: str) -> dict:
                     "X-GitHub-Api-Version": "2022-11-28",
                     "Content-Type": "application/json",
                 },
-                "body": json.dumps({"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "0"}}),
+                # Keep each GH run bounded; cron re-triggers every hour.
+                "body": json.dumps({"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "58"}}),
             },
         }
     }
@@ -131,11 +134,11 @@ def test_github_dispatch(github_pat: str) -> None:
             "Authorization": f"Bearer {github_pat}",
             "X-GitHub-Api-Version": "2022-11-28",
         },
-        json={"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "0"}},
+        json={"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "58"}},
         timeout=30,
     )
     if r.status_code == 204:
-        print("GitHub dispatch OK — full_session started (BUY/SELL/BTST/EOD only).")
+        print("GitHub dispatch OK — full_session started (global + NSE scanners).")
         return
     print(f"GitHub dispatch failed ({r.status_code}): {r.text}")
     sys.exit(1)
@@ -215,7 +218,7 @@ def main() -> int:
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Disable legacy cron jobs + cancel stuck GitHub runs, then enable single daily job",
+        help="Disable legacy cron jobs + cancel stuck GitHub runs, then enable hourly global-window job",
     )
     args = parser.parse_args()
 
@@ -303,8 +306,8 @@ def main() -> int:
         print(f"Created cron-job.org job id={job_id}")
 
     print()
-    print("Schedule: once daily at 9:15 IST, Mon-Fri (Asia/Kolkata)")
-    print("Each run starts full_session loop; scanner checks every 3 minutes internally")
+    print("Schedule: hourly at :00 from 07:00 to 22:00 IST, all days (Asia/Kolkata)")
+    print("Each run starts full_session for 58 minutes; scanner checks every 3 minutes internally")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0

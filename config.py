@@ -161,6 +161,19 @@ NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
 NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
 # Minimum confirmation % to send BUY CALL/PUT (default 80 = 5/6 checks pass)
 NIFTY_BTST_MIN_CONFIRM_PCT = float(os.environ.get("NIFTY_BTST_MIN_CONFIRM_PCT", "80"))
+# Global assets (Crypto + XAUUSD) alert window and strategy controls
+GLOBAL_ASSETS_ENABLED = os.environ.get("GLOBAL_ASSETS_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+GLOBAL_ALERT_START_HOUR = int(os.environ.get("GLOBAL_ALERT_START_HOUR", "7"))
+GLOBAL_ALERT_START_MINUTE = int(os.environ.get("GLOBAL_ALERT_START_MINUTE", "0"))
+GLOBAL_ALERT_END_HOUR = int(os.environ.get("GLOBAL_ALERT_END_HOUR", "23"))
+GLOBAL_ALERT_END_MINUTE = int(os.environ.get("GLOBAL_ALERT_END_MINUTE", "0"))
+GLOBAL_RR_MIN = float(os.environ.get("GLOBAL_RR_MIN", "3.0"))
+GLOBAL_RR_MAX = float(os.environ.get("GLOBAL_RR_MAX", "6.0"))
+GLOBAL_ATR_SL_MULT = float(os.environ.get("GLOBAL_ATR_SL_MULT", "1.2"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # BTST AI summary model (fallbacks tried in gemini_client if this fails)
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
