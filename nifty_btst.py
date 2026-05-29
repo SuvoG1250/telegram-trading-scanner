@@ -342,6 +342,9 @@ def run_nifty_btst_alert() -> Signal | None:
         if send_signal(sig):
             mark_nifty_btst_sent()
             record_trade(sig)
+            from position_lifecycle import register_premium_open
+
+            register_premium_open(sig)
             logger.info("BTST CONFIRMED alert sent: %s", sig.side)
             return sig
         logger.error("BTST confirmed Telegram send failed.")

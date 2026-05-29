@@ -52,6 +52,7 @@ def _load() -> dict[str, Any]:
         return _empty_blob()
     blob.setdefault("equity", [])
     blob.setdefault("premium", [])
+    blob.setdefault("global", [])
     blob.setdefault("reentry_stock", {})
     blob.setdefault("reentry_option", {})
     blob.setdefault("equity_buy_sent_today", 0)
@@ -69,10 +70,18 @@ def _empty_blob() -> dict[str, Any]:
         "date": today_key(),
         "equity": [],
         "premium": [],
+        "global": [],
         "reentry_stock": {},
         "reentry_option": {},
         "equity_buy_sent_today": 0,
     }
+
+
+_GLOBAL_TICKERS: dict[str, str] = {
+    "BTCUSD": "BTC-USD",
+    "ETHUSD": "ETH-USD",
+    "XAUUSD": "XAUUSD=X",
+}
 
 
 def _last_close_equity_px(symbol: str) -> float | None:
@@ -182,10 +191,60 @@ def reconcile_premium_positions() -> list[tuple[str, ExitReason]]:
     return closed
 
 
-def reconcile_all_positions() -> tuple[list[tuple[str, str, ExitReason]], list[tuple[str, ExitReason]]]:
+def _last_close_global_px(symbol: str) -> float | None:
+    ticker = _GLOBAL_TICKERS.get(symbol.upper())
+    if not ticker:
+        return None
+    try:
+        import yfinance as yf
+
+        hist = yf.Ticker(ticker).history(period="2d", interval="15m", auto_adjust=True)
+        if hist is None or hist.empty:
+            return None
+        return float(hist["Close"].iloc[-1])
+    except (TypeError, ValueError):
+        return None
+    except Exception:
+        logger.debug("Global LTP fetch failed for %s", symbol, exc_info=True)
+        return None
+
+
+def reconcile_global_positions() -> list[tuple[str, ExitReason]]:
+    """Close global legs when live price touches SL or target."""
+    blob = _load()
+    closed: list[tuple[str, ExitReason]] = []
+    touched = False
+
+    for row in blob.get("global") or []:
+        if row.get("status") != "OPEN":
+            continue
+        sym = str(row.get("symbol") or "")
+        px = _last_close_global_px(sym)
+        if px is None:
+            continue
+        reason = _resolve_equity_row(row, px)
+        if reason is None:
+            continue
+        row["status"] = "CLOSED"
+        row["exit_reason"] = reason
+        row["exit_price"] = round(px, 4)
+        closed.append((sym, reason))
+        touched = True
+
+    if touched:
+        _save(blob)
+    return closed
+
+
+def reconcile_all_positions() -> tuple[
+    list[tuple[str, str, ExitReason]],
+    list[tuple[str, ExitReason]],
+    list[tuple[str, ExitReason]],
+]:
     eq = reconcile_equity_positions()
     pr = reconcile_premium_positions()
-    return eq, pr
+    gl = reconcile_global_positions()
+    return eq, pr, gl
 
 
 def equity_position_open(symbol: str) -> bool:
@@ -196,6 +255,42 @@ def equity_position_open(symbol: str) -> bool:
         if row.get("symbol") == symbol:
             return True
     return False
+
+
+def global_position_open(symbol: str) -> bool:
+    """True while BTC/ETH/XAU plan is active (between entry alert and SL/target)."""
+    blob = _load()
+    for row in blob.get("global") or []:
+        if row.get("status") != "OPEN":
+            continue
+        if row.get("symbol") == symbol:
+            return True
+    return False
+
+
+def register_global_open(
+    *,
+    symbol: str,
+    strategy: str,
+    side: str,
+    entry: float,
+    stop_loss: float,
+    target: float,
+) -> None:
+    blob = _load()
+    blob.setdefault("global", [])
+    blob["global"].append(
+        {
+            "symbol": symbol,
+            "strategy": strategy,
+            "side": side,
+            "entry": float(entry),
+            "stop_loss": float(stop_loss),
+            "target": float(target),
+            "status": "OPEN",
+        }
+    )
+    _save(blob)
 
 
 def premium_position_open(side_label: str) -> bool:

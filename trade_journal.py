@@ -193,8 +193,8 @@ def format_daily_summary() -> str:
     date_label = now_ist().strftime("%d %b %Y")
     close_time = now_ist().strftime("%H:%M IST")
     lines = [
-        f"📊 <b>Full Day Profit &amp; Loss</b> — {date_label}",
-        f"<i>After market close · {close_time}</i>",
+        f"📊 <b>NSE Indian Market — EOD P/L Summary</b> — {date_label}",
+        f"<i>After 3:30 PM IST market close · {close_time}</i>",
         "",
     ]
     if not trades:

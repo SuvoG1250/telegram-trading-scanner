@@ -9,7 +9,6 @@ import sys
 
 import html as html_module
 
-from boot_alerts import try_send_delayed_boot
 from config import (
     LOCK_WATCHLIST_FOR_DAY,
     MAX_BUY_ALERTS_PER_SCAN,
@@ -370,9 +369,6 @@ def main() -> int:
 
     if is_premarket_window():
         run_premarket()
-        from health_check import send_morning_health_check
-
-        send_morning_health_check()
         return 0
 
     if not is_market_open():
@@ -397,14 +393,11 @@ def main() -> int:
     record_trading_started_at()
 
     watchlist = _get_daily_watchlist()
-    from health_check import send_morning_health_check
-
-    send_morning_health_check()
     if not watchlist:
         logger.warning("Empty watchlist.")
         return 0
 
-    equity_hits, premium_hits = reconcile_all_positions()
+    equity_hits, premium_hits, _global_hits = reconcile_all_positions()
     broadcast_lifecycle_updates(equity_hits, premium_hits)
 
     equity_signals, scan_stats = run_intraday_scan(watchlist)
@@ -417,8 +410,6 @@ def main() -> int:
         if nifty_sig:
             signals.append(nifty_sig)
             scan_stats.nifty_option_sent = True
-
-    try_send_delayed_boot()
 
     logger.info(
         "Done. Signals sent: %d / %d symbols | raw=%d BUY=%d",

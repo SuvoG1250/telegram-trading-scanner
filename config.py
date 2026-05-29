@@ -65,12 +65,12 @@ SEND_PREMARKET_REPORT = os.environ.get("SEND_PREMARKET_REPORT", "false").lower()
     "true",
     "yes",
 )
-SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "true").lower() in (
+SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "false").lower() in (
     "1",
     "true",
     "yes",
 )
-SEND_HEALTH_CHECK = os.environ.get("SEND_HEALTH_CHECK", "true").lower() in (
+SEND_HEALTH_CHECK = os.environ.get("SEND_HEALTH_CHECK", "false").lower() in (
     "1",
     "true",
     "yes",
@@ -92,7 +92,7 @@ EMA_MIN_TARGET_PROFIT_PCT = float(os.environ.get("EMA_MIN_TARGET_PROFIT_PCT", "2
 EMA_MAX_TARGET_PROFIT_PCT = float(os.environ.get("EMA_MAX_TARGET_PROFIT_PCT", "3.0"))
 EMA_RISK_REWARD = float(os.environ.get("EMA_RISK_REWARD", "2.0"))
 RISK_PER_TRADE_INR = float(os.environ.get("RISK_PER_TRADE_INR", "1000"))
-SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "true").lower() in (
+SEND_LONG_TERM_PICKS_DAILY = os.environ.get("SEND_LONG_TERM_PICKS_DAILY", "false").lower() in (
     "1",
     "true",
     "yes",

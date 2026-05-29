@@ -15,7 +15,11 @@ from config import (
 )
 from indicators import atr, ema, rsi
 from market_time import is_global_alert_window, now_ist
-from state import already_sent, mark_sent
+from position_lifecycle import (
+    global_position_open,
+    reconcile_global_positions,
+    register_global_open,
+)
 from telegram_client import send_plain
 
 logger = logging.getLogger(__name__)
@@ -123,10 +127,11 @@ def _format_message(plan: dict) -> str:
 
 
 def run_global_assets_alerts() -> int:
-    """Scan BTCUSD/ETHUSD/XAUUSD and push deduped Telegram alerts."""
+    """Scan BTCUSD/ETHUSD/XAUUSD; one open plan per symbol until SL or target."""
     if not GLOBAL_ASSETS_ENABLED or not is_global_alert_window():
         return 0
 
+    reconcile_global_positions()
     sent = 0
     for symbol, meta in _ASSETS.items():
         df = _fetch_asset_df(meta["ticker"])
@@ -135,10 +140,18 @@ def run_global_assets_alerts() -> int:
         plan = _build_trade(symbol, meta["label"], df)
         if not plan:
             continue
-        if already_sent(symbol, _STRATEGY, plan["side"]):
+        if global_position_open(symbol):
+            logger.debug("Skip %s — active global plan awaiting SL/Target.", symbol)
             continue
         if send_plain(_format_message(plan), html_mode=True):
-            mark_sent(symbol, _STRATEGY, plan["side"])
+            register_global_open(
+                symbol=symbol,
+                strategy=_STRATEGY,
+                side=plan["side"],
+                entry=plan["entry"],
+                stop_loss=plan["stop"],
+                target=plan["target"],
+            )
             sent += 1
             logger.info("Global signal sent: %s %s", symbol, plan["side"])
     return sent
