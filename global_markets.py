@@ -14,7 +14,7 @@ from config import (
     GLOBAL_RR_MIN,
 )
 from indicators import atr, ema, rsi
-from market_time import is_global_alert_window, now_ist
+from market_time import is_global_market_scan_allowed, now_ist
 from position_lifecycle import (
     global_position_open,
     reconcile_global_positions,
@@ -127,8 +127,8 @@ def _format_message(plan: dict) -> str:
 
 
 def run_global_assets_alerts() -> int:
-    """Scan BTCUSD/ETHUSD/XAUUSD; one open plan per symbol until SL or target."""
-    if not GLOBAL_ASSETS_ENABLED or not is_global_alert_window():
+    """Scan BTCUSD/ETHUSD/XAUUSD; skip while NSE is open (9:15–15:30 IST)."""
+    if not GLOBAL_ASSETS_ENABLED or not is_global_market_scan_allowed():
         return 0
 
     reconcile_global_positions()

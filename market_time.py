@@ -180,3 +180,11 @@ def is_global_alert_window(dt: datetime | None = None) -> bool:
     start = (GLOBAL_ALERT_START_HOUR, GLOBAL_ALERT_START_MINUTE)
     end = (GLOBAL_ALERT_END_HOUR, GLOBAL_ALERT_END_MINUTE)
     return _after(start, t) and _before(end, t)
+
+
+def is_global_market_scan_allowed(dt: datetime | None = None) -> bool:
+    """Global alerts only outside NSE regular session (9:15–15:30 IST weekdays)."""
+    dt = dt or now_ist()
+    if not is_global_alert_window(dt):
+        return False
+    return not is_market_open(dt)

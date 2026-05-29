@@ -1,0 +1,153 @@
+# Telegram Alerts — Quick Reference
+
+One-page cheat sheet for what this bot sends (and what it does not).
+
+---
+
+## Destinations
+
+Alerts go to every chat in `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_CHAT_IDS`.
+
+---
+
+## What IS sent
+
+### 1. NSE stocks (intraday)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, **9:15 AM – 3:00 PM IST** |
+| **Strategies** | Setup 1 (1m breakout), Setup 2 (5m/15m PA), EMA 9/15, EMA 9/21, EMA20+ST |
+| **Caps** | 1 BUY/scan · max 10 BUY/day · 1 SHORT/scan |
+
+```
+🟢 STOCK BUY: RELIANCE  ·  F&O · MIS
+📊 Strategy: EMA 9/15 Crossover
+⏱ Chart: 5 Min
+Entry Rs 2,450.00  ·  SL Rs 2,435.00  ·  Target Rs 2,480.00
++1.22% · 1:2 R:R · SL 0.61% ·  28 May 2026, 10:15 IST
+```
+
+Optional: `🤖 AI: …` · re-entry flag after prior SL/target.
+
+---
+
+### 2. Nifty options (intraday)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, market hours (Supertrend flip) |
+| **Rule** | One active CALL or PUT plan until SL/target |
+
+```
+🟢 BUY CALL — NIFTY
+Strategy: Nifty ST+TSL Options
+Strike: 24500 CE  ·  Expiry: 29 May 2026
+Premium entry: ₹120.50 (live Upstox LTP)
+SL premium: ₹105.50  ·  T1: ₹135.50  ·  Target: ₹150.50
+SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
+```
+
+---
+
+### 3. Nifty BTST (once per day)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, **3:20 – 3:30 PM IST** |
+| **Confirm** | >80% of 6 checks (≥5/6 pass) |
+
+**Confirmed** → full BUY CALL/PUT BTST + research checklist + headlines + optional AI.
+
+**Not confirmed** → `⚠️ BTST RISKY TODAY — DO NOT TAKE BTST` + checklist + score.
+
+---
+
+### 4. Global — BTC / ETH / Gold
+
+| | |
+|---|---|
+| **When** | **7:00 AM – 11:00 PM IST**, all days — **not during NSE hours (9:15–15:30 Mon–Fri)** |
+| **Symbols** | BTCUSD, ETHUSD, XAUUSD |
+| **R:R** | 1:3 to 1:6 |
+
+```
+🟢 BTCUSD BUY — Bitcoin
+Strategy: Global EMA-RSI ATR (15m MTF trend)
+Entry: 67500.00  ·  Stop Loss: 66800.00  ·  Target: 69600.00
+Risk:Reward: 1:3.00
+Market Analysis: <trend + RSI + ATR>
+Global window: 07:00–23:00 IST · <time>
+```
+
+---
+
+### 5. NSE EOD summary (once per day)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, **after 3:30 PM IST** |
+| **Includes** | Stocks + Nifty options + BTST (journal only) |
+| **Excludes** | Crypto/Gold |
+
+```
+📊 NSE Indian Market — EOD P/L Summary — <date>
+Net P/L · wins/losses · per-trade rows · optional 🤖 AI day note
+```
+
+---
+
+## What is NOT sent
+
+| Message type | Default |
+|--------------|---------|
+| GLOBAL WINDOW RUN banner | Off |
+| Health check / API status ping | Off |
+| Session START / STOP | Off |
+| Boot “bot running” ping | Off |
+| Pre-market watchlist | Off |
+| Per-scan summary | Off |
+| SL/Target cleared pings | Off |
+
+---
+
+## No duplicate signals until exit
+
+| Market | Blocked while… |
+|--------|----------------|
+| Stocks | Same symbol plan is **OPEN** (between entry and SL/target) |
+| Nifty options | Same CALL/PUT plan is **OPEN** |
+| BTC / ETH / Gold | Same symbol plan is **OPEN** |
+| BTST | **1 message/day** (confirmed or risky) |
+
+After SL or target is hit, a **new** alert is allowed (stocks/options may show a re-entry note).
+
+---
+
+## Daily timeline (IST)
+
+```
+07:00–09:15 ─────── Global (BTC/ETH/XAU)
+09:15–15:30 ─────── NSE only — no global alerts
+15:30–23:00 ─────── Global + (EOD summary once after 15:30)
+Weekends ────────── Global only (full 7:00–23:00 window)
+```
+
+---
+
+## Config flags (`.env` / GitHub Actions)
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `SEND_DAILY_SUMMARY` | `true` | EOD P/L after 3:30 PM |
+| `SEND_SESSION_ALERTS` | `false` | Start/stop pings |
+| `SEND_HEALTH_CHECK` | `false` | Morning health ping |
+| `SEND_BOOT_ALERT` | `false` | Delayed boot ping |
+| `SEND_PREMARKET_REPORT` | `false` | Watchlist Telegram |
+| `GLOBAL_ASSETS_ENABLED` | `true` | BTC/ETH/XAU |
+| `NIFTY_BTST_MIN_CONFIRM_PCT` | `80` | BTST confirm threshold |
+| `SLTP_CLOSE_ALERT_TELEGRAM` | `false` | SL/target hit pings |
+
+---
+
+*Last updated for commit `b11c595` — trade alerts + NSE EOD only; operational pings disabled.*
