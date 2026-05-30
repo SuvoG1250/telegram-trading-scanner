@@ -69,15 +69,21 @@ SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
 |---|---|
 | **When** | **7:00 AM – 11:00 PM IST**, all days — **not during NSE hours (9:15–15:30 Mon–Fri)** |
 | **Symbols** | BTCUSD, ETHUSD, XAUUSD |
-| **R:R** | 1:3 to 1:6 |
+| **Timeframe** | **1 Hour** (last closed candle only) |
+| **SL / Target** | Swing structure (not fixed ATR/RR) |
+| **Min R:R** | ≥ 1:3 from structure (max ~1:8) |
+| **Dedup** | No repeat in same entry/target range until SL/target hit |
 
 ```
 🟢 BTCUSD BUY — Bitcoin
-Strategy: Global EMA-RSI ATR (15m MTF trend)
-Entry: 67500.00  ·  Stop Loss: 66800.00  ·  Target: 69600.00
-Risk:Reward: 1:3.00
-Market Analysis: <trend + RSI + ATR>
-Global window: 07:00–23:00 IST · <time>
+Strategy: Global 1H Structure + Trend
+Timeframe: 1 Hour (confirmed closed candle)
+Entry: 67500.00
+Stop Loss: 66200.00 (structure)
+Target: 70100.00 (structure)
+Risk:Reward: 1:3.45
+Market Analysis: 1H bullish structure… SL at swing low; target at resistance
+Outside NSE hours · 07:00–23:00 IST · <time>
 ```
 
 ---
@@ -117,7 +123,7 @@ Net P/L · wins/losses · per-trade rows · optional 🤖 AI day note
 |--------|----------------|
 | Stocks | Same symbol plan is **OPEN** (between entry and SL/target) |
 | Nifty options | Same CALL/PUT plan is **OPEN** |
-| BTC / ETH / Gold | Same symbol plan is **OPEN** |
+| BTC / ETH / Gold | Same symbol **OPEN** plan, or entry in **prior signal range** (same day) |
 | BTST | **1 message/day** (confirmed or risky) |
 
 After SL or target is hit, a **new** alert is allowed (stocks/options may show a re-entry note).

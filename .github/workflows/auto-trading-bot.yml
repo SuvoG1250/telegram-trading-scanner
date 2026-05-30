@@ -69,6 +69,10 @@ jobs:
       GLOBAL_ALERT_END_MINUTE: "0"
       GLOBAL_RR_MIN: "3"
       GLOBAL_RR_MAX: "6"
+      GLOBAL_MIN_RR: "3"
+      GLOBAL_MAX_RR: "8"
+      GLOBAL_INTERVAL: "1h"
+      GLOBAL_DEDUP_ENTRY_PCT: "0.35"
       GLOBAL_ATR_SL_MULT: "1.2"
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash

@@ -198,7 +198,7 @@ def _last_close_global_px(symbol: str) -> float | None:
     try:
         import yfinance as yf
 
-        hist = yf.Ticker(ticker).history(period="2d", interval="15m", auto_adjust=True)
+        hist = yf.Ticker(ticker).history(period="5d", interval="1h", auto_adjust=True)
         if hist is None or hist.empty:
             return None
         return float(hist["Close"].iloc[-1])
@@ -266,6 +266,54 @@ def global_position_open(symbol: str) -> bool:
         if row.get("symbol") == symbol:
             return True
     return False
+
+
+def global_signal_blocked(
+    symbol: str,
+    side: str,
+    entry: float,
+    stop_loss: float,
+    target: float,
+) -> str | None:
+    """
+    Block repeat alerts in the same price zone (open plan or prior signal range today).
+    Returns a short reason string, or None if OK to send.
+    """
+    from config import GLOBAL_DEDUP_ENTRY_PCT
+
+    blob = _load()
+    tol = max(0.1, GLOBAL_DEDUP_ENTRY_PCT)
+
+    for row in blob.get("global") or []:
+        if row.get("symbol") != symbol:
+            continue
+        if row.get("side") != side:
+            continue
+
+        if row.get("status") == "OPEN":
+            return "active plan awaiting SL/Target"
+
+        prev_entry = float(row.get("entry") or 0)
+        prev_sl = float(row.get("stop_loss") or 0)
+        prev_tp = float(row.get("target") or 0)
+        if prev_entry <= 0:
+            continue
+
+        if abs(entry - prev_entry) / prev_entry * 100.0 <= tol:
+            return "duplicate entry (same zone as prior signal)"
+
+        band = sorted([prev_entry, prev_sl, prev_tp])
+        if band[0] <= entry <= band[1]:
+            return "entry inside prior SL/entry band"
+        if band[1] <= entry <= band[2]:
+            return "entry inside prior entry/target range"
+
+        trade_lo = min(prev_entry, prev_tp)
+        trade_hi = max(prev_entry, prev_tp)
+        if trade_lo <= entry <= trade_hi:
+            return "entry still in prior trade range"
+
+    return None
 
 
 def register_global_open(
