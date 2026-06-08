@@ -173,7 +173,11 @@ STOCK_BTST_ENABLED = os.environ.get("STOCK_BTST_ENABLED", "true").lower() in (
 )
 STOCK_BTST_MIN_CONFIRM_PCT = float(os.environ.get("STOCK_BTST_MIN_CONFIRM_PCT", "75"))
 STOCK_BTST_MIN_GAIN_PCT = float(os.environ.get("STOCK_BTST_MIN_GAIN_PCT", "1.5"))
-STOCK_BTST_MAX_ALERTS = max(1, min(3, int(os.environ.get("STOCK_BTST_MAX_ALERTS", "2"))))
+STOCK_BTST_MAX_ALERTS = max(1, min(5, int(os.environ.get("STOCK_BTST_MAX_ALERTS", "3"))))
+STOCK_BTST_MIN_PRICE = float(os.environ.get("STOCK_BTST_MIN_PRICE", "50"))
+STOCK_BTST_MAX_PRICE = float(os.environ.get("STOCK_BTST_MAX_PRICE", "1000"))
+STOCK_BTST_SCREEN_TOP = max(20, min(80, int(os.environ.get("STOCK_BTST_SCREEN_TOP", "50"))))
+STOCK_BTST_MIN_GAPUP_SCORE = float(os.environ.get("STOCK_BTST_MIN_GAPUP_SCORE", "4.0"))
 # Global assets (Crypto + XAUUSD) alert window and strategy controls
 GLOBAL_ASSETS_ENABLED = os.environ.get("GLOBAL_ASSETS_ENABLED", "true").lower() in (
     "1",

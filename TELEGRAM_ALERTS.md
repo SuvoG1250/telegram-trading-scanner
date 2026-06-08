@@ -50,16 +50,18 @@ SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
 
 ---
 
-### 3. Stock BTST — BUY only (fundamental + news)
+### 3. Stock Gap-Up BTST — BUY only (all NSE under Rs 1000)
 
 | | |
 |---|---|
 | **When** | Mon–Fri, **3:10 – 3:20 PM IST** |
+| **Universe** | **All NSE stocks** with price **Rs 50 – Rs 1000** |
 | **Side** | **BUY only** (overnight equity, CNC) |
-| **Confirm** | ≥75% checks (fundamental, news, intraday strength) |
-| **Max** | 2 stocks per day |
+| **Focus** | **Gap-up potential** + fundamental + news |
+| **Confirm** | ≥75% checks |
+| **Max** | 3 stocks per day |
 
-**Only sends** when high-signal confirmed — no alert if nothing passes.
+**Flow:** batch screen full NSE → gap-up filter → fundamental + news → top picks only.
 
 ---
 
