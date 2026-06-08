@@ -46,8 +46,12 @@ WATCHLIST_MIN = 1
 WATCHLIST_MAX = 100
 # nifty500 | nifty100 | nse_price_band (all NSE EQ with last close in MIN/MAX price)
 SCAN_UNIVERSE_MODE = os.environ.get("SCAN_UNIVERSE_MODE", "nse_price_band")
-# Intraday: scan every symbol in get_scan_universe(), not only top-ranked playbook picks
-SCAN_ALL_UNIVERSE_INTRADAY = True
+# Intraday: false = scan ~45 playbook picks only (fewer API calls, better on GitHub)
+SCAN_ALL_UNIVERSE_INTRADAY = os.environ.get("SCAN_ALL_UNIVERSE_INTRADAY", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 # Scan full universe (refresh small legacy watchlists)
 SCAN_FULL_UNIVERSE = True
 # Chaitu50c (Pine port) — chart interval for yfinance replay

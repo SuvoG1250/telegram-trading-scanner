@@ -156,4 +156,4 @@ Weekends ────────── Global only (full 7:00–23:00 window)
 
 ---
 
-*Last updated for commit `b11c595` — trade alerts + NSE EOD only; operational pings disabled.*
+*NSE: Mon–Fri 9:10 IST (390 min scan) · Global: 7–8 & 16–22 IST · Playbook ~45 stocks · yfinance throttled.*

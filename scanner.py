@@ -308,7 +308,12 @@ def _is_automatic_run() -> bool:
 
 
 def _needs_full_universe_refresh(watchlist: list[str]) -> bool:
-    return SCAN_FULL_UNIVERSE and len(watchlist) < 200
+    """Locked daily watchlist is reused — F&O list (~45–120) is not 200+ names."""
+    if not SCAN_FULL_UNIVERSE:
+        return False
+    if is_watchlist_locked() and watchlist:
+        return False
+    return len(watchlist) < 10
 
 
 def _get_daily_watchlist() -> list[str]:
@@ -406,7 +411,11 @@ def main() -> int:
     from config import NIFTY_OPTIONS_ENABLED
 
     if NIFTY_OPTIONS_ENABLED:
-        nifty_sig = run_nifty_options_scan()
+        try:
+            nifty_sig = run_nifty_options_scan()
+        except Exception:
+            logger.exception("Nifty options scan failed (continuing equity scan)")
+            nifty_sig = None
         if nifty_sig:
             signals.append(nifty_sig)
             scan_stats.nifty_option_sent = True

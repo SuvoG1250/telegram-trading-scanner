@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Create/update cron-job.org jobs for global + NSE scanner windows.
+Create/update cron-job.org jobs for NSE session + global windows.
 
 Requires in .env or environment:
   CRONJOB_API_KEY  — from https://console.cron-job.org/settings
   GITHUB_PAT       — GitHub token with repo scope (classic PAT)
 
 Usage:
-  python scripts/setup_cron_job_org.py
+  python scripts/setup_cron_job_org.py --reset
   python scripts/setup_cron_job_org.py --test   # trigger one GitHub scan now
-  python scripts/setup_cron_job_org.py --list    # list existing cron-job.org jobs
+  python scripts/setup_cron_job_org.py --list
 """
 
 from __future__ import annotations
@@ -38,7 +38,10 @@ CRONJOB_API = "https://api.cron-job.org"
 GITHUB_OWNER = "SuvoG1250"
 GITHUB_REPO = "telegram-trading-scanner"
 WORKFLOW_ID = "278548320"
-JOB_TITLE = "Telegram Trading Bot — Global hourly window"
+
+JOB_TITLE_NSE = "Telegram Trading Bot — NSE session"
+JOB_TITLE_GLOBAL = "Telegram Trading Bot — Global window"
+KEEP_JOB_TITLES = {JOB_TITLE_NSE, JOB_TITLE_GLOBAL}
 
 DISPATCH_URL = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
@@ -53,10 +56,14 @@ def _cron_headers(api_key: str) -> dict[str, str]:
     }
 
 
-def build_job_payload(github_pat: str) -> dict:
+def _dispatch_body(*, max_minutes: str) -> str:
+    return json.dumps({"ref": "main", "inputs": {"mode": "full_session", "max_minutes": max_minutes}})
+
+
+def build_nse_job_payload(github_pat: str) -> dict:
     return {
         "job": {
-            "title": JOB_TITLE,
+            "title": JOB_TITLE_NSE,
             "enabled": True,
             "saveResponses": False,
             "url": DISPATCH_URL,
@@ -65,12 +72,43 @@ def build_job_payload(github_pat: str) -> dict:
             "schedule": {
                 "timezone": "Asia/Kolkata",
                 "expiresAt": 0,
-                # Hourly triggers across 07:00-22:00 IST (23:00 is exclusive end window).
-                "hours": list(range(7, 23)),
+                "hours": [9],
+                "minutes": [10],
+                "mdays": [-1],
+                "months": [-1],
+                "wdays": [1, 2, 3, 4, 5],
+            },
+            "extendedData": {
+                "headers": {
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {github_pat}",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "Content-Type": "application/json",
+                },
+                "body": _dispatch_body(max_minutes="390"),
+            },
+        }
+    }
+
+
+def build_global_job_payload(github_pat: str) -> dict:
+    # 7–8 AM pre-market; 16–22 PM post-NSE (no overlap with 9:10–15:40 NSE run).
+    global_hours = [7, 8, 16, 17, 18, 19, 20, 21, 22]
+    return {
+        "job": {
+            "title": JOB_TITLE_GLOBAL,
+            "enabled": True,
+            "saveResponses": False,
+            "url": DISPATCH_URL,
+            "requestMethod": 1,
+            "requestTimeout": 120,
+            "schedule": {
+                "timezone": "Asia/Kolkata",
+                "expiresAt": 0,
+                "hours": global_hours,
                 "minutes": [0],
                 "mdays": [-1],
                 "months": [-1],
-                # Crypto/Gold are active on weekends too.
                 "wdays": [-1],
             },
             "extendedData": {
@@ -80,8 +118,7 @@ def build_job_payload(github_pat: str) -> dict:
                     "X-GitHub-Api-Version": "2022-11-28",
                     "Content-Type": "application/json",
                 },
-                # Keep each GH run bounded; cron re-triggers every hour.
-                "body": json.dumps({"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "58"}}),
+                "body": _dispatch_body(max_minutes="58"),
             },
         }
     }
@@ -91,39 +128,48 @@ def list_jobs(api_key: str) -> list[dict]:
     r = requests.get(f"{CRONJOB_API}/jobs", headers=_cron_headers(api_key), timeout=30)
     if r.status_code == 401:
         print("cron-job.org rejected the API key (401 Unauthorized).")
-        print("Use the API key from https://console.cron-job.org/settings")
-        print("(not a job ID or account UUID — it is a long random string).")
         sys.exit(1)
     r.raise_for_status()
     return r.json().get("jobs", [])
 
 
-def find_job_id(api_key: str) -> int | None:
+def find_job_id(api_key: str, title: str) -> int | None:
     for job in list_jobs(api_key):
-        if job.get("title") == JOB_TITLE:
+        if job.get("title") == title:
             return int(job["jobId"])
     return None
 
 
-def create_job(api_key: str, github_pat: str) -> int:
+def create_job(api_key: str, payload: dict) -> int:
     r = requests.put(
         f"{CRONJOB_API}/jobs",
         headers=_cron_headers(api_key),
-        json=build_job_payload(github_pat),
+        json=payload,
         timeout=30,
     )
     r.raise_for_status()
     return int(r.json()["jobId"])
 
 
-def update_job(api_key: str, job_id: int, github_pat: str) -> None:
+def update_job(api_key: str, job_id: int, payload: dict) -> None:
     r = requests.patch(
         f"{CRONJOB_API}/jobs/{job_id}",
         headers=_cron_headers(api_key),
-        json=build_job_payload(github_pat),
+        json=payload,
         timeout=30,
     )
     r.raise_for_status()
+
+
+def upsert_job(api_key: str, github_pat: str, title: str, payload: dict) -> int:
+    existing = find_job_id(api_key, title)
+    if existing:
+        update_job(api_key, existing, payload)
+        print(f"Updated cron-job.org job id={existing} ({title})")
+        return existing
+    job_id = create_job(api_key, payload)
+    print(f"Created cron-job.org job id={job_id} ({title})")
+    return job_id
 
 
 def test_github_dispatch(github_pat: str) -> None:
@@ -134,11 +180,11 @@ def test_github_dispatch(github_pat: str) -> None:
             "Authorization": f"Bearer {github_pat}",
             "X-GitHub-Api-Version": "2022-11-28",
         },
-        json={"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "58"}},
+        json={"ref": "main", "inputs": {"mode": "full_session", "max_minutes": "390"}},
         timeout=30,
     )
     if r.status_code == 204:
-        print("GitHub dispatch OK — full_session started (global + NSE scanners).")
+        print("GitHub dispatch OK — NSE full_session started (390 min).")
         return
     print(f"GitHub dispatch failed ({r.status_code}): {r.text}")
     sys.exit(1)
@@ -155,10 +201,10 @@ def disable_job(api_key: str, job_id: int) -> None:
 
 
 def prune_legacy_cron_jobs(api_key: str) -> int:
-    """Disable extra cron-job.org jobs that hit this workflow (stops 5-min scan spam)."""
     disabled = 0
     for job in list_jobs(api_key):
-        if job.get("title") == JOB_TITLE:
+        title = str(job.get("title") or "")
+        if title in KEEP_JOB_TITLES:
             continue
         url = str(job.get("url") or "")
         if "actions/workflows" not in url and str(WORKFLOW_ID) not in url:
@@ -167,7 +213,7 @@ def prune_legacy_cron_jobs(api_key: str) -> int:
             continue
         jid = int(job["jobId"])
         disable_job(api_key, jid)
-        print(f"Disabled legacy job [{jid}] {job.get('title')}")
+        print(f"Disabled legacy job [{jid}] {title}")
         disabled += 1
     return disabled
 
@@ -213,12 +259,12 @@ def cancel_github_runs() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Setup cron-job.org for trading bot")
-    parser.add_argument("--test", action="store_true", help="Trigger one GitHub scan now")
+    parser.add_argument("--test", action="store_true", help="Trigger one GitHub NSE scan now")
     parser.add_argument("--list", action="store_true", help="List cron-job.org jobs")
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Disable legacy cron jobs + cancel stuck GitHub runs, then enable hourly global-window job",
+        help="Disable legacy jobs, cancel stuck runs, enable NSE + global cron jobs",
     )
     args = parser.parse_args()
 
@@ -246,22 +292,7 @@ def main() -> int:
         if gh_tok:
             github_pat = gh_tok
             print("Using GitHub token from: gh auth login")
-    elif github_pat:
-        test = requests.post(
-            DISPATCH_URL,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {github_pat}",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-            json={"ref": "main", "inputs": {"mode": "scan_once"}},
-            timeout=15,
-        )
-        if test.status_code == 401:
-            gh_tok = _gh_cli_token()
-            if gh_tok:
-                github_pat = gh_tok
-                print("GITHUB_PAT invalid — using gh auth login instead")
+
     cron_key = os.environ.get("CRONJOB_API_KEY", "")
 
     if args.test:
@@ -281,11 +312,9 @@ def main() -> int:
 
     if not github_pat:
         print("Missing GITHUB_PAT in .env")
-        print("Create: https://github.com/settings/tokens → classic → repo scope")
         return 1
     if not cron_key:
         print("Missing CRONJOB_API_KEY in .env")
-        print("Create: https://console.cron-job.org/settings -> API key")
         return 1
 
     if args.reset:
@@ -295,19 +324,14 @@ def main() -> int:
 
     n_off = prune_legacy_cron_jobs(cron_key)
     if n_off:
-        print(f"Disabled {n_off} legacy cron job(s) that caused scan spam.")
+        print(f"Disabled {n_off} legacy cron job(s).")
 
-    existing = find_job_id(cron_key)
-    if existing:
-        update_job(cron_key, existing, github_pat)
-        print(f"Updated cron-job.org job id={existing}")
-    else:
-        job_id = create_job(cron_key, github_pat)
-        print(f"Created cron-job.org job id={job_id}")
+    upsert_job(cron_key, github_pat, JOB_TITLE_NSE, build_nse_job_payload(github_pat))
+    upsert_job(cron_key, github_pat, JOB_TITLE_GLOBAL, build_global_job_payload(github_pat))
 
     print()
-    print("Schedule: hourly at :00 from 07:00 to 22:00 IST, all days (Asia/Kolkata)")
-    print("Each run starts full_session for 58 minutes; scanner checks every 3 minutes internally")
+    print("NSE:      Mon–Fri 9:10 IST → full_session 390 min (scan every 3 min)")
+    print("Global:   7–8 & 16–22 IST daily → full_session 58 min (BTC/ETH/XAU)")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0

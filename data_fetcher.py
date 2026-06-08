@@ -1,8 +1,11 @@
-"""Market data retrieval via yfinance."""
+"""Market data retrieval via yfinance (throttled + retries for GitHub Actions)."""
 
 from __future__ import annotations
 
 import logging
+import os
+import threading
+import time
 from typing import Literal
 
 import pandas as pd
@@ -24,6 +27,27 @@ _PERIOD_BY_INTERVAL: dict[str, str] = {
     "1wk": "2y",
     "1mo": "5y",
 }
+
+_YF_LOCK = threading.Lock()
+_LAST_YF_FETCH = 0.0
+_YF_MIN_INTERVAL_SEC = float(os.environ.get("YFINANCE_MIN_INTERVAL_SEC", "0.45"))
+_YF_MAX_RETRIES = max(1, int(os.environ.get("YFINANCE_MAX_RETRIES", "4")))
+
+
+def _throttle_yfinance() -> None:
+    global _LAST_YF_FETCH
+    with _YF_LOCK:
+        elapsed = time.time() - _LAST_YF_FETCH
+        if elapsed < _YF_MIN_INTERVAL_SEC:
+            time.sleep(_YF_MIN_INTERVAL_SEC - elapsed)
+        _LAST_YF_FETCH = time.time()
+
+
+def _is_rate_limited(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    if "RateLimit" in name or "Too Many Requests" in str(exc):
+        return True
+    return False
 
 
 def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -49,12 +73,33 @@ def fetch_history(
 ) -> pd.DataFrame:
     period = period or _PERIOD_BY_INTERVAL.get(interval, "60d")
     ticker = to_yfinance_symbol(symbol)
-    try:
-        df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
-    except Exception:
-        logger.exception("Failed to fetch %s (%s)", symbol, interval)
-        return pd.DataFrame()
-    return _normalize_df(df)
+    last_err: Exception | None = None
+
+    for attempt in range(_YF_MAX_RETRIES):
+        _throttle_yfinance()
+        try:
+            df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
+            return _normalize_df(df)
+        except Exception as exc:
+            last_err = exc
+            if _is_rate_limited(exc):
+                wait = min(30.0, 2.0 * (2**attempt))
+                logger.warning(
+                    "yfinance rate limit for %s (%s) — retry %s/%s in %.0fs",
+                    symbol,
+                    interval,
+                    attempt + 1,
+                    _YF_MAX_RETRIES,
+                    wait,
+                )
+                time.sleep(wait)
+                continue
+            logger.exception("Failed to fetch %s (%s)", symbol, interval)
+            return pd.DataFrame()
+
+    if last_err is not None:
+        logger.error("yfinance gave up on %s (%s): %s", symbol, interval, last_err)
+    return pd.DataFrame()
 
 
 def fetch_daily(symbol: str, period: str = "1y") -> pd.DataFrame:
