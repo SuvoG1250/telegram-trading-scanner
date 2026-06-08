@@ -330,8 +330,8 @@ def main() -> int:
     upsert_job(cron_key, github_pat, JOB_TITLE_GLOBAL, build_global_job_payload(github_pat))
 
     print()
-    print("NSE:      Mon–Fri 9:10 IST → full_session 390 min (scan every 3 min)")
-    print("Global:   7–8 & 16–22 IST daily → full_session 58 min (BTC/ETH/XAU)")
+    print("NSE:      Mon-Fri 9:10 IST -> full_session 390 min (scan every 3 min)")
+    print("Global:   7-8 and 16-22 IST daily -> full_session 58 min (BTC/ETH/XAU)")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0
