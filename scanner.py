@@ -380,8 +380,16 @@ def main() -> int:
         logger.info("Market closed.")
         return 0
 
-    from config import NIFTY_BTST_ENABLED
-    from market_time import is_nifty_btst_window
+    from config import NIFTY_BTST_ENABLED, STOCK_BTST_ENABLED
+    from market_time import is_nifty_btst_window, is_stock_btst_window
+
+    if STOCK_BTST_ENABLED and is_stock_btst_window():
+        from stock_btst import run_stock_btst_alerts
+
+        n = run_stock_btst_alerts()
+        if n:
+            logger.info("Stock BTST alerts sent: %s", n)
+        return 0
 
     if NIFTY_BTST_ENABLED and is_nifty_btst_window():
         from nifty_btst import run_nifty_btst_alert
@@ -390,7 +398,7 @@ def main() -> int:
         return 0
 
     if not is_new_trade_window():
-        logger.info("After 3:00 PM IST — BTST at 3:20 PM; summary at 3:30 PM.")
+        logger.info("After 3:00 PM IST — Stock BTST 3:10, Nifty BTST 3:20, summary 3:30 PM.")
         return 0
 
     # Session start alert is handled centrally in handle_session_alerts().

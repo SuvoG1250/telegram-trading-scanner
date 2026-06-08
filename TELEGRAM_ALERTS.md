@@ -50,7 +50,20 @@ SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
 
 ---
 
-### 3. Nifty BTST (once per day)
+### 3. Stock BTST — BUY only (fundamental + news)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, **3:10 – 3:20 PM IST** |
+| **Side** | **BUY only** (overnight equity, CNC) |
+| **Confirm** | ≥75% checks (fundamental, news, intraday strength) |
+| **Max** | 2 stocks per day |
+
+**Only sends** when high-signal confirmed — no alert if nothing passes.
+
+---
+
+### 4. Nifty BTST (once per day)
 
 | | |
 |---|---|
@@ -63,7 +76,7 @@ SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
 
 ---
 
-### 4. Global — BTC / ETH / Gold
+### 5. Global — BTC / ETH / Gold
 
 | | |
 |---|---|
@@ -88,7 +101,7 @@ Outside NSE hours · 07:00–23:00 IST · <time>
 
 ---
 
-### 5. NSE EOD summary (once per day)
+### 6. NSE EOD summary (once per day)
 
 | | |
 |---|---|

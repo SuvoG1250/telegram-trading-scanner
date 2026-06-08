@@ -129,6 +129,45 @@ def build_market_news_digest() -> NewsDigest:
     return digest
 
 
+def build_stock_news_digest(symbol: str) -> NewsDigest:
+    """Headlines for a single NSE stock (yfinance + Google News RSS)."""
+    digest = NewsDigest()
+    ysym = f"{symbol}.NS" if not symbol.endswith(".NS") else symbol
+
+    try:
+        for item in (yf.Ticker(ysym).news or [])[:6]:
+            title = (item.get("title") or "").strip()
+            if title:
+                _tag_headline(title, digest)
+                digest.sources.append("yfinance")
+    except Exception:
+        logger.debug("yfinance stock news unavailable for %s", symbol)
+
+    for q in (f"{symbol} NSE stock India", f"{symbol} share news India"):
+        url = _GOOGLE_NEWS_RSS.format(query=quote_plus(q))
+        for title in _fetch_rss(url, f"google:{symbol}", limit=4):
+            _tag_headline(title, digest)
+            digest.sources.append("google_news")
+
+    seen: set[str] = set()
+    unique: list[str] = []
+    for h in digest.headlines:
+        key = h.lower()[:80]
+        if key not in seen:
+            seen.add(key)
+            unique.append(h)
+    digest.headlines = unique[:10]
+
+    sc = digest.score()
+    if sc >= 0.5:
+        digest.news_bias = "bullish"
+    elif sc <= -0.5:
+        digest.news_bias = "bearish"
+    else:
+        digest.news_bias = "neutral"
+    return digest
+
+
 def format_headlines_for_telegram(digest: NewsDigest, max_lines: int = 5) -> str:
     if not digest.headlines:
         return "No headlines fetched (check network)."

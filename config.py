@@ -165,6 +165,15 @@ NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
 NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
 # Minimum confirmation % to send BUY CALL/PUT (default 80 = 5/6 checks pass)
 NIFTY_BTST_MIN_CONFIRM_PCT = float(os.environ.get("NIFTY_BTST_MIN_CONFIRM_PCT", "80"))
+# Stock BTST — BUY only, fundamental + news, 3:10–3:20 PM IST
+STOCK_BTST_ENABLED = os.environ.get("STOCK_BTST_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+STOCK_BTST_MIN_CONFIRM_PCT = float(os.environ.get("STOCK_BTST_MIN_CONFIRM_PCT", "75"))
+STOCK_BTST_MIN_GAIN_PCT = float(os.environ.get("STOCK_BTST_MIN_GAIN_PCT", "1.5"))
+STOCK_BTST_MAX_ALERTS = max(1, min(3, int(os.environ.get("STOCK_BTST_MAX_ALERTS", "2"))))
 # Global assets (Crypto + XAUUSD) alert window and strategy controls
 GLOBAL_ASSETS_ENABLED = os.environ.get("GLOBAL_ASSETS_ENABLED", "true").lower() in (
     "1",

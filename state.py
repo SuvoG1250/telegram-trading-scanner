@@ -147,6 +147,8 @@ def _session_today() -> dict[str, Any]:
             "start_sent": False,
             "stop_sent": False,
             "nifty_btst_sent": False,
+            "stock_btst_sent": False,
+            "stock_btst_symbols": [],
         }
     return data
 
@@ -188,6 +190,22 @@ def nifty_btst_sent() -> bool:
 def mark_nifty_btst_sent() -> None:
     data = _session_today()
     data["nifty_btst_sent"] = True
+    _save_session(data)
+
+
+def stock_btst_sent() -> bool:
+    return bool(_session_today().get("stock_btst_sent"))
+
+
+def mark_stock_btst_sent(symbols: list[str] | None = None) -> None:
+    data = _session_today()
+    data["stock_btst_sent"] = True
+    if symbols:
+        existing = list(data.get("stock_btst_symbols") or [])
+        for sym in symbols:
+            if sym not in existing:
+                existing.append(sym)
+        data["stock_btst_symbols"] = existing
     _save_session(data)
 
 
