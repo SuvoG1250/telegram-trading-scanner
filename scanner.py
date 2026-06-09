@@ -27,7 +27,14 @@ from config import (
 )
 from trade_filters import filter_symbols, passes_trade_filters
 from data_fetcher import clear_session_cache
-from market_time import is_market_open, is_new_trade_window, is_premarket_window, is_weekday, now_ist
+from market_time import (
+    is_market_open,
+    is_new_trade_window,
+    is_premarket_summary_window,
+    is_premarket_window,
+    is_weekday,
+    now_ist,
+)
 from premarket import build_watchlist, format_watchlist_message
 from premarket_summary import send_premarket_market_summary
 from session_alerts import handle_session_alerts
@@ -79,13 +86,13 @@ logger = logging.getLogger("scanner")
 
 def run_premarket() -> list[str]:
     """Build today's scan list; send pre-market report when enabled."""
+    if send_premarket_market_summary():
+        logger.info("Pre-market news summary sent.")
     watchlist, ranked = build_watchlist()
     if not watchlist:
         return []
     save_watchlist(watchlist, locked=LOCK_WATCHLIST_FOR_DAY)
     logger.info("Watchlist ready: %s symbols", len(watchlist))
-    if send_premarket_market_summary():
-        logger.info("Pre-market news summary sent.")
     if SEND_PREMARKET_REPORT:
         send_plain(format_watchlist_message(ranked))
     return watchlist
@@ -361,6 +368,9 @@ def main() -> int:
     if not is_weekday():
         logger.info("Weekend — NSE scan skipped.")
         return 0
+
+    if is_premarket_summary_window() and send_premarket_market_summary():
+        logger.info("Pre-market news summary sent (early).")
 
     mode = "signals-only" if SIGNALS_ONLY_TELEGRAM else "verbose"
     from strategies import EQUITY_STRATEGY_LABELS

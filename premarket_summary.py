@@ -7,7 +7,7 @@ import logging
 from config import SEND_PREMARKET_MARKET_SUMMARY
 from market_news import build_market_news_digest, classify_headlines
 from market_sentiment import assess_market_sentiment
-from market_time import now_ist
+from market_time import is_premarket_summary_window, now_ist
 from state import mark_premarket_summary_sent, premarket_summary_sent
 from telegram_client import send_plain
 
@@ -76,8 +76,10 @@ def format_premarket_market_summary() -> str:
     return "\n".join(lines)
 
 
-def send_premarket_market_summary() -> bool:
+def send_premarket_market_summary(*, force_window: bool = True) -> bool:
     if not SEND_PREMARKET_MARKET_SUMMARY or premarket_summary_sent():
+        return False
+    if force_window and not is_premarket_summary_window():
         return False
     text = format_premarket_market_summary()
     if send_plain(text):

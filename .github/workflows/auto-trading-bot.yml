@@ -172,6 +172,11 @@ jobs:
       - name: Automation boot (once per day)
         run: python automation_boot.py
 
+      - name: Pre-market news summary (9:10-9:35 IST, once)
+        run: |
+          mkdir -p data
+          python scripts/send_premarket_summary.py || true
+
       - name: Single scan
         if: github.event.inputs.mode == 'scan_once'
         run: |
