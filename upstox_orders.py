@@ -136,57 +136,56 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"
     order_ids: list[str] = []
 
-    if True:
-        ctx = _option_context(signal)
-        if not ctx:
-            return OrderResult(False, tag_base, [], "Could not resolve option instrument_key")
-        inst_key, qty, product = ctx
+    ctx = _option_context(signal)
+    if not ctx:
+        return OrderResult(False, tag_base, [], "Could not resolve option instrument_key")
+    inst_key, qty, product = ctx
 
-        entry_id = _place(
-            instrument_key=inst_key,
-            transaction_type="BUY",
-            order_type="MARKET",
-            quantity=qty,
-            product=product,
-            tag=f"{tag_base}-entry",
-        )
-        if not entry_id:
-            res = OrderResult(False, tag_base, [], "Entry order failed")
-            _record(tag_base, {"signal": signal.symbol}, res)
-            return res
-        order_ids.append(entry_id)
-
-        sl_id = _place(
-            instrument_key=inst_key,
-            transaction_type="SELL",
-            order_type="SL-M",
-            quantity=qty,
-            product=product,
-            trigger_price=float(lv.stop_loss),
-            tag=f"{tag_base}-sl",
-        )
-        if sl_id:
-            order_ids.append(sl_id)
-
-        tgt_id = _place(
-            instrument_key=inst_key,
-            transaction_type="SELL",
-            order_type="LIMIT",
-            quantity=qty,
-            product=product,
-            price=float(lv.primary_target),
-            tag=f"{tag_base}-tgt",
-        )
-        if tgt_id:
-            order_ids.append(tgt_id)
-
-        mode = "PAPER" if UPSTOX_PAPER_TRADE else "LIVE"
-        res = OrderResult(
-            True,
-            tag_base,
-            order_ids,
-            f"{mode} option bracket: entry + SL-M @ {lv.stop_loss:.2f} + LIMIT @ {lv.primary_target:.2f}",
-            paper=UPSTOX_PAPER_TRADE,
-        )
-        _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)
+    entry_id = _place(
+        instrument_key=inst_key,
+        transaction_type="BUY",
+        order_type="MARKET",
+        quantity=qty,
+        product=product,
+        tag=f"{tag_base}-entry",
+    )
+    if not entry_id:
+        res = OrderResult(False, tag_base, [], "Entry order failed")
+        _record(tag_base, {"signal": signal.symbol}, res)
         return res
+    order_ids.append(entry_id)
+
+    sl_id = _place(
+        instrument_key=inst_key,
+        transaction_type="SELL",
+        order_type="SL-M",
+        quantity=qty,
+        product=product,
+        trigger_price=float(lv.stop_loss),
+        tag=f"{tag_base}-sl",
+    )
+    if sl_id:
+        order_ids.append(sl_id)
+
+    tgt_id = _place(
+        instrument_key=inst_key,
+        transaction_type="SELL",
+        order_type="LIMIT",
+        quantity=qty,
+        product=product,
+        price=float(lv.primary_target),
+        tag=f"{tag_base}-tgt",
+    )
+    if tgt_id:
+        order_ids.append(tgt_id)
+
+    mode = "PAPER" if UPSTOX_PAPER_TRADE else "LIVE"
+    res = OrderResult(
+        True,
+        tag_base,
+        order_ids,
+        f"{mode} option bracket: entry + SL-M @ {lv.stop_loss:.2f} + LIMIT @ {lv.primary_target:.2f}",
+        paper=UPSTOX_PAPER_TRADE,
+    )
+    _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)
+    return res
