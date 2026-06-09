@@ -11,6 +11,7 @@ from typing import Any, Literal
 import yfinance as yf
 
 from config import DATA_DIR, TRADES_JOURNAL_FILE
+from config import SENSEX_TICKER
 from market_sentiment import NIFTY_TICKER
 from market_time import IST, now_ist, today_key
 from stocks import to_yfinance_symbol
@@ -85,7 +86,12 @@ def load_today_trades() -> list[TradeRecord]:
 
 def _session_bars(symbol: str, sent_at: datetime) -> tuple[float, float, float] | None:
     """Day high, low, last close since signal (5m bars)."""
-    ticker = NIFTY_TICKER if symbol.startswith("NIFTY") else to_yfinance_symbol(symbol.split()[0])
+    if symbol.startswith("NIFTY"):
+        ticker = NIFTY_TICKER
+    elif symbol.startswith("SENSEX"):
+        ticker = SENSEX_TICKER
+    else:
+        ticker = to_yfinance_symbol(symbol.split()[0])
     try:
         df = yf.Ticker(ticker).history(period="1d", interval="5m", auto_adjust=True)
     except Exception:
@@ -145,8 +151,8 @@ def evaluate_trade(trade: TradeRecord) -> tuple[Outcome, float]:
     except (TypeError, ValueError):
         sent_at = now_ist()
 
-    if trade.instrument == "NIFTY_OPTION" and trade.underlying is not None:
-        bars = _session_bars("NIFTY", sent_at)
+    if trade.instrument in ("NIFTY_OPTION", "SENSEX_OPTION") and trade.underlying is not None:
+        bars = _session_bars(trade.symbol.split()[0], sent_at)
         if bars:
             high, low, close = bars
             u_entry = trade.underlying
@@ -170,10 +176,11 @@ def evaluate_trade(trade: TradeRecord) -> tuple[Outcome, float]:
 
 
 def _trade_label(trade: TradeRecord) -> str:
-    if trade.instrument == "NIFTY_OPTION":
+    if trade.instrument in ("NIFTY_OPTION", "SENSEX_OPTION"):
         strike = int(trade.strike or 0)
         opt = trade.option_type or ""
-        return f"NIFTY {strike} {opt} ({trade.side})"
+        prefix = "SENSEX" if trade.instrument == "SENSEX_OPTION" else "NIFTY"
+        return f"{prefix} {strike} {opt} ({trade.side})"
     side = "SHORT SELL" if trade.side == "SELL" else trade.side
     return f"{trade.symbol} ({side})"
 
@@ -194,7 +201,7 @@ def format_daily_summary() -> str:
     close_time = now_ist().strftime("%H:%M IST")
     lines = [
         f"📊 <b>NSE Indian Market — EOD P/L Summary</b> — {date_label}",
-        f"<i>After 3:30 PM IST market close · {close_time}</i>",
+        f"<i>Once after market close (15:32 IST) · sent {close_time}</i>",
         "",
     ]
     if not trades:
@@ -221,7 +228,7 @@ def format_daily_summary() -> str:
         outcome, pnl = evaluate_trade(t)
         pnl_values.append(pnl)
         row = _format_trade_row(t, outcome, pnl)
-        is_opt = t.instrument == "NIFTY_OPTION"
+        is_opt = t.instrument in ("NIFTY_OPTION", "SENSEX_OPTION")
         if outcome == "WIN":
             win_pnls.append(pnl)
             (opt_win if is_opt else equity_win).append(row)
@@ -259,12 +266,54 @@ def format_daily_summary() -> str:
     if not (equity_win or equity_loss or equity_flat):
         lines.append("• — no stock signals today —")
 
+    nifty_opt = [t for t in trades if t.instrument == "NIFTY_OPTION"]
+    sensex_opt = [t for t in trades if t.instrument == "SENSEX_OPTION"]
     n_opt = len(opt_win) + len(opt_loss) + len(opt_flat)
-    if n_opt:
+    if nifty_opt:
+        nw = [r for r in opt_win if "NIFTY" in r]
+        nl = [r for r in opt_loss if "NIFTY" in r]
+        nf = [r for r in opt_flat if "NIFTY" in r]
         lines.extend(
             [
                 "",
-                f"<b>Nifty options</b> — ✅ {len(opt_win)} · ❌ {len(opt_loss)} · ➖ {len(opt_flat)}",
+                f"<b>Nifty options</b> — ✅ {len(nw)} · ❌ {len(nl)} · ➖ {len(nf)}",
+            ]
+        )
+        if nw:
+            lines.append("<b>Profit</b>")
+            lines.extend(nw)
+        if nl:
+            lines.append("<b>Loss</b>")
+            lines.extend(nl)
+        if nf:
+            lines.append("<b>Flat</b>")
+            lines.extend(nf)
+
+    if sensex_opt:
+        sw = [r for r in opt_win if "SENSEX" in r]
+        sl = [r for r in opt_loss if "SENSEX" in r]
+        sf = [r for r in opt_flat if "SENSEX" in r]
+        lines.extend(
+            [
+                "",
+                f"<b>Sensex options</b> — ✅ {len(sw)} · ❌ {len(sl)} · ➖ {len(sf)}",
+            ]
+        )
+        if sw:
+            lines.append("<b>Profit</b>")
+            lines.extend(sw)
+        if sl:
+            lines.append("<b>Loss</b>")
+            lines.extend(sl)
+        if sf:
+            lines.append("<b>Flat</b>")
+            lines.extend(sf)
+
+    if n_opt and not (nifty_opt or sensex_opt):
+        lines.extend(
+            [
+                "",
+                f"<b>Index options</b> — ✅ {len(opt_win)} · ❌ {len(opt_loss)} · ➖ {len(opt_flat)}",
             ]
         )
         if opt_win:

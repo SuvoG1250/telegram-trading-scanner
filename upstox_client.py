@@ -8,7 +8,11 @@ from datetime import datetime
 
 import requests
 
-from config import UPSTOX_ACCESS_TOKEN, UPSTOX_NIFTY_INSTRUMENT_KEY
+from config import (
+    UPSTOX_ACCESS_TOKEN,
+    UPSTOX_NIFTY_INSTRUMENT_KEY,
+    UPSTOX_SENSEX_INSTRUMENT_KEY,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,10 +65,11 @@ def _get(path: str, params: dict | None = None) -> dict | list | None:
         return None
 
 
-def fetch_expiries() -> list[str]:
+def fetch_expiries(instrument_key: str | None = None) -> list[str]:
+    key = instrument_key or UPSTOX_NIFTY_INSTRUMENT_KEY
     data = _get(
         "/option/contract",
-        {"instrument_key": UPSTOX_NIFTY_INSTRUMENT_KEY},
+        {"instrument_key": key},
     )
     if not data:
         return []
@@ -92,11 +97,12 @@ def _nearest_expiry(expiries: list[str]) -> str | None:
     return future[0][1]
 
 
-def fetch_option_chain(expiry: str) -> list[dict] | None:
+def fetch_option_chain(expiry: str, instrument_key: str | None = None) -> list[dict] | None:
+    key = instrument_key or UPSTOX_NIFTY_INSTRUMENT_KEY
     data = _get(
         "/option/chain",
         {
-            "instrument_key": UPSTOX_NIFTY_INSTRUMENT_KEY,
+            "instrument_key": key,
             "expiry_date": expiry,
         },
     )
@@ -109,19 +115,20 @@ def verify_upstox() -> bool:
     return len(fetch_expiries()) > 0
 
 
-def fetch_nifty_option_quote(
+def _fetch_index_option_quote(
     strike: int,
     option_type: str,
+    instrument_key: str,
     expiry: str | None = None,
 ) -> OptionQuote | None:
     if not upstox_configured():
         return None
 
-    exp = expiry or _nearest_expiry(fetch_expiries())
+    exp = expiry or _nearest_expiry(fetch_expiries(instrument_key))
     if not exp:
         return None
 
-    chain = fetch_option_chain(exp)
+    chain = fetch_option_chain(exp, instrument_key)
     if not chain:
         return None
 
@@ -157,3 +164,19 @@ def fetch_nifty_option_quote(
         strike=strike,
         option_type=option_type.upper(),
     )
+
+
+def fetch_nifty_option_quote(
+    strike: int,
+    option_type: str,
+    expiry: str | None = None,
+) -> OptionQuote | None:
+    return _fetch_index_option_quote(strike, option_type, UPSTOX_NIFTY_INSTRUMENT_KEY, expiry)
+
+
+def fetch_sensex_option_quote(
+    strike: int,
+    option_type: str,
+    expiry: str | None = None,
+) -> OptionQuote | None:
+    return _fetch_index_option_quote(strike, option_type, UPSTOX_SENSEX_INSTRUMENT_KEY, expiry)

@@ -32,12 +32,13 @@ Optional: `🤖 AI: …` · re-entry flag after prior SL/target.
 
 ---
 
-### 2. Nifty options (intraday)
+### 2. Nifty + Sensex options (intraday)
 
 | | |
 |---|---|
 | **When** | Mon–Fri, market hours (Supertrend flip) |
-| **Rule** | One active CALL or PUT plan until SL/target |
+| **Strategy** | Same ST+TSL engine (exit490) · SL −₹15 · book +₹30 · trail +₹100 |
+| **Rule** | One active CALL or PUT **per index** until SL/target |
 
 ```
 🟢 BUY CALL — NIFTY
@@ -47,6 +48,8 @@ Premium entry: ₹120.50 (live Upstox LTP)
 SL premium: ₹105.50  ·  T1: ₹135.50  ·  Target: ₹150.50
 SL −₹15 · Book +₹30 · Trail up to +₹100  ·  1:2 R:R  ·  <time>
 ```
+
+Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 
 ---
 
@@ -107,8 +110,8 @@ Outside NSE hours · 07:00–23:00 IST · <time>
 
 | | |
 |---|---|
-| **When** | Mon–Fri, **after 3:30 PM IST** |
-| **Includes** | Stocks + Nifty options + BTST (journal only) |
+| **When** | Mon–Fri, **once after 3:32 PM IST** (after market close + BTST) |
+| **Includes** | Stocks + Nifty/Sensex options + BTST (journal only) |
 | **Excludes** | Crypto/Gold |
 
 ```

@@ -59,9 +59,10 @@ def _format_option_signal(signal: Signal) -> str:
             else ("live Upstox LTP" if signal.premium_source == "upstox" else "est. — confirm on broker")
         )
     )
-    strat = html.escape(signal.strategy or "Nifty ST+TSL Options")
+    index_label = "SENSEX" if signal.instrument == "SENSEX_OPTION" else "NIFTY"
+    strat = html.escape(signal.strategy or f"{index_label} ST+TSL Options")
     lines = [
-        f"{emoji} <b>{action}</b> — NIFTY",
+        f"{emoji} <b>{action}</b> — {index_label}",
         f"<b>Strategy:</b> {strat}",
         f"<b>Strike:</b> {strike} {opt}  ·  <b>Expiry:</b> {expiry}",
         f"<b>Premium entry:</b> ₹{lv.entry:,.2f} <i>({src})</i>",
@@ -69,7 +70,7 @@ def _format_option_signal(signal: Signal) -> str:
     ]
     if signal.underlying is not None:
         lines.append(
-            f"<b>Nifty spot:</b> ₹{signal.underlying:,.2f}  ·  "
+            f"<b>{index_label} spot:</b> ₹{signal.underlying:,.2f}  ·  "
             f"<b>Index SL:</b> ₹{signal.underlying_sl:,.2f}  ·  "
             f"<b>Index target:</b> ₹{signal.underlying_target:,.2f}"
         )
@@ -98,7 +99,7 @@ def _format_option_signal(signal: Signal) -> str:
 
 
 def format_signal_message(signal: Signal) -> str:
-    if signal.instrument == "NIFTY_OPTION":
+    if signal.instrument in ("NIFTY_OPTION", "SENSEX_OPTION"):
         return _format_option_signal(signal)
 
     sym = html.escape(signal.symbol)

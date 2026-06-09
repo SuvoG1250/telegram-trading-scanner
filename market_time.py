@@ -7,6 +7,8 @@ from datetime import datetime, time
 import pytz
 
 from config import (
+    EOD_SUMMARY_AFTER_HOUR,
+    EOD_SUMMARY_AFTER_MINUTE,
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
@@ -173,13 +175,18 @@ def is_nifty_btst_window(dt: datetime | None = None) -> bool:
     return _after((15, 20), t) and _before((15, 30), t)
 
 
-def is_session_stop_window(dt: datetime | None = None) -> bool:
-    """First run after 3:30 PM IST sends the daily stop alert (until 10 PM)."""
+def is_eod_summary_due(dt: datetime | None = None) -> bool:
+    """Weekday, after EOD send time (default 15:32 IST) — once-per-day P/L summary."""
     dt = dt or now_ist()
     if not is_weekday(dt):
         return False
     t = ist_time_tuple(dt)
-    return _after((MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE), t) and _before((22, 0), t)
+    return _after((EOD_SUMMARY_AFTER_HOUR, EOD_SUMMARY_AFTER_MINUTE), t) and _before((22, 0), t)
+
+
+def is_session_stop_window(dt: datetime | None = None) -> bool:
+    """After EOD summary window — end intraday scanner loop (until 10 PM)."""
+    return is_eod_summary_due(dt)
 
 
 def is_global_alert_window(dt: datetime | None = None) -> bool:

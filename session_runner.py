@@ -13,10 +13,10 @@ import sys
 import time
 
 from market_time import (
+    is_eod_summary_due,
     is_global_alert_window,
     is_market_open,
     is_premarket_window,
-    is_session_stop_window,
     is_weekday,
     now_ist,
 )
@@ -40,7 +40,7 @@ def _should_continue() -> bool:
         return True
     if is_market_open():
         return True
-    if is_session_stop_window():
+    if is_eod_summary_due():
         from state import daily_summary_sent, session_stop_sent
 
         return not daily_summary_sent() or not session_stop_sent()

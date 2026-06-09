@@ -242,16 +242,21 @@ def run_intraday_scan(watchlist: list[str]) -> tuple[list[Signal], ScanStats]:
     return sent_signals, stats
 
 
-def run_nifty_options_scan() -> Signal | None:
-    """Supertrend flip on Nifty → Buy CE/PE; blocked until prior premium exits."""
-    sig = scan_nifty_supertrend_option_lookup()
+def run_index_options_scan(scan_fn, *, index_label: str) -> Signal | None:
+    """Supertrend flip on index → Buy CE/PE; blocked until prior premium exits."""
+    sig = scan_fn()
     if sig is None:
         return None
-    if premium_position_open(sig.side):
-        logger.info("Skip Nifty option (%s) — premium plan still awaiting SL/Target.", sig.side)
+    instrument = sig.instrument or "NIFTY_OPTION"
+    if premium_position_open(sig.side, instrument):
+        logger.info(
+            "Skip %s option (%s) — premium plan still awaiting SL/Target.",
+            index_label,
+            sig.side,
+        )
         return None
 
-    peek = peek_option_exit_flag(sig.side)
+    peek = peek_option_exit_flag(sig.side, instrument)
     sig.note = caption_after_prior_exit(peek, basket="option")
     lv = sig.levels
     opt_ai = build_nifty_option_ai_note(
@@ -271,18 +276,23 @@ def run_nifty_options_scan() -> Signal | None:
         register_premium_open(sig)
         record_trade(sig)
         if peek is not None:
-            dismiss_option_exit_flag(sig.side)
-        logger.info("NIFTY option signal sent: %s", sig.side)
+            dismiss_option_exit_flag(sig.side, instrument)
+        logger.info("%s option signal sent: %s", index_label, sig.side)
         return sig
-    logger.error("Failed to send NIFTY option signal.")
+    logger.error("Failed to send %s option signal.", index_label)
     return None
 
 
-def scan_nifty_supertrend_option_lookup() -> Signal | None:
-    """Lazy import avoids circular refs during tooling."""
+def run_nifty_options_scan() -> Signal | None:
     from nifty_options import scan_nifty_supertrend_option
 
-    return scan_nifty_supertrend_option()
+    return run_index_options_scan(scan_nifty_supertrend_option, index_label="NIFTY")
+
+
+def run_sensex_options_scan() -> Signal | None:
+    from sensex_options import scan_sensex_supertrend_option
+
+    return run_index_options_scan(scan_sensex_supertrend_option, index_label="SENSEX")
 
 
 def broadcast_lifecycle_updates(equity_hits: list, premium_hits: list) -> None:
@@ -368,33 +378,34 @@ def main() -> int:
         MIN_TARGET_PROFIT_PCT,
     )
 
-    if handle_session_alerts():
-        logger.info("Session ended.")
-        return 0
-
     if is_premarket_window():
         run_premarket()
-        return 0
-
-    if not is_market_open():
-        logger.info("Market closed.")
         return 0
 
     from config import NIFTY_BTST_ENABLED, STOCK_BTST_ENABLED
     from market_time import is_nifty_btst_window, is_stock_btst_window
 
-    if STOCK_BTST_ENABLED and is_stock_btst_window():
-        from stock_btst import run_stock_btst_alerts
+    if is_market_open():
+        if STOCK_BTST_ENABLED and is_stock_btst_window():
+            from stock_btst import run_stock_btst_alerts
 
-        n = run_stock_btst_alerts()
-        if n:
-            logger.info("Stock BTST alerts sent: %s", n)
+            n = run_stock_btst_alerts()
+            if n:
+                logger.info("Stock BTST alerts sent: %s", n)
+            return 0
+
+        if NIFTY_BTST_ENABLED and is_nifty_btst_window():
+            from nifty_btst import run_nifty_btst_alert
+
+            run_nifty_btst_alert()
+            return 0
+
+    if handle_session_alerts():
+        logger.info("Session ended.")
         return 0
 
-    if NIFTY_BTST_ENABLED and is_nifty_btst_window():
-        from nifty_btst import run_nifty_btst_alert
-
-        run_nifty_btst_alert()
+    if not is_market_open():
+        logger.info("Market closed.")
         return 0
 
     if not is_new_trade_window():
@@ -416,7 +427,7 @@ def main() -> int:
     equity_signals, scan_stats = run_intraday_scan(watchlist)
     signals = list(equity_signals)
 
-    from config import NIFTY_OPTIONS_ENABLED
+    from config import NIFTY_OPTIONS_ENABLED, SENSEX_OPTIONS_ENABLED
 
     if NIFTY_OPTIONS_ENABLED:
         try:
@@ -427,6 +438,16 @@ def main() -> int:
         if nifty_sig:
             signals.append(nifty_sig)
             scan_stats.nifty_option_sent = True
+
+    if SENSEX_OPTIONS_ENABLED:
+        try:
+            sensex_sig = run_sensex_options_scan()
+        except Exception:
+            logger.exception("Sensex options scan failed (continuing equity scan)")
+            sensex_sig = None
+        if sensex_sig:
+            signals.append(sensex_sig)
+            scan_stats.sensex_option_sent = True
 
     logger.info(
         "Done. Signals sent: %d / %d symbols | raw=%d BUY=%d",

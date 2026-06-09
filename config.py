@@ -21,6 +21,9 @@ MARKET_OPEN_HOUR = 9
 MARKET_OPEN_MINUTE = 15
 MARKET_CLOSE_HOUR = 15
 MARKET_CLOSE_MINUTE = 30
+# EOD P/L summary — once per day, after regular session + BTST (default 15:32 IST)
+EOD_SUMMARY_AFTER_HOUR = int(os.environ.get("EOD_SUMMARY_AFTER_HOUR", "15"))
+EOD_SUMMARY_AFTER_MINUTE = int(os.environ.get("EOD_SUMMARY_AFTER_MINUTE", "32"))
 
 PREMARKET_START = (9, 10)
 PREMARKET_END = (9, 26)
@@ -255,6 +258,13 @@ NIFTY_OPTIONS_ENABLED = os.environ.get("NIFTY_OPTIONS_ENABLED", "true").lower() 
     "true",
     "yes",
 )
+SENSEX_OPTIONS_ENABLED = os.environ.get("SENSEX_OPTIONS_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+SENSEX_TICKER = os.environ.get("SENSEX_TICKER", "^BSESN")
+SENSEX_STRIKE_STEP = int(os.environ.get("SENSEX_STRIKE_STEP", "100"))
 NIFTY_ST_ATR_LENGTH = int(os.environ.get("NIFTY_ST_ATR_LENGTH", "10"))
 NIFTY_ST_FACTOR = float(os.environ.get("NIFTY_ST_FACTOR", "3.0"))
 NIFTY_ST_INTERVAL = os.environ.get("NIFTY_ST_INTERVAL", "5m")
@@ -283,6 +293,9 @@ UPSTOX_ACCESS_TOKEN = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
 UPSTOX_NIFTY_INSTRUMENT_KEY = os.environ.get(
     "UPSTOX_NIFTY_INSTRUMENT_KEY", "NSE_INDEX|Nifty 50"
 )
+UPSTOX_SENSEX_INSTRUMENT_KEY = os.environ.get(
+    "UPSTOX_SENSEX_INSTRUMENT_KEY", "BSE_INDEX|SENSEX"
+)
 # upstox | fyers | dhan | auto (fyers → upstox → dhan)
 OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "auto").lower()
 # Fyers My API — App ID + access token from login (https://myapi.fyers.in/)
@@ -290,6 +303,7 @@ FYERS_APP_ID = os.environ.get("FYERS_APP_ID", os.environ.get("FYERS_CLIENT_ID", 
 FYERS_SECRET_KEY = os.environ.get("FYERS_SECRET_KEY", "")
 FYERS_ACCESS_TOKEN = os.environ.get("FYERS_ACCESS_TOKEN", "")
 FYERS_NIFTY_INDEX_SYMBOL = os.environ.get("FYERS_NIFTY_INDEX_SYMBOL", "NSE:NIFTY50-INDEX")
+FYERS_SENSEX_INDEX_SYMBOL = os.environ.get("FYERS_SENSEX_INDEX_SYMBOL", "BSE:SENSEX-INDEX")
 FYERS_OPTION_STRIKE_COUNT = int(os.environ.get("FYERS_OPTION_STRIKE_COUNT", "20"))
 # Must match My API app "Redirect URL" exactly (character-for-character) or login shows redirectUrl mismatch
 FYERS_REDIRECT_URI = os.environ.get(

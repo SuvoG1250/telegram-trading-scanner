@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from config import SEND_DAILY_SUMMARY, SEND_SESSION_ALERTS
-from market_time import is_active_session, is_session_stop_window, now_ist
+from market_time import is_active_session, is_eod_summary_due, now_ist
 from state import (
     daily_summary_sent,
     mark_daily_summary,
@@ -65,6 +65,8 @@ def send_session_stop_alert() -> bool:
 def send_daily_summary_alert() -> bool:
     if not SEND_DAILY_SUMMARY or daily_summary_sent():
         return False
+    if not is_eod_summary_due():
+        return False
     if send_daily_summary():
         mark_daily_summary()
         return True
@@ -72,8 +74,8 @@ def send_daily_summary_alert() -> bool:
 
 
 def handle_session_alerts() -> bool:
-    """After 3:30 PM: daily summary + session stop. Returns True to exit scan."""
-    if is_session_stop_window():
+    """After market close + BTST: one EOD summary, then stop. Returns True to exit scan."""
+    if is_eod_summary_due():
         if not daily_summary_sent():
             send_daily_summary_alert()
         if not session_stop_sent():

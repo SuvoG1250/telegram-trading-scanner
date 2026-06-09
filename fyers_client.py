@@ -14,6 +14,7 @@ from config import (
     FYERS_APP_ID,
     FYERS_NIFTY_INDEX_SYMBOL,
     FYERS_OPTION_STRIKE_COUNT,
+    FYERS_SENSEX_INDEX_SYMBOL,
 )
 
 logger = logging.getLogger(__name__)
@@ -87,16 +88,23 @@ def _get(path: str, params: dict[str, str]) -> dict[str, Any] | None:
         return None
 
 
-def _nifty_weekly_expiry_date(ref: datetime | None = None) -> date:
-    """Next Nifty weekly expiry (Tuesday), aligned with nifty_options._weekly_expiry_label."""
+def _weekly_expiry_date(expiry_weekday: int, ref: datetime | None = None) -> date:
+    """Next weekly expiry on expiry_weekday (0=Mon … 3=Thu)."""
     from market_time import now_ist
 
     dt = ref or now_ist()
-    tuesday = 1
-    days = (tuesday - dt.weekday()) % 7
+    days = (expiry_weekday - dt.weekday()) % 7
     if days == 0 and dt.hour >= 15 and dt.minute >= 30:
         days = 7
     return (dt + timedelta(days=days)).date()
+
+
+def _nifty_weekly_expiry_date(ref: datetime | None = None) -> date:
+    return _weekly_expiry_date(1, ref)
+
+
+def _sensex_weekly_expiry_date(ref: datetime | None = None) -> date:
+    return _weekly_expiry_date(3, ref)
 
 
 def _expiry_yymmdd(expiry: date) -> tuple[str, str, str]:
@@ -116,6 +124,15 @@ def build_fyers_nifty_option_symbol(expiry: date, strike: int, option_type: str)
     if ot not in ("CE", "PE"):
         ot = "CE"
     return f"NSE:NIFTY{yy}{mmm}{dd}{int(strike)}{ot}"
+
+
+def build_fyers_sensex_option_symbol(expiry: date, strike: int, option_type: str) -> str:
+    """Fyers BSE Sensex option ticker: BSE:SENSEX + YY + MMM + DD + strike + CE|PE."""
+    yy, mmm, dd = _expiry_yymmdd(expiry)
+    ot = option_type.upper().strip()
+    if ot not in ("CE", "PE"):
+        ot = "CE"
+    return f"BSE:SENSEX{yy}{mmm}{dd}{int(strike)}{ot}"
 
 
 def _ltp_from_leg(leg: dict[str, Any] | None) -> tuple[float, float | None, float | None]:
@@ -249,9 +266,9 @@ def _fetch_quotes_symbol(symbol: str) -> OptionQuote | None:
         ask=float(ask) if ask is not None else None,
         security_id=None,
         spot=None,
-        expiry=_nifty_weekly_expiry_date().strftime("%Y-%m-%d"),
-        strike=int(strike),
-        option_type=option_type.upper(),
+        expiry="",
+        strike=0,
+        option_type="CE",
     )
 
 
@@ -264,6 +281,25 @@ def fetch_nifty_option_quote(
     Live LTP for Nifty index option (nearest weekly chain by default).
     expiry: YYYY-MM-DD if known; else uses next Tuesday weekly expiry for symbol fallback.
     """
+    return _fetch_index_option_quote(
+        index_symbol=FYERS_NIFTY_INDEX_SYMBOL,
+        expiry_date_fn=_nifty_weekly_expiry_date,
+        build_symbol_fn=build_fyers_nifty_option_symbol,
+        strike=strike,
+        option_type=option_type,
+        expiry=expiry,
+    )
+
+
+def _fetch_index_option_quote(
+    *,
+    index_symbol: str,
+    expiry_date_fn,
+    build_symbol_fn,
+    strike: int,
+    option_type: str,
+    expiry: str | None,
+) -> OptionQuote | None:
     if not fyers_configured():
         return None
 
@@ -272,12 +308,12 @@ def fetch_nifty_option_quote(
         try:
             exp_date = datetime.strptime(expiry, "%Y-%m-%d").date()
         except ValueError:
-            exp_date = _nifty_weekly_expiry_date()
+            exp_date = expiry_date_fn()
     else:
-        exp_date = _nifty_weekly_expiry_date()
+        exp_date = expiry_date_fn()
 
     params: dict[str, str] = {
-        "symbol": FYERS_NIFTY_INDEX_SYMBOL,
+        "symbol": index_symbol,
         "strikecount": str(FYERS_OPTION_STRIKE_COUNT),
         "timestamp": "",
     }
@@ -287,12 +323,11 @@ def fetch_nifty_option_quote(
         quote, _ = _parse_chain_for_strike(body, strike, option_type)
         if quote:
             return quote
-        logger.debug("Fyers chain parse miss for strike %s %s; keys=%s", strike, option_type, list(body)[:8])
 
-    sym = build_fyers_nifty_option_symbol(exp_date, strike, option_type)
+    sym = build_symbol_fn(exp_date, strike, option_type)
     q = _fetch_quotes_symbol(sym)
     if q:
-        q = OptionQuote(
+        return OptionQuote(
             last_price=q.last_price,
             bid=q.bid,
             ask=q.ask,
@@ -302,7 +337,23 @@ def fetch_nifty_option_quote(
             strike=int(strike),
             option_type=option_type.upper(),
         )
-    return q
+    return None
+
+
+def fetch_sensex_option_quote(
+    strike: int,
+    option_type: str,
+    expiry: str | None = None,
+) -> OptionQuote | None:
+    """Live LTP for Sensex index option (BSE weekly chain)."""
+    return _fetch_index_option_quote(
+        index_symbol=FYERS_SENSEX_INDEX_SYMBOL,
+        expiry_date_fn=_sensex_weekly_expiry_date,
+        build_symbol_fn=build_fyers_sensex_option_symbol,
+        strike=strike,
+        option_type=option_type,
+        expiry=expiry,
+    )
 
 
 def verify_fyers() -> bool:

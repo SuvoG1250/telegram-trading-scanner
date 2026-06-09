@@ -161,11 +161,19 @@ def reconcile_premium_positions() -> list[tuple[str, ExitReason]]:
         opt = str(row.get("option_type") or row.get("opt") or "CE").upper()
         if opt not in ("CE", "PE"):
             opt = "CE"
-        side_key = row.get("side_label") or f"BUY {'CALL' if opt == 'CE' else 'PUT'}"
+        instrument = str(row.get("instrument") or "NIFTY_OPTION")
+        side_key = _option_slot_key(
+            instrument,
+            row.get("side_label") or f"BUY {'CALL' if opt == 'CE' else 'PUT'}",
+        )
+        if instrument == "SENSEX_OPTION":
+            from option_quotes import fetch_sensex_option_quote
 
-        from option_quotes import fetch_nifty_option_quote
+            q, _src = fetch_sensex_option_quote(strike, opt)
+        else:
+            from option_quotes import fetch_nifty_option_quote
 
-        q, _src = fetch_nifty_option_quote(strike, opt)
+            q, _src = fetch_nifty_option_quote(strike, opt)
         if q is None or q.last_price <= 0:
             continue
         ltp = float(q.last_price)
@@ -341,12 +349,17 @@ def register_global_open(
     _save(blob)
 
 
-def premium_position_open(side_label: str) -> bool:
+def _option_slot_key(instrument: str, side_label: str) -> str:
+    return f"{instrument}|{side_label}"
+
+
+def premium_position_open(side_label: str, instrument: str = "NIFTY_OPTION") -> bool:
     blob = _load()
     for row in blob["premium"]:
         if row.get("status") != "OPEN":
             continue
-        if row.get("side_label") == side_label:
+        row_inst = str(row.get("instrument") or "NIFTY_OPTION")
+        if row_inst == instrument and row.get("side_label") == side_label:
             return True
     return False
 
@@ -368,18 +381,18 @@ def dismiss_stock_exit_flag(symbol: str) -> None:
     _save(blob)
 
 
-def peek_option_exit_flag(side_label: str) -> ExitReason | None:
+def peek_option_exit_flag(side_label: str, instrument: str = "NIFTY_OPTION") -> ExitReason | None:
     blob = _load()
-    raw = (blob.get("reentry_option") or {}).get(side_label)
+    raw = (blob.get("reentry_option") or {}).get(_option_slot_key(instrument, side_label))
     if raw in ("TARGET_HIT", "STOP_LOSS"):
         return raw  # type: ignore[return-value]
     return None
 
 
-def dismiss_option_exit_flag(side_label: str) -> None:
+def dismiss_option_exit_flag(side_label: str, instrument: str = "NIFTY_OPTION") -> None:
     blob = _load()
     re_map = dict(blob.get("reentry_option") or {})
-    re_map.pop(side_label, None)
+    re_map.pop(_option_slot_key(instrument, side_label), None)
     blob["reentry_option"] = re_map
     _save(blob)
 
@@ -411,6 +424,7 @@ def register_premium_open(sig: Signal) -> None:
     blob["premium"].append(
         {
             "symbol": sig.symbol,
+            "instrument": sig.instrument or "NIFTY_OPTION",
             "side_label": sig.side,
             "strategy": sig.strategy,
             "strike": int(sig.strike or 0),
