@@ -8,6 +8,19 @@ One-page cheat sheet for what this bot sends (and what it does not).
 
 Alerts go to every chat in `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_CHAT_ID`, and `TELEGRAM_CHAT_IDS`.
 
+### Telegram commands (Upstox live trading)
+
+Run `python upstox_live_runner.py` on your PC/VPS, then send commands in the bot chat:
+
+| Command | Action |
+|---|---|
+| `/live` | **Real** Upstox option orders (Nifty/Sensex CE/PE) |
+| `/paper` | Test mode — log only |
+| `/stop` | Disable Upstox orders |
+| `/status` | Current mode + connection |
+| `/lots 1` | Option lots (1–10) |
+| `/help` | Command list |
+
 ---
 
 ## What IS sent

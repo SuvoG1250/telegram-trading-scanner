@@ -305,12 +305,17 @@ UPSTOX_SENSEX_INSTRUMENT_KEY = os.environ.get(
 UPSTOX_WS_ENABLED = os.environ.get("UPSTOX_WS_ENABLED", "true").lower() in ("1", "true", "yes")
 UPSTOX_WS_MODE = os.environ.get("UPSTOX_WS_MODE", "ltpc")
 # Auto place entry + SL + target on Upstox when Telegram signal fires (use VPS + upstox_live_runner.py)
-UPSTOX_AUTO_TRADE_ENABLED = os.environ.get("UPSTOX_AUTO_TRADE_ENABLED", "false").lower() in (
+UPSTOX_AUTO_TRADE_ENABLED = os.environ.get("UPSTOX_AUTO_TRADE_ENABLED", "true").lower() in (
     "1",
     "true",
     "yes",
 )
-UPSTOX_PAPER_TRADE = os.environ.get("UPSTOX_PAPER_TRADE", "true").lower() in ("1", "true", "yes")
+UPSTOX_PAPER_TRADE = os.environ.get("UPSTOX_PAPER_TRADE", "false").lower() in ("1", "true", "yes")
+TELEGRAM_COMMANDS_ENABLED = os.environ.get("TELEGRAM_COMMANDS_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 UPSTOX_DEFAULT_LOTS = max(1, int(os.environ.get("UPSTOX_DEFAULT_LOTS", "1")))
 UPSTOX_NIFTY_LOT_SIZE = int(os.environ.get("UPSTOX_NIFTY_LOT_SIZE", "75"))
 UPSTOX_SENSEX_LOT_SIZE = int(os.environ.get("UPSTOX_SENSEX_LOT_SIZE", "20"))

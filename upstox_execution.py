@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 
-from config import UPSTOX_AUTO_TRADE_ENABLED
 from telegram_client import Signal, send_plain
 from upstox_orders import OrderResult, execute_signal_orders
+from upstox_trade_state import auto_trade_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def is_upstox_option_signal(signal: Signal) -> bool:
 
 
 def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
-    if not UPSTOX_AUTO_TRADE_ENABLED:
+    if not auto_trade_enabled():
         return None
     if not is_upstox_option_signal(signal):
         return None

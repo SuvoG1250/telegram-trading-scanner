@@ -74,6 +74,9 @@ def run_loop(max_minutes: int) -> int:
             iteration += 1
             logger.info("=== Scan iteration %s ===", iteration)
             try:
+                from telegram_commands import poll_telegram_commands
+
+                poll_telegram_commands()
                 scan_once()
             except Exception:
                 logger.exception("Scan iteration %s failed", iteration)

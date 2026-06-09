@@ -10,15 +10,13 @@ from typing import Any
 
 from config import (
     DATA_DIR,
-    UPSTOX_AUTO_TRADE_ENABLED,
-    UPSTOX_DEFAULT_LOTS,
     UPSTOX_NIFTY_INSTRUMENT_KEY,
     UPSTOX_NIFTY_LOT_SIZE,
-    UPSTOX_PAPER_TRADE,
     UPSTOX_PRODUCT_OPTION,
     UPSTOX_SENSEX_INSTRUMENT_KEY,
     UPSTOX_SENSEX_LOT_SIZE,
 )
+from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from market_time import today_key
 from telegram_client import Signal
 from upstox_api import lookup_option_leg, place_order_v3, upstox_configured
@@ -95,7 +93,7 @@ def _place(
         "is_amo": False,
         "slice": True,
     }
-    if UPSTOX_PAPER_TRADE:
+    if paper_trade():
         logger.info("PAPER Upstox order: %s", payload)
         return f"PAPER-{tag}"
 
@@ -122,12 +120,12 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
         logger.warning("Upstox: no instrument_key for %s %s %s", signal.symbol, strike, opt)
         return None
     subscribe_instruments([inst])
-    return inst, lot * max(1, UPSTOX_DEFAULT_LOTS), UPSTOX_PRODUCT_OPTION
+    return inst, lot * get_lots(), UPSTOX_PRODUCT_OPTION
 
 
 def execute_signal_orders(signal: Signal) -> OrderResult | None:
     """Place entry + SL + target on Upstox — Nifty/Sensex options only (no stocks/BTST)."""
-    if not UPSTOX_AUTO_TRADE_ENABLED or not upstox_configured():
+    if not auto_trade_enabled() or not upstox_configured():
         return None
     if signal.instrument not in ("NIFTY_OPTION", "SENSEX_OPTION"):
         return None
@@ -179,13 +177,14 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     if tgt_id:
         order_ids.append(tgt_id)
 
-    mode = "PAPER" if UPSTOX_PAPER_TRADE else "LIVE"
-    res = OrderResult(
-        True,
-        tag_base,
-        order_ids,
-        f"{mode} option bracket: entry + SL-M @ {lv.stop_loss:.2f} + LIMIT @ {lv.primary_target:.2f}",
-        paper=UPSTOX_PAPER_TRADE,
-    )
+        is_paper = paper_trade()
+        mode = "PAPER" if is_paper else "LIVE"
+        res = OrderResult(
+            True,
+            tag_base,
+            order_ids,
+            f"{mode} option bracket: entry + SL-M @ {lv.stop_loss:.2f} + LIMIT @ {lv.primary_target:.2f}",
+            paper=is_paper,
+        )
     _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)
     return res

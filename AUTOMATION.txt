@@ -26,8 +26,21 @@ One-time setup (5 minutes):
    UPSTOX_API_KEY=...
    UPSTOX_API_SECRET=...
    UPSTOX_WS_ENABLED=true         # WebSocket live LTP during session
-   UPSTOX_AUTO_TRADE_ENABLED=false  # options only (Nifty/Sensex CE/PE); stocks = Telegram only
-   UPSTOX_PAPER_TRADE=true        # log orders without placing until you are ready
+   UPSTOX_AUTO_TRADE_ENABLED=true   # options only; use Telegram /live /paper /stop
+   UPSTOX_PAPER_TRADE=false         # default LIVE when upstox_live_runner.py starts
+   TELEGRAM_COMMANDS_ENABLED=true
+
+LIVE TRADING (PC / VPS — not GitHub Actions)
+   python upstox_live_runner.py     # starts LIVE + WebSocket + scanner
+   python upstox_live_runner.py --paper   # start safe, then send /live in Telegram
+
+TELEGRAM COMMANDS (in bot chat)
+   /live   — real Upstox option orders (entry + SL + target)
+   /paper  — test mode (no broker orders)
+   /stop   — disable Upstox orders
+   /status — mode + Upstox connection
+   /lots 1 — option lots (1-10)
+   /help   — command list
    FYERS_APP_ID=...
    FYERS_SECRET_KEY=...
    FYERS_REDIRECT_URI=https://trade.fyers.in/api-login/redirect-uri/index.html
