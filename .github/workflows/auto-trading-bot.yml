@@ -55,6 +55,7 @@ jobs:
       MAX_STOCK_PRICE: "1500"
       SEND_SCAN_SUMMARY: "false"
       SEND_DAILY_SUMMARY: "true"
+      SEND_PREMARKET_MARKET_SUMMARY: "true"
       SEND_SESSION_ALERTS: "false"
       SEND_HEALTH_CHECK: "false"
       SEND_BOOT_ALERT: "false"

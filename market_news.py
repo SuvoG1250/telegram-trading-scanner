@@ -95,6 +95,7 @@ def build_market_news_digest() -> NewsDigest:
     digest = NewsDigest()
     queries = [
         "Nifty 50 India stock market today",
+        "Sensex BSE India stock market today",
         "India FII DII stock market",
         "global markets impact India",
     ]
@@ -166,6 +167,26 @@ def build_stock_news_digest(symbol: str) -> NewsDigest:
     else:
         digest.news_bias = "neutral"
     return digest
+
+
+def classify_headlines(headlines: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Split headlines into positive, negative, and neutral buckets."""
+    positive: list[str] = []
+    negative: list[str] = []
+    neutral: list[str] = []
+    for text in headlines:
+        text = (text or "").strip()
+        if not text:
+            continue
+        bull = len(_BULLISH.findall(text))
+        bear = len(_BEARISH.findall(text))
+        if bull > bear:
+            positive.append(text)
+        elif bear > bull:
+            negative.append(text)
+        else:
+            neutral.append(text)
+    return positive, negative, neutral
 
 
 def format_headlines_for_telegram(digest: NewsDigest, max_lines: int = 5) -> str:

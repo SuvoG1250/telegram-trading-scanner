@@ -32,7 +32,29 @@ Optional: `🤖 AI: …` · re-entry flag after prior SL/target.
 
 ---
 
-### 2. Nifty + Sensex options (intraday)
+### 2. Pre-market summary (news + sentiment)
+
+| | |
+|---|---|
+| **When** | Mon–Fri, **9:10 – 9:26 AM IST** (once per day) |
+| **Source** | Google News + yfinance headlines |
+| **Includes** | **Positive** and **negative** headline buckets, Nifty gap, global mood |
+
+```
+📰 Pre-Market Summary — 9 Jun 2026, 9:12 IST
+
+🟢 Today's bias: bullish | News: bullish | Nifty +0.45% | Global: positive
+
+✅ Positive
+• …
+
+❌ Negative / risks
+• …
+```
+
+---
+
+### 3. Nifty + Sensex options (intraday)
 
 | | |
 |---|---|
@@ -53,7 +75,7 @@ Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 
 ---
 
-### 3. Stock Gap-Up BTST — BUY only (all NSE under Rs 1000)
+### 4. Stock Gap-Up BTST — BUY only (all NSE under Rs 1000)
 
 | | |
 |---|---|
@@ -68,7 +90,7 @@ Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 
 ---
 
-### 4. Nifty BTST (once per day)
+### 5. Nifty BTST (once per day)
 
 | | |
 |---|---|
@@ -81,7 +103,7 @@ Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 
 ---
 
-### 5. Global — BTC / ETH / Gold
+### 6. Global — BTC / ETH / Gold
 
 | | |
 |---|---|
@@ -106,7 +128,7 @@ Outside NSE hours · 07:00–23:00 IST · <time>
 
 ---
 
-### 6. NSE EOD summary (once per day)
+### 7. NSE EOD summary (once per day)
 
 | | |
 |---|---|
@@ -130,6 +152,7 @@ Net P/L · wins/losses · per-trade rows · optional 🤖 AI day note
 | Session START / STOP | Off |
 | Boot “bot running” ping | Off |
 | Pre-market watchlist | Off |
+| Pre-market news summary | **On** (`SEND_PREMARKET_MARKET_SUMMARY`) |
 | Per-scan summary | Off |
 | SL/Target cleared pings | Off |
 
@@ -152,6 +175,7 @@ After SL or target is hit, a **new** alert is allowed (stocks/options may show a
 
 ```
 07:00–09:15 ─────── Global (BTC/ETH/XAU)
+09:10–09:26 ─────── Pre-market news summary (once)
 09:15–15:30 ─────── NSE only — no global alerts
 15:30–23:00 ─────── Global + (EOD summary once after 15:30)
 Weekends ────────── Global only (full 7:00–23:00 window)
@@ -167,7 +191,8 @@ Weekends ────────── Global only (full 7:00–23:00 window)
 | `SEND_SESSION_ALERTS` | `false` | Start/stop pings |
 | `SEND_HEALTH_CHECK` | `false` | Morning health ping |
 | `SEND_BOOT_ALERT` | `false` | Delayed boot ping |
-| `SEND_PREMARKET_REPORT` | `false` | Watchlist Telegram |
+| `SEND_PREMARKET_MARKET_SUMMARY` | `true` | News + sentiment at 9:10 AM |
+| `SEND_PREMARKET_REPORT` | `false` | Full watchlist Telegram |
 | `GLOBAL_ASSETS_ENABLED` | `true` | BTC/ETH/XAU |
 | `NIFTY_BTST_MIN_CONFIRM_PCT` | `80` | BTST confirm threshold |
 | `SLTP_CLOSE_ALERT_TELEGRAM` | `false` | SL/target hit pings |

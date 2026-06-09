@@ -72,6 +72,11 @@ SEND_PREMARKET_REPORT = os.environ.get("SEND_PREMARKET_REPORT", "false").lower()
     "true",
     "yes",
 )
+SEND_PREMARKET_MARKET_SUMMARY = os.environ.get("SEND_PREMARKET_MARKET_SUMMARY", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "false").lower() in (
     "1",
     "true",
