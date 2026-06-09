@@ -30,9 +30,9 @@ One-time setup (5 minutes):
    UPSTOX_PAPER_TRADE=false         # default LIVE when upstox_live_runner.py starts
    TELEGRAM_COMMANDS_ENABLED=true
 
-LIVE TRADING (PC / VPS — not GitHub Actions)
-   python upstox_live_runner.py     # starts LIVE + WebSocket + scanner
-   python upstox_live_runner.py --paper   # start safe, then send /live in Telegram
+LIVE TRADING (GitHub + cron — no PC needed)
+   Cron 9:10 IST starts session with WebSocket + Telegram command listener.
+   Each morning send /live in Telegram when you want real Upstox option orders.
 
 TELEGRAM COMMANDS (in bot chat)
    /live   — real Upstox option orders (entry + SL + target)

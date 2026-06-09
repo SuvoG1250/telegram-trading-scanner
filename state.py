@@ -150,6 +150,7 @@ def _session_today() -> dict[str, Any]:
             "stock_btst_sent": False,
             "stock_btst_symbols": [],
             "premarket_summary_sent": False,
+            "automation_session_announced": False,
         }
     return data
 
@@ -196,6 +197,16 @@ def mark_nifty_btst_sent() -> None:
 
 def stock_btst_sent() -> bool:
     return bool(_session_today().get("stock_btst_sent"))
+
+
+def automation_session_announced() -> bool:
+    return bool(_session_today().get("automation_session_announced"))
+
+
+def mark_automation_session_announced() -> None:
+    data = _session_today()
+    data["automation_session_announced"] = True
+    _save_session(data)
 
 
 def premarket_summary_sent() -> bool:

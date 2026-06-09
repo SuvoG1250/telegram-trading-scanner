@@ -10,7 +10,7 @@ Alerts go to every chat in `TELEGRAM_GROUP_CHAT_ID`, `TELEGRAM_CHAT_ID`, and `TE
 
 ### Telegram commands (Upstox live trading)
 
-Run `python upstox_live_runner.py` on your PC/VPS, then send commands in the bot chat:
+Cloud automation listens every day (9:10 AM IST). Send commands in the bot chat:
 
 | Command | Action |
 |---|---|

@@ -66,7 +66,7 @@ def _help_text() -> str:
         "<b>/lots 1</b> — set option lots (1–10)\n"
         "<b>/help</b> — this message\n\n"
         "<i>Stocks &amp; BTST = Telegram alerts only.\n"
-        "Run <code>python upstox_live_runner.py</code> on your PC/VPS for live trading.</i>"
+        "Cloud automation runs 9:10 AM–3:30 PM IST — send /live when you want real orders.</i>"
     )
 
 
@@ -90,10 +90,10 @@ def _handle_command(chat_id: str, text: str) -> None:
         set_mode("live")
         _reply(
             chat_id,
-            "🔴 <b>LIVE enabled</b>\n"
+            "🔴 <b>LIVE enabled</b> (cloud automation)\n"
             "Nifty/Sensex <b>option</b> signals will place REAL orders on Upstox "
             f"(entry + SL + target, {get_lots()} lot(s)).\n"
-            "Send /stop to disable.",
+            "Send /stop to disable · /status to check.",
         )
         return
 
@@ -186,11 +186,21 @@ def start_command_poller(interval_sec: float = 2.0) -> threading.Thread:
     return t
 
 
-def announce_live_runner_start() -> None:
-    mode = get_mode()
-    mode_label = {"live": "🔴 LIVE", "paper": "📝 PAPER", "off": "⏹ OFF"}.get(mode, mode)
+def announce_automation_session() -> None:
+    """Once per day when GitHub/cron session starts."""
+    from market_time import is_weekday
+    from state import automation_session_announced, mark_automation_session_announced
+
+    if not is_weekday() or automation_session_announced():
+        return
     send_plain(
-        f"<b>Upstox live runner started</b> — {mode_label}\n\n"
+        "<b>🤖 Automation session online</b> (GitHub + cron)\n\n"
         f"{status_text()}\n\n"
-        "Send <b>/live</b> for real option orders · <b>/paper</b> test · <b>/stop</b> off · <b>/help</b>",
+        "Send <b>/live</b> → real Upstox option orders\n"
+        "<b>/paper</b> → test · <b>/stop</b> → off · <b>/help</b> → commands",
     )
+    mark_automation_session_announced()
+
+
+def announce_live_runner_start() -> None:
+    announce_automation_session()

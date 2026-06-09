@@ -49,9 +49,17 @@ def _should_continue() -> bool:
 
 def run_loop(max_minutes: int) -> int:
     from scanner import main as scan_once
+    from telegram_commands import (
+        announce_automation_session,
+        poll_telegram_commands,
+        start_command_poller,
+    )
     from upstox_websocket import start_upstox_feed, stop_upstox_feed
 
     start_upstox_feed()
+    start_command_poller(interval_sec=2.0)
+    poll_telegram_commands()
+    announce_automation_session()
     iteration = 0
     try:
         deadline = time.time() + max_minutes * 60
@@ -60,7 +68,7 @@ def run_loop(max_minutes: int) -> int:
 
         event = os.environ.get("GITHUB_EVENT_NAME", "local")
         logger.info(
-            "Session loop started | trigger=%s | max %s min | IST %s",
+            "Session loop started | trigger=%s | max %s min | IST %s | telegram_cmds=on",
             event,
             max_minutes,
             now_ist().strftime("%H:%M:%S"),
@@ -74,9 +82,6 @@ def run_loop(max_minutes: int) -> int:
             iteration += 1
             logger.info("=== Scan iteration %s ===", iteration)
             try:
-                from telegram_commands import poll_telegram_commands
-
-                poll_telegram_commands()
                 scan_once()
             except Exception:
                 logger.exception("Scan iteration %s failed", iteration)

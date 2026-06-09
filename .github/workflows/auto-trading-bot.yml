@@ -45,7 +45,7 @@ jobs:
       FYERS_ACCESS_TOKEN: ${{ secrets.FYERS_ACCESS_TOKEN }}
       OPTION_DATA_PROVIDER: upstox
       UPSTOX_WS_ENABLED: "true"
-      UPSTOX_AUTO_TRADE_ENABLED: "false"
+      UPSTOX_AUTO_TRADE_ENABLED: "true"
       UPSTOX_PAPER_TRADE: "false"
       TELEGRAM_COMMANDS_ENABLED: "true"
       UPSTOX_DEFAULT_LOTS: "1"
@@ -178,6 +178,9 @@ jobs:
 
       - name: Automation boot (once per day)
         run: python automation_boot.py
+
+      - name: Telegram commands ready (delete webhook)
+        run: python scripts/telegram_delete_webhook.py
 
       - name: Pre-market news summary (9:10-9:35 IST, once)
         run: |
