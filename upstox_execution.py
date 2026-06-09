@@ -1,4 +1,4 @@
-"""Bridge Telegram signals → Upstox WebSocket + auto orders."""
+"""Bridge Telegram signals → Upstox WebSocket + auto orders (options only)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,17 @@ from upstox_orders import OrderResult, execute_signal_orders
 
 logger = logging.getLogger(__name__)
 
+UPSTOX_OPTION_INSTRUMENTS = frozenset({"NIFTY_OPTION", "SENSEX_OPTION"})
+
+
+def is_upstox_option_signal(signal: Signal) -> bool:
+    return signal.instrument in UPSTOX_OPTION_INSTRUMENTS
+
 
 def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
     if not UPSTOX_AUTO_TRADE_ENABLED:
+        return None
+    if not is_upstox_option_signal(signal):
         return None
     try:
         result = execute_signal_orders(signal)

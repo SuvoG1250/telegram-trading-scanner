@@ -126,15 +126,17 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
 
 
 def execute_signal_orders(signal: Signal) -> OrderResult | None:
-    """Place entry + SL + target on Upstox for a sent Telegram signal."""
+    """Place entry + SL + target on Upstox — Nifty/Sensex options only (no stocks/BTST)."""
     if not UPSTOX_AUTO_TRADE_ENABLED or not upstox_configured():
+        return None
+    if signal.instrument not in ("NIFTY_OPTION", "SENSEX_OPTION"):
         return None
 
     lv = signal.levels
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"
     order_ids: list[str] = []
 
-    if signal.instrument in ("NIFTY_OPTION", "SENSEX_OPTION"):
+    if True:
         ctx = _option_context(signal)
         if not ctx:
             return OrderResult(False, tag_base, [], "Could not resolve option instrument_key")
@@ -188,6 +190,3 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         )
         _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)
         return res
-
-    logger.debug("Upstox auto-trade: options only (equity instrument lookup not enabled).")
-    return None

@@ -315,7 +315,7 @@ UPSTOX_DEFAULT_LOTS = max(1, int(os.environ.get("UPSTOX_DEFAULT_LOTS", "1")))
 UPSTOX_NIFTY_LOT_SIZE = int(os.environ.get("UPSTOX_NIFTY_LOT_SIZE", "75"))
 UPSTOX_SENSEX_LOT_SIZE = int(os.environ.get("UPSTOX_SENSEX_LOT_SIZE", "20"))
 UPSTOX_PRODUCT_OPTION = os.environ.get("UPSTOX_PRODUCT_OPTION", "I")
-UPSTOX_PRODUCT_EQUITY = os.environ.get("UPSTOX_PRODUCT_EQUITY", "I")
+# Upstox auto-trade: options only (NIFTY_OPTION, SENSEX_OPTION) — stocks/BTST are Telegram-only
 # upstox | fyers | dhan | auto (fyers → upstox → dhan)
 OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "auto").lower()
 # Fyers My API — App ID + access token from login (https://myapi.fyers.in/)
