@@ -18,7 +18,7 @@ if _env.exists():
         k, _, v = line.partition("=")
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
-from upstox_client import UPSTOX_ACCESS_TOKEN, fetch_expiries, upstox_configured, verify_upstox
+from upstox_api import UPSTOX_ACCESS_TOKEN, fetch_expiries, upstox_configured, verify_upstox
 
 
 def main() -> int:

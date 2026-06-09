@@ -285,6 +285,9 @@ def run_index_options_scan(scan_fn, *, index_label: str) -> Signal | None:
     if ok:
         register_premium_open(sig)
         record_trade(sig)
+        from upstox_execution import maybe_execute_upstox_trade
+
+        maybe_execute_upstox_trade(sig)
         if peek is not None:
             dismiss_option_exit_flag(sig.side, instrument)
         logger.info("%s option signal sent: %s", index_label, sig.side)

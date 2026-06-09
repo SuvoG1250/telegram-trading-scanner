@@ -1,10 +1,11 @@
-"""Upstox API v2 — Nifty option chain & live premium."""
+"""Upstox REST API v2 — quotes, option chain, orders."""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 import requests
 
@@ -17,6 +18,7 @@ from config import (
 logger = logging.getLogger(__name__)
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
+UPSTOX_HFT_BASE = "https://api-hft.upstox.com/v3"
 
 
 @dataclass
@@ -29,6 +31,7 @@ class OptionQuote:
     expiry: str
     strike: int
     option_type: str
+    instrument_key: str = ""
 
 
 def upstox_configured() -> bool:
@@ -38,45 +41,60 @@ def upstox_configured() -> bool:
 def _headers() -> dict[str, str]:
     return {
         "Accept": "application/json",
+        "Content-Type": "application/json",
         "Authorization": f"Bearer {UPSTOX_ACCESS_TOKEN}",
     }
 
 
-def _get(path: str, params: dict | None = None) -> dict | list | None:
+def _request(method: str, url: str, *, params: dict | None = None, json_body: dict | None = None) -> Any:
     if not upstox_configured():
         return None
     try:
-        resp = requests.get(
-            f"{UPSTOX_BASE}{path}",
+        resp = requests.request(
+            method,
+            url,
             headers=_headers(),
             params=params or {},
+            json=json_body,
             timeout=30,
         )
         if not resp.ok:
-            logger.warning("Upstox %s HTTP %s: %s", path, resp.status_code, resp.text[:300])
+            logger.warning("Upstox %s %s HTTP %s: %s", method, url, resp.status_code, resp.text[:400])
             return None
         body = resp.json()
-        if body.get("status") != "success":
-            logger.warning("Upstox %s: %s", path, body)
+        if isinstance(body, dict) and body.get("status") not in (None, "success"):
+            logger.warning("Upstox %s %s: %s", method, url, body)
             return None
-        return body.get("data")
+        return body.get("data") if isinstance(body, dict) else body
     except requests.RequestException:
-        logger.exception("Upstox request failed: %s", path)
+        logger.exception("Upstox request failed: %s %s", method, url)
         return None
+
+
+def _get(path: str, params: dict | None = None) -> dict | list | None:
+    data = _request("GET", f"{UPSTOX_BASE}{path}", params=params)
+    return data
+
+
+def _post_v2(path: str, payload: dict) -> dict | None:
+    data = _request("POST", f"{UPSTOX_BASE}{path}", json_body=payload)
+    return data if isinstance(data, dict) else None
+
+
+def _post_v3(path: str, payload: dict) -> dict | None:
+    data = _request("POST", f"{UPSTOX_HFT_BASE}{path}", json_body=payload)
+    return data if isinstance(data, dict) else None
 
 
 def fetch_expiries(instrument_key: str | None = None) -> list[str]:
     key = instrument_key or UPSTOX_NIFTY_INSTRUMENT_KEY
-    data = _get(
-        "/option/contract",
-        {"instrument_key": key},
-    )
+    data = _get("/option/contract", {"instrument_key": key})
     if not data:
         return []
     return sorted({str(row["expiry"]) for row in data if row.get("expiry")})
 
 
-def _nearest_expiry(expiries: list[str]) -> str | None:
+def nearest_expiry(expiries: list[str]) -> str | None:
     if not expiries:
         return None
     today = datetime.now().date()
@@ -99,13 +117,7 @@ def _nearest_expiry(expiries: list[str]) -> str | None:
 
 def fetch_option_chain(expiry: str, instrument_key: str | None = None) -> list[dict] | None:
     key = instrument_key or UPSTOX_NIFTY_INSTRUMENT_KEY
-    data = _get(
-        "/option/chain",
-        {
-            "instrument_key": key,
-            "expiry_date": expiry,
-        },
-    )
+    data = _get("/option/chain", {"instrument_key": key, "expiry_date": expiry})
     if isinstance(data, list):
         return data
     return None
@@ -115,22 +127,20 @@ def verify_upstox() -> bool:
     return len(fetch_expiries()) > 0
 
 
-def _fetch_index_option_quote(
+def lookup_option_leg(
+    *,
     strike: int,
     option_type: str,
-    instrument_key: str,
+    index_instrument_key: str,
     expiry: str | None = None,
-) -> OptionQuote | None:
-    if not upstox_configured():
-        return None
-
-    exp = expiry or _nearest_expiry(fetch_expiries(instrument_key))
+) -> tuple[OptionQuote | None, str]:
+    """Return quote + instrument_key for option leg."""
+    exp = expiry or nearest_expiry(fetch_expiries(index_instrument_key))
     if not exp:
-        return None
-
-    chain = fetch_option_chain(exp, instrument_key)
+        return None, ""
+    chain = fetch_option_chain(exp, index_instrument_key)
     if not chain:
-        return None
+        return None, ""
 
     row_match = None
     spot = None
@@ -140,21 +150,20 @@ def _fetch_index_option_quote(
             row_match = row
             spot = row.get("underlying_spot_price")
             break
-
     if not row_match:
-        logger.warning("Upstox: strike %s not in chain for %s.", strike, exp)
-        return None
+        return None, ""
 
     leg_key = "call_options" if option_type.upper() == "CE" else "put_options"
     leg = row_match.get(leg_key) or {}
+    inst_key = str(leg.get("instrument_key") or leg.get("instrument_token") or "")
     md = leg.get("market_data") or {}
     ltp = float(md.get("ltp") or 0)
     if ltp <= 0:
         ltp = float(md.get("ask_price") or md.get("bid_price") or 0)
     if ltp <= 0:
-        return None
+        return None, inst_key
 
-    return OptionQuote(
+    quote = OptionQuote(
         last_price=round(ltp, 2),
         bid=float(md["bid_price"]) if md.get("bid_price") else None,
         ask=float(md["ask_price"]) if md.get("ask_price") else None,
@@ -163,7 +172,24 @@ def _fetch_index_option_quote(
         expiry=exp,
         strike=strike,
         option_type=option_type.upper(),
+        instrument_key=inst_key,
     )
+    return quote, inst_key
+
+
+def _fetch_index_option_quote(
+    strike: int,
+    option_type: str,
+    instrument_key: str,
+    expiry: str | None = None,
+) -> OptionQuote | None:
+    quote, _ = lookup_option_leg(
+        strike=strike,
+        option_type=option_type,
+        index_instrument_key=instrument_key,
+        expiry=expiry,
+    )
+    return quote
 
 
 def fetch_nifty_option_quote(
@@ -180,3 +206,11 @@ def fetch_sensex_option_quote(
     expiry: str | None = None,
 ) -> OptionQuote | None:
     return _fetch_index_option_quote(strike, option_type, UPSTOX_SENSEX_INSTRUMENT_KEY, expiry)
+
+
+def place_order_v3(payload: dict) -> dict | None:
+    return _post_v3("/order/place", payload)
+
+
+def place_order_v2(payload: dict) -> dict | None:
+    return _post_v2("/order/place", payload)

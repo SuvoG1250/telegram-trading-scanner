@@ -49,43 +49,47 @@ def _should_continue() -> bool:
 
 def run_loop(max_minutes: int) -> int:
     from scanner import main as scan_once
+    from upstox_websocket import start_upstox_feed, stop_upstox_feed
 
-    deadline = time.time() + max_minutes * 60
+    start_upstox_feed()
     iteration = 0
+    try:
+        deadline = time.time() + max_minutes * 60
 
-    import os
+        import os
 
-    event = os.environ.get("GITHUB_EVENT_NAME", "local")
-    logger.info(
-        "Session loop started | trigger=%s | max %s min | IST %s",
-        event,
-        max_minutes,
-        now_ist().strftime("%H:%M:%S"),
-    )
+        event = os.environ.get("GITHUB_EVENT_NAME", "local")
+        logger.info(
+            "Session loop started | trigger=%s | max %s min | IST %s",
+            event,
+            max_minutes,
+            now_ist().strftime("%H:%M:%S"),
+        )
 
-    while time.time() < deadline:
-        if not _should_continue():
-            logger.info("Outside trading window — ending loop.")
-            break
+        while time.time() < deadline:
+            if not _should_continue():
+                logger.info("Outside trading window — ending loop.")
+                break
 
-        iteration += 1
-        logger.info("=== Scan iteration %s ===", iteration)
-        try:
-            scan_once()
-        except Exception:
-            logger.exception("Scan iteration %s failed", iteration)
+            iteration += 1
+            logger.info("=== Scan iteration %s ===", iteration)
+            try:
+                scan_once()
+            except Exception:
+                logger.exception("Scan iteration %s failed", iteration)
 
-        remaining = deadline - time.time()
-        if remaining <= 0:
-            break
-        sleep_for = min(SCAN_INTERVAL_SEC, remaining)
-        logger.info("Sleeping %.0f seconds until next scan...", sleep_for)
-        time.sleep(sleep_for)
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            sleep_for = min(SCAN_INTERVAL_SEC, remaining)
+            logger.info("Sleeping %.0f seconds until next scan...", sleep_for)
+            time.sleep(sleep_for)
 
-    from session_alerts import handle_session_alerts
+        from session_alerts import handle_session_alerts
 
-    # After 3:30 PM IST: full-day P/L summary + session stop (once per day)
-    handle_session_alerts()
+        handle_session_alerts()
+    finally:
+        stop_upstox_feed()
 
     logger.info("Session loop finished after %s iterations.", iteration)
     return 0

@@ -106,7 +106,7 @@ def build_health_report() -> str:
     from dhan_client import dhan_configured
     from fyers_client import fyers_configured
     from strategies import EQUITY_STRATEGY_LABELS
-    from upstox_client import upstox_configured
+    from upstox_api import upstox_configured
 
     ts = now_ist().strftime("%d %b %Y, %H:%M IST")
     host = "GitHub Actions" if os.environ.get("GITHUB_ACTIONS") == "true" else "local"
