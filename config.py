@@ -268,6 +268,23 @@ SENSEX_OPTIONS_ENABLED = os.environ.get("SENSEX_OPTIONS_ENABLED", "true").lower(
     "true",
     "yes",
 )
+# EMA 9/21 crossover + MACD (34/144/9) on Heikin Ashi 3m — index options only
+EMA_MACD_OPTIONS_ENABLED = os.environ.get("EMA_MACD_OPTIONS_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+EMA_MACD_EMA_FAST = int(os.environ.get("EMA_MACD_EMA_FAST", "9"))
+EMA_MACD_EMA_SLOW = int(os.environ.get("EMA_MACD_EMA_SLOW", "21"))
+EMA_MACD_FAST_LENGTH = int(os.environ.get("EMA_MACD_FAST_LENGTH", "34"))
+EMA_MACD_SLOW_LENGTH = int(os.environ.get("EMA_MACD_SLOW_LENGTH", "144"))
+EMA_MACD_SIGNAL_LENGTH = int(os.environ.get("EMA_MACD_SIGNAL_LENGTH", "9"))
+EMA_MACD_INTERVAL = os.environ.get("EMA_MACD_INTERVAL", "3m")
+EMA_MACD_USE_HEIKIN = os.environ.get("EMA_MACD_USE_HEIKIN", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 SENSEX_TICKER = os.environ.get("SENSEX_TICKER", "^BSESN")
 SENSEX_STRIKE_STEP = int(os.environ.get("SENSEX_STRIKE_STEP", "100"))
 NIFTY_ST_ATR_LENGTH = int(os.environ.get("NIFTY_ST_ATR_LENGTH", "10"))

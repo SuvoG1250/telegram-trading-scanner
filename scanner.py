@@ -308,6 +308,18 @@ def run_sensex_options_scan() -> Signal | None:
     return run_index_options_scan(scan_sensex_supertrend_option, index_label="SENSEX")
 
 
+def run_nifty_ema_macd_options_scan() -> Signal | None:
+    from ema_macd_options import scan_nifty_ema_macd_option
+
+    return run_index_options_scan(scan_nifty_ema_macd_option, index_label="NIFTY EMA+MACD")
+
+
+def run_sensex_ema_macd_options_scan() -> Signal | None:
+    from ema_macd_options import scan_sensex_ema_macd_option
+
+    return run_index_options_scan(scan_sensex_ema_macd_option, index_label="SENSEX EMA+MACD")
+
+
 def broadcast_lifecycle_updates(equity_hits: list, premium_hits: list) -> None:
     if not SLTP_CLOSE_ALERT_TELEGRAM:
         return
@@ -443,7 +455,7 @@ def main() -> int:
     equity_signals, scan_stats = run_intraday_scan(watchlist)
     signals = list(equity_signals)
 
-    from config import NIFTY_OPTIONS_ENABLED, SENSEX_OPTIONS_ENABLED
+    from config import EMA_MACD_OPTIONS_ENABLED, NIFTY_OPTIONS_ENABLED, SENSEX_OPTIONS_ENABLED
 
     if NIFTY_OPTIONS_ENABLED:
         try:
@@ -464,6 +476,25 @@ def main() -> int:
         if sensex_sig:
             signals.append(sensex_sig)
             scan_stats.sensex_option_sent = True
+
+    if EMA_MACD_OPTIONS_ENABLED:
+        if NIFTY_OPTIONS_ENABLED:
+            try:
+                nifty_ema_sig = run_nifty_ema_macd_options_scan()
+            except Exception:
+                logger.exception("Nifty EMA+MACD options scan failed (continuing)")
+                nifty_ema_sig = None
+            if nifty_ema_sig:
+                signals.append(nifty_ema_sig)
+
+        if SENSEX_OPTIONS_ENABLED:
+            try:
+                sensex_ema_sig = run_sensex_ema_macd_options_scan()
+            except Exception:
+                logger.exception("Sensex EMA+MACD options scan failed (continuing)")
+                sensex_ema_sig = None
+            if sensex_ema_sig:
+                signals.append(sensex_ema_sig)
 
     logger.info(
         "Done. Signals sent: %d / %d symbols | raw=%d BUY=%d",

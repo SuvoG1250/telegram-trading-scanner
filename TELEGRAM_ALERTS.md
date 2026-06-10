@@ -69,11 +69,26 @@ Optional: `🤖 AI: …` · re-entry flag after prior SL/target.
 
 ### 3. Nifty + Sensex options (intraday)
 
+Two independent option scanners (same premium plan: SL −₹15 · book +₹30 · trail +₹100).
+
+| Scanner | Trigger |
+|---|---|
+| **ST+TSL** | SuperTrend flip (exit490) on 5m |
+| **EMA 9/21 + MACD** | EMA cross on **Heikin Ashi 3m** + MACD hist green/red (34/144/9) |
+
 | | |
 |---|---|
-| **When** | Mon–Fri, market hours (Supertrend flip) |
-| **Strategy** | Same ST+TSL engine (exit490) · SL −₹15 · book +₹30 · trail +₹100 |
-| **Rule** | One active CALL or PUT **per index** until SL/target |
+| **When** | Mon–Fri, **9:15 AM – 3:00 PM IST** |
+| **EMA+MACD rules** | MACD **green** → only **BUY CALL** (EMA 9 crosses above 21) · MACD **red** → only **BUY PUT** (EMA 9 crosses below 21) |
+| **Rule** | One active CALL or PUT **per index** until SL/target (shared across both scanners) |
+
+```
+🟢 BUY CALL — NIFTY
+Strategy: EMA 9/21 + MACD Options
+Strike: 23500 CE  ·  Expiry: …
+…
+EMA 9 crossed above EMA 21 · MACD hist green (34/144/9) · Heikin Ashi 3m
+```
 
 ```
 🟢 BUY CALL — NIFTY

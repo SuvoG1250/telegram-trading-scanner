@@ -9,6 +9,43 @@ def ema(series: pd.Series, length: int) -> pd.Series:
     return series.ewm(span=length, adjust=False).mean()
 
 
+def heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
+    """Heikin Ashi OHLC (TradingView-style) from standard OHLC."""
+    o = df["Open"].astype(float)
+    h = df["High"].astype(float)
+    low = df["Low"].astype(float)
+    c = df["Close"].astype(float)
+    ha_close = (o + h + low + c) / 4.0
+    ha_open = pd.Series(index=df.index, dtype=float)
+    ha_open.iloc[0] = (o.iloc[0] + c.iloc[0]) / 2.0
+    for i in range(1, len(df)):
+        ha_open.iloc[i] = (ha_open.iloc[i - 1] + ha_close.iloc[i - 1]) / 2.0
+    ha_high = pd.concat([h, ha_open, ha_close], axis=1).max(axis=1)
+    ha_low = pd.concat([low, ha_open, ha_close], axis=1).min(axis=1)
+    out = df.copy()
+    out["Open"] = ha_open
+    out["High"] = ha_high
+    out["Low"] = ha_low
+    out["Close"] = ha_close
+    return out
+
+
+def compute_macd(
+    close: pd.Series,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> pd.DataFrame:
+    """MACD line, signal line, and histogram (macd − signal)."""
+    macd_line = ema(close, fast) - ema(close, slow)
+    signal_line = ema(macd_line, signal)
+    histogram = macd_line - signal_line
+    return pd.DataFrame(
+        {"macd": macd_line, "signal": signal_line, "histogram": histogram},
+        index=close.index,
+    )
+
+
 def rsi(series: pd.Series, length: int = 14) -> pd.Series:
     delta = series.diff()
     gain = delta.clip(lower=0).rolling(length).mean()

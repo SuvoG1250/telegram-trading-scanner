@@ -125,9 +125,7 @@ def _underlying_targets(spot: float, st_line: float, flip: str) -> tuple[float, 
     return round(st_line, 2), round(spot - risk_pts * MIN_RISK_REWARD_PLAYBOOK, 2)
 
 
-def _fetch_index_session(ticker: str, interval: str) -> pd.DataFrame:
-    period = "5d" if interval in ("1m", "5m", "3m") else "10d"
-    raw = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
+def _normalize_yf_history(raw: pd.DataFrame) -> pd.DataFrame:
     if raw.empty:
         return raw
     if isinstance(raw.columns, pd.MultiIndex):
@@ -135,6 +133,19 @@ def _fetch_index_session(ticker: str, interval: str) -> pd.DataFrame:
     raw = raw.rename(columns=str.capitalize)
     if raw.index.tz is None:
         raw.index = raw.index.tz_localize("UTC")
+    return raw
+
+
+def _fetch_index_history(ticker: str, interval: str) -> pd.DataFrame:
+    period = "5d" if interval in ("1m", "5m", "3m") else "10d"
+    raw = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
+    return _normalize_yf_history(raw)
+
+
+def _fetch_index_session(ticker: str, interval: str) -> pd.DataFrame:
+    raw = _fetch_index_history(ticker, interval)
+    if raw.empty:
+        return raw
     return today_session_df(raw, now_ist().date())
 
 
@@ -167,6 +178,26 @@ def scan_index_supertrend_option(spec: IndexOptionSpec) -> Signal | None:
 
     spot = float(session["Close"].iloc[-1])
     st_line = float(st_raw["st_line"].iloc[-1])
+    return build_index_option_signal(
+        spec,
+        flip=flip,
+        session=session,
+        interval=interval,
+        spot=spot,
+        ref_line=st_line,
+    )
+
+
+def build_index_option_signal(
+    spec: IndexOptionSpec,
+    *,
+    flip: str,
+    session: pd.DataFrame,
+    interval: str,
+    spot: float,
+    ref_line: float,
+    note: str = "",
+) -> Signal | None:
     strike = _round_strike(spot, spec.strike_step)
     opt_type = "CE" if flip == "CALL" else "PE"
 
@@ -214,7 +245,7 @@ def scan_index_supertrend_option(spec: IndexOptionSpec) -> Signal | None:
             )
             return None
 
-    idx_sl, idx_target = _underlying_targets(spot, st_line, flip)
+    idx_sl, idx_target = _underlying_targets(spot, ref_line, flip)
     action = "BUY CALL" if flip == "CALL" else "BUY PUT"
 
     return Signal(
@@ -222,7 +253,7 @@ def scan_index_supertrend_option(spec: IndexOptionSpec) -> Signal | None:
         strategy=spec.strategy_name,
         side=action,
         levels=levels,
-        note="",
+        note=note,
         kind="ENTRY",
         timeframe=interval.upper(),
         timestamp=now_ist().strftime("%d %b %Y, %H:%M IST"),
