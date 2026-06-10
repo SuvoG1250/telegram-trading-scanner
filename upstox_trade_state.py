@@ -7,7 +7,13 @@ import logging
 from pathlib import Path
 from typing import Literal
 
-from config import DATA_DIR, UPSTOX_AUTO_TRADE_ENABLED, UPSTOX_DEFAULT_LOTS
+from config import (
+    DATA_DIR,
+    UPSTOX_AUTO_TRADE_ENABLED,
+    UPSTOX_DEFAULT_LOTS,
+    UPSTOX_NIFTY_LOT_SIZE,
+    UPSTOX_SENSEX_LOT_SIZE,
+)
 from market_time import today_key
 
 logger = logging.getLogger(__name__)
@@ -89,6 +95,6 @@ def status_text() -> str:
     }
     return (
         f"<b>Upstox trading:</b> {labels.get(mode, mode)}\n"
-        f"<b>Lots:</b> {get_lots()} (Nifty lot=75, Sensex lot=20)\n"
+        f"<b>Lots:</b> {get_lots()} (Nifty lot={UPSTOX_NIFTY_LOT_SIZE}, Sensex lot={UPSTOX_SENSEX_LOT_SIZE})\n"
         f"<b>Scope:</b> Nifty + Sensex <b>options only</b>"
     )
