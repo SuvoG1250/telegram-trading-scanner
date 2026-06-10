@@ -336,6 +336,14 @@ TELEGRAM_COMMANDS_ENABLED = os.environ.get("TELEGRAM_COMMANDS_ENABLED", "true").
 UPSTOX_DEFAULT_LOTS = max(1, int(os.environ.get("UPSTOX_DEFAULT_LOTS", "1")))
 UPSTOX_NIFTY_LOT_SIZE = int(os.environ.get("UPSTOX_NIFTY_LOT_SIZE", "65"))
 UPSTOX_SENSEX_LOT_SIZE = int(os.environ.get("UPSTOX_SENSEX_LOT_SIZE", "20"))
+
+
+def upstox_nifty_lot_size() -> int:
+    return int(os.environ.get("UPSTOX_NIFTY_LOT_SIZE", "65"))
+
+
+def upstox_sensex_lot_size() -> int:
+    return int(os.environ.get("UPSTOX_SENSEX_LOT_SIZE", "20"))
 UPSTOX_PRODUCT_OPTION = os.environ.get("UPSTOX_PRODUCT_OPTION", "I")
 # Upstox auto-trade: options only (NIFTY_OPTION, SENSEX_OPTION) — stocks/BTST are Telegram-only
 # upstox | fyers | dhan | auto (fyers → upstox → dhan)

@@ -12,10 +12,10 @@ from typing import Any
 from config import (
     DATA_DIR,
     UPSTOX_NIFTY_INSTRUMENT_KEY,
-    UPSTOX_NIFTY_LOT_SIZE,
     UPSTOX_PRODUCT_OPTION,
     UPSTOX_SENSEX_INSTRUMENT_KEY,
-    UPSTOX_SENSEX_LOT_SIZE,
+    upstox_nifty_lot_size,
+    upstox_sensex_lot_size,
 )
 from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from market_time import today_key
@@ -122,10 +122,10 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
         return None
     if signal.instrument == "SENSEX_OPTION":
         index_key = UPSTOX_SENSEX_INSTRUMENT_KEY
-        lot = UPSTOX_SENSEX_LOT_SIZE
+        lot = upstox_sensex_lot_size()
     else:
         index_key = UPSTOX_NIFTY_INSTRUMENT_KEY
-        lot = UPSTOX_NIFTY_LOT_SIZE
+        lot = upstox_nifty_lot_size()
     expiry = _parse_expiry_label(signal.expiry_label)
     quote, inst = lookup_option_leg(
         strike=strike,

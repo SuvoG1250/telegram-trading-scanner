@@ -11,8 +11,8 @@ from config import (
     DATA_DIR,
     UPSTOX_AUTO_TRADE_ENABLED,
     UPSTOX_DEFAULT_LOTS,
-    UPSTOX_NIFTY_LOT_SIZE,
-    UPSTOX_SENSEX_LOT_SIZE,
+    upstox_nifty_lot_size,
+    upstox_sensex_lot_size,
 )
 from market_time import today_key
 
@@ -95,6 +95,6 @@ def status_text() -> str:
     }
     return (
         f"<b>Upstox trading:</b> {labels.get(mode, mode)}\n"
-        f"<b>Lots:</b> {get_lots()} (Nifty lot={UPSTOX_NIFTY_LOT_SIZE}, Sensex lot={UPSTOX_SENSEX_LOT_SIZE})\n"
+        f"<b>Lots:</b> {get_lots()} (Nifty lot={upstox_nifty_lot_size()}, Sensex lot={upstox_sensex_lot_size()})\n"
         f"<b>Scope:</b> Nifty + Sensex <b>options only</b>"
     )
