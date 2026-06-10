@@ -20,6 +20,13 @@ logger = logging.getLogger(__name__)
 UPSTOX_BASE = "https://api.upstox.com/v2"
 UPSTOX_HFT_BASE = "https://api-hft.upstox.com/v3"
 
+_LAST_ERROR = ""
+
+
+def last_upstox_error() -> str:
+    """Human-readable detail from the most recent failed Upstox API call."""
+    return _LAST_ERROR
+
 
 @dataclass
 class OptionQuote:
@@ -46,8 +53,31 @@ def _headers() -> dict[str, str]:
     }
 
 
+def _extract_error_message(body: dict | None, fallback: str) -> str:
+    if not isinstance(body, dict):
+        return fallback
+    errors = body.get("errors")
+    if isinstance(errors, list) and errors:
+        parts = []
+        for err in errors:
+            if isinstance(err, dict):
+                msg = err.get("message") or err.get("errorCode") or err.get("error_code")
+                if msg:
+                    parts.append(str(msg))
+            elif err:
+                parts.append(str(err))
+        if parts:
+            return "; ".join(parts)
+    for key in ("message", "error", "error_message"):
+        if body.get(key):
+            return str(body[key])
+    return fallback
+
+
 def _request(method: str, url: str, *, params: dict | None = None, json_body: dict | None = None) -> Any:
+    global _LAST_ERROR
     if not upstox_configured():
+        _LAST_ERROR = "UPSTOX_ACCESS_TOKEN not set"
         return None
     try:
         resp = requests.request(
@@ -58,15 +88,25 @@ def _request(method: str, url: str, *, params: dict | None = None, json_body: di
             json=json_body,
             timeout=30,
         )
+        body: dict | None = None
+        try:
+            body = resp.json() if resp.text else None
+        except ValueError:
+            body = None
         if not resp.ok:
-            logger.warning("Upstox %s %s HTTP %s: %s", method, url, resp.status_code, resp.text[:400])
+            detail = _extract_error_message(body, resp.text[:400] if resp.text else f"HTTP {resp.status_code}")
+            _LAST_ERROR = detail
+            logger.warning("Upstox %s %s HTTP %s: %s", method, url, resp.status_code, detail)
             return None
-        body = resp.json()
         if isinstance(body, dict) and body.get("status") not in (None, "success"):
-            logger.warning("Upstox %s %s: %s", method, url, body)
+            detail = _extract_error_message(body, str(body)[:400])
+            _LAST_ERROR = detail
+            logger.warning("Upstox %s %s: %s", method, url, detail)
             return None
+        _LAST_ERROR = ""
         return body.get("data") if isinstance(body, dict) else body
-    except requests.RequestException:
+    except requests.RequestException as exc:
+        _LAST_ERROR = str(exc)
         logger.exception("Upstox request failed: %s %s", method, url)
         return None
 
@@ -208,9 +248,33 @@ def fetch_sensex_option_quote(
     return _fetch_index_option_quote(strike, option_type, UPSTOX_SENSEX_INSTRUMENT_KEY, expiry)
 
 
+def parse_order_ids(data: dict | None) -> list[str]:
+    """V3 returns order_ids[]; V2 returns order_id."""
+    if not data:
+        return []
+    raw_ids = data.get("order_ids")
+    if isinstance(raw_ids, list):
+        return [str(x) for x in raw_ids if x]
+    oid = data.get("order_id") or data.get("orderId")
+    return [str(oid)] if oid else []
+
+
 def place_order_v3(payload: dict) -> dict | None:
     return _post_v3("/order/place", payload)
 
 
 def place_order_v2(payload: dict) -> dict | None:
     return _post_v2("/order/place", payload)
+
+
+def place_order(payload: dict) -> tuple[list[str], dict | None]:
+    """Place order via V3; fall back to V2. Returns (order_ids, raw_data)."""
+    data = place_order_v3(payload)
+    ids = parse_order_ids(data)
+    if ids:
+        return ids, data
+    data_v2 = place_order_v2(payload)
+    ids_v2 = parse_order_ids(data_v2)
+    if ids_v2:
+        return ids_v2, data_v2
+    return [], data

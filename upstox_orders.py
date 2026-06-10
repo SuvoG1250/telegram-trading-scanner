@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ from config import (
 from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from market_time import today_key
 from telegram_client import Signal
-from upstox_api import lookup_option_leg, place_order_v3, upstox_configured
+from upstox_api import last_upstox_error, lookup_option_leg, place_order, upstox_configured
 from upstox_websocket import subscribe_instruments
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,15 @@ def _record(tag: str, payload: dict, result: OrderResult) -> None:
     _save_log(data)
 
 
+def _parse_expiry_label(label: str | None) -> str | None:
+    if not label:
+        return None
+    try:
+        return datetime.strptime(label.strip(), "%d %b %Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return None
+
+
 def _place(
     *,
     instrument_key: str,
@@ -93,15 +103,16 @@ def _place(
         "is_amo": False,
         "slice": True,
     }
+    if order_type in ("MARKET", "SL-M"):
+        payload["market_protection"] = -1
     if paper_trade():
         logger.info("PAPER Upstox order: %s", payload)
         return f"PAPER-{tag}"
 
-    data = place_order_v3(payload)
-    if not data:
+    order_ids, _data = place_order(payload)
+    if not order_ids:
         return None
-    oid = str(data.get("order_id") or data.get("orderId") or "")
-    return oid or None
+    return order_ids[0]
 
 
 def _option_context(signal: Signal) -> tuple[str, int, str] | None:
@@ -115,7 +126,13 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
     else:
         index_key = UPSTOX_NIFTY_INSTRUMENT_KEY
         lot = UPSTOX_NIFTY_LOT_SIZE
-    quote, inst = lookup_option_leg(strike=strike, option_type=opt, index_instrument_key=index_key)
+    expiry = _parse_expiry_label(signal.expiry_label)
+    quote, inst = lookup_option_leg(
+        strike=strike,
+        option_type=opt,
+        index_instrument_key=index_key,
+        expiry=expiry,
+    )
     if not inst:
         logger.warning("Upstox: no instrument_key for %s %s %s", signal.symbol, strike, opt)
         return None
@@ -148,7 +165,8 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         tag=f"{tag_base}-entry",
     )
     if not entry_id:
-        res = OrderResult(False, tag_base, [], "Entry order failed")
+        detail = last_upstox_error() or "Entry order failed"
+        res = OrderResult(False, tag_base, [], detail)
         _record(tag_base, {"signal": signal.symbol}, res)
         return res
     order_ids.append(entry_id)
@@ -177,14 +195,23 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     if tgt_id:
         order_ids.append(tgt_id)
 
-        is_paper = paper_trade()
-        mode = "PAPER" if is_paper else "LIVE"
-        res = OrderResult(
-            True,
-            tag_base,
-            order_ids,
-            f"{mode} option bracket: entry + SL-M @ {lv.stop_loss:.2f} + LIMIT @ {lv.primary_target:.2f}",
-            paper=is_paper,
-        )
+    is_paper = paper_trade()
+    mode = "PAPER" if is_paper else "LIVE"
+    legs = ["entry"]
+    if sl_id:
+        legs.append(f"SL-M @ {lv.stop_loss:.2f}")
+    else:
+        legs.append("SL-M failed")
+    if tgt_id:
+        legs.append(f"LIMIT @ {lv.primary_target:.2f}")
+    else:
+        legs.append("target LIMIT failed")
+    res = OrderResult(
+        True,
+        tag_base,
+        order_ids,
+        f"{mode} option: {' + '.join(legs)}",
+        paper=is_paper,
+    )
     _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)
     return res
