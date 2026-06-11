@@ -15,9 +15,12 @@ Cloud automation listens every day (9:10 AM IST). Send commands in the bot chat:
 | Command | Action |
 |---|---|
 | `/live` | **Real** Upstox option orders (Nifty/Sensex CE/PE) |
+| `/upstox_token` eyJ… | Paste **trading** token from app **Generate** (daily ~3:30 AM IST expiry) |
+| `/upstox_login` | Browser OAuth link if Generate fails |
+| `/upstox_code` | Paste redirect URL after OAuth login |
 | `/paper` | Test mode — log only |
 | `/stop` | Disable Upstox orders |
-| `/status` | Current mode + connection |
+| `/status` | Mode + lots + token expiry + order permission |
 | `/lots 1` | Option lots (1–10) |
 | `/help` | Command list |
 

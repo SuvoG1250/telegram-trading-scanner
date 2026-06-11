@@ -10,10 +10,10 @@ from typing import Any
 import requests
 
 from config import (
-    UPSTOX_ACCESS_TOKEN,
     UPSTOX_NIFTY_INSTRUMENT_KEY,
     UPSTOX_SENSEX_INSTRUMENT_KEY,
 )
+from upstox_token import get_access_token
 
 logger = logging.getLogger(__name__)
 
@@ -42,14 +42,14 @@ class OptionQuote:
 
 
 def upstox_configured() -> bool:
-    return bool(UPSTOX_ACCESS_TOKEN)
+    return bool(get_access_token())
 
 
 def _headers() -> dict[str, str]:
     return {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {UPSTOX_ACCESS_TOKEN}",
+        "Authorization": f"Bearer {get_access_token()}",
     }
 
 
@@ -165,6 +165,21 @@ def fetch_option_chain(expiry: str, instrument_key: str | None = None) -> list[d
 
 def verify_upstox() -> bool:
     return len(fetch_expiries()) > 0
+
+
+def verify_upstox_trading() -> tuple[bool, str]:
+    """Quotes work with read-only tokens; profile needs a trading token."""
+    if not upstox_configured():
+        return False, "No token"
+    data = _get("/user/profile")
+    if data:
+        return True, "Trading token OK"
+    err = (last_upstox_error() or "").lower()
+    if "read only" in err or "read-only" in err:
+        return False, "Read-only token — use app Generate → /upstox_token (not Analytics tab)"
+    if err:
+        return False, last_upstox_error()
+    return False, "Could not verify trading access"
 
 
 def lookup_option_leg(

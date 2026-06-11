@@ -6,7 +6,8 @@ import logging
 import threading
 from typing import Any
 
-from config import UPSTOX_ACCESS_TOKEN, UPSTOX_WS_ENABLED, UPSTOX_WS_MODE
+from config import UPSTOX_WS_ENABLED, UPSTOX_WS_MODE
+from upstox_token import get_access_token
 from upstox_api import upstox_configured
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def _run_streamer() -> None:
         from upstox_client import ApiClient, Configuration
 
         configuration = Configuration()
-        configuration.access_token = UPSTOX_ACCESS_TOKEN
+        configuration.access_token = get_access_token()
         api_client = ApiClient(configuration)
 
         with _lock:
