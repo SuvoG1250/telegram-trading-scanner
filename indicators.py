@@ -229,3 +229,17 @@ def supertrend_flip_pine(st: pd.DataFrame) -> str | None:
     if change > 0:
         return "PUT"
     return None
+
+
+def supertrend_flip_closed_bar(st: pd.DataFrame) -> str | None:
+    """Flip on last closed bar (-3 vs -2) — matches bar-close alerts."""
+    if len(st) < 3:
+        return None
+    prev_dir = float(st["direction"].iloc[-3])
+    curr_dir = float(st["direction"].iloc[-2])
+    change = curr_dir - prev_dir
+    if change < 0:
+        return "CALL"
+    if change > 0:
+        return "PUT"
+    return None

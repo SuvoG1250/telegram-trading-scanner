@@ -34,7 +34,7 @@ from ema_crossover import (
     multi_day_volume_spike,
     position_quantity,
 )
-from data_fetcher import Interval, get_today_session
+from data_fetcher import Interval, fetch_history, get_today_session
 from market_time import (
     is_core_price_action_window,
     is_equity_entry_session,
@@ -187,37 +187,44 @@ def _ema_crossover_setup(
     slow: int,
     strategy_name: str,
 ) -> Signal | None:
-    """9/x EMA crossover on 5m with volume momentum. SL: prior bar low/high."""
+    """9/x EMA crossover with multi-day warmup; signal on today's closed bar."""
     if not is_market_open() or not is_equity_entry_session():
         return None
 
-    interval: Interval = EMA_INTERVAL if EMA_INTERVAL in ("1m", "3m", "5m", "15m") else "15m"
-    session = _session_interval(symbol, interval)
-    if len(session) < max(slow, 20) + 2:
+    interval: Interval = EMA_INTERVAL if EMA_INTERVAL in ("1m", "3m", "5m", "15m") else "5m"
+    hist = fetch_history(symbol, interval, period="10d")
+    if len(hist) < max(slow, 20) + 3:
         return None
 
     if not multi_day_volume_spike(symbol):
         return None
 
-    df = add_emas(session, fast=fast, slow=slow)
-    side = crossover_signal(df)
+    df = add_emas(hist, fast=fast, slow=slow)
+    closed = df.index[-2]
+    if closed.tz_convert("Asia/Kolkata").date() != now_ist().date():
+        return None
+
+    prev = df.iloc[-3]
+    cur = df.iloc[-2]
+    bull = prev["EMA_Fast"] <= prev["EMA_Slow"] and cur["EMA_Fast"] > cur["EMA_Slow"]
+    bear = prev["EMA_Fast"] >= prev["EMA_Slow"] and cur["EMA_Fast"] < cur["EMA_Slow"]
+    side = "BUY" if bull else ("SELL" if bear else None)
     if side is None:
         return None
 
-    prev = df.iloc[-2]
-    cur = df.iloc[-1]
-    entry = float(cur["Close"])
+    live = df.iloc[-1]
+    entry = float(live["Close"])
     tf = interval.upper().replace("M", " Min")
     note = "" if SIGNALS_ONLY_TELEGRAM else (
         f"{strategy_name} · Volume > {EMA_VOLUME_MULTIPLIER}x avg · {STANDARD_EXIT}"
     )
 
     if side == "BUY":
-        sl = float(prev["Low"])
+        sl = float(cur["Low"])
         qty = position_quantity(entry, sl, RISK_PER_TRADE_INR)
         return ema_entry_long(symbol, strategy_name, entry, sl, note=note, timeframe=tf, suggested_qty=qty)
 
-    sl = float(prev["High"])
+    sl = float(cur["High"])
     qty = position_quantity(entry, sl, RISK_PER_TRADE_INR)
     return ema_entry_short(symbol, strategy_name, entry, sl, note=note, timeframe=tf, suggested_qty=qty)
 

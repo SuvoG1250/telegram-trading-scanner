@@ -12,7 +12,6 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 import pandas as pd
-import yfinance as yf
 
 from config import (
     MIN_RISK_REWARD_PLAYBOOK,
@@ -29,8 +28,13 @@ from config import (
     NIFTY_ST_FACTOR,
     NIFTY_ST_INTERVAL,
 )
-from data_fetcher import today_session_df
-from indicators import atr, compute_supertrend, compute_supertrend_exit490, supertrend_flip_pine
+from data_fetcher import fetch_index_history, today_session_df
+from indicators import (
+    atr,
+    compute_supertrend,
+    compute_supertrend_exit490,
+    supertrend_flip_closed_bar,
+)
 from market_time import is_chaitu_session, is_market_open, now_ist
 from risk import TradeLevels
 from telegram_client import Signal
@@ -125,21 +129,8 @@ def _underlying_targets(spot: float, st_line: float, flip: str) -> tuple[float, 
     return round(st_line, 2), round(spot - risk_pts * MIN_RISK_REWARD_PLAYBOOK, 2)
 
 
-def _normalize_yf_history(raw: pd.DataFrame) -> pd.DataFrame:
-    if raw.empty:
-        return raw
-    if isinstance(raw.columns, pd.MultiIndex):
-        raw.columns = raw.columns.get_level_values(0)
-    raw = raw.rename(columns=str.capitalize)
-    if raw.index.tz is None:
-        raw.index = raw.index.tz_localize("UTC")
-    return raw
-
-
-def _fetch_index_history(ticker: str, interval: str) -> pd.DataFrame:
-    period = "5d" if interval in ("1m", "5m", "3m") else "10d"
-    raw = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
-    return _normalize_yf_history(raw)
+def _fetch_index_history(ticker: str, interval: str, period: str | None = None) -> pd.DataFrame:
+    return fetch_index_history(ticker, interval, period=period)
 
 
 def _fetch_index_session(ticker: str, interval: str) -> pd.DataFrame:
@@ -156,28 +147,40 @@ def scan_index_supertrend_option(spec: IndexOptionSpec) -> Signal | None:
         return None
 
     interval = NIFTY_ST_INTERVAL if NIFTY_ST_INTERVAL in ("1m", "5m", "15m") else "5m"
-    session = _fetch_index_session(spec.yf_ticker, interval)
-    min_len = max(NIFTY_ST_ATR_LENGTH, NIFTY_EXIT490_ATR_BARS, 3) + 3
-    if len(session) < min_len:
+    history = _fetch_index_history(spec.yf_ticker, interval, period="10d")
+    min_len = max(NIFTY_ST_ATR_LENGTH, NIFTY_EXIT490_ATR_BARS, 3) + 5
+    if len(history) < min_len:
+        logger.info(
+            "%s ST — need %d bars, have %d (%s).",
+            spec.label,
+            min_len,
+            len(history),
+            interval,
+        )
         return None
 
     if NIFTY_ST_ENGINE == "exit490":
         st_raw = compute_supertrend_exit490(
-            session,
+            history,
             bars_back=NIFTY_EXIT490_ATR_BARS,
             mult=NIFTY_EXIT490_ATR_MULT,
         )
         st_flip = st_raw.assign(direction=-st_raw["direction"])
-        flip = supertrend_flip_pine(st_flip)
+        flip = supertrend_flip_closed_bar(st_flip)
     else:
-        st_raw = compute_supertrend(session, length=NIFTY_ST_ATR_LENGTH, multiplier=NIFTY_ST_FACTOR)
-        flip = supertrend_flip_pine(st_raw)
+        st_raw = compute_supertrend(history, length=NIFTY_ST_ATR_LENGTH, multiplier=NIFTY_ST_FACTOR)
+        flip = supertrend_flip_closed_bar(st_raw)
 
     if flip is None:
         return None
 
-    spot = float(session["Close"].iloc[-1])
-    st_line = float(st_raw["st_line"].iloc[-1])
+    closed_bar = st_raw.index[-2]
+    if closed_bar.tz_convert("Asia/Kolkata").date() != now_ist().date():
+        return None
+
+    session = today_session_df(history, now_ist().date())
+    spot = float(history["Close"].iloc[-1])
+    st_line = float(st_raw["st_line"].iloc[-2])
     return build_index_option_signal(
         spec,
         flip=flip,

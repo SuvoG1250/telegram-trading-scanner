@@ -32,7 +32,8 @@ from config import (
     SENSEX_STRIKE_STEP,
     SENSEX_TICKER,
 )
-from index_options import IndexOptionSpec, _fetch_index_history, build_index_option_signal
+from data_fetcher import fetch_index_history, resample_ohlcv
+from index_options import IndexOptionSpec, build_index_option_signal
 from indicators import compute_macd, ema, heikin_ashi
 from market_sentiment import NIFTY_TICKER
 from market_time import is_chaitu_session, is_market_open, now_ist
@@ -66,6 +67,18 @@ SENSEX_EMA_MACD_SPEC = IndexOptionSpec(
     enabled=SENSEX_OPTIONS_ENABLED and EMA_MACD_OPTIONS_ENABLED,
     fetch_quote=lambda strike, opt: fetch_sensex_option_quote(strike, opt),
 )
+
+
+def _load_ema_macd_bars(ticker: str) -> tuple[pd.DataFrame, str]:
+    """yfinance has no native 3m — resample 1m bars to 3-minute OHLC."""
+    target = EMA_MACD_INTERVAL if EMA_MACD_INTERVAL in ("1m", "3m", "5m", "15m") else "3m"
+    if target == "3m":
+        raw = fetch_index_history(ticker, "1m", period="7d")
+        if raw.empty:
+            return raw, "3m"
+        return resample_ohlcv(raw, "3min"), "3m"
+    period = "10d" if target in ("1m", "5m") else "60d"
+    return fetch_index_history(ticker, target, period=period), target
 
 
 def _prepare_bars(raw: pd.DataFrame) -> pd.DataFrame:
@@ -108,14 +121,14 @@ def _ema_macd_flip(df: pd.DataFrame) -> str | None:
     return None
 
 
-def _signal_note(flip: str, ema_slow: float, hist: float) -> str:
+def _signal_note(flip: str, ema_slow: float, hist: float, interval: str) -> str:
     candle = "Heikin Ashi" if EMA_MACD_USE_HEIKIN else "OHLC"
     macd_tag = "green" if hist > 0 else "red"
     cross = "EMA 9 crossed above EMA 21" if flip == "CALL" else "EMA 9 crossed below EMA 21"
     return (
         f"{cross} · MACD hist {macd_tag} "
         f"({EMA_MACD_FAST_LENGTH}/{EMA_MACD_SLOW_LENGTH}/{EMA_MACD_SIGNAL_LENGTH}) · "
-        f"{candle} {EMA_MACD_INTERVAL} · EMA21 ref ₹{ema_slow:,.2f}"
+        f"{candle} {interval} · EMA21 ref ₹{ema_slow:,.2f}"
     )
 
 
@@ -125,8 +138,7 @@ def scan_index_ema_macd_option(spec: IndexOptionSpec) -> Signal | None:
     if not is_market_open() or not is_chaitu_session():
         return None
 
-    interval = EMA_MACD_INTERVAL if EMA_MACD_INTERVAL in ("1m", "3m", "5m", "15m") else "3m"
-    raw = _fetch_index_history(spec.yf_ticker, interval)
+    raw, interval = _load_ema_macd_bars(spec.yf_ticker)
     min_len = max(EMA_MACD_SLOW_LENGTH, EMA_MACD_EMA_SLOW, EMA_MACD_SIGNAL_LENGTH) + 5
     if len(raw) < min_len:
         logger.info(
@@ -146,6 +158,7 @@ def scan_index_ema_macd_option(spec: IndexOptionSpec) -> Signal | None:
     closed_bar = bars.index[-2]
     closed_ist = closed_bar.tz_convert("Asia/Kolkata")
     if closed_ist.date() != now_ist().date():
+        logger.debug("%s EMA+MACD — cross not on today's session.", spec.label)
         return None
 
     spot = float(bars["Close"].iloc[-1])
@@ -158,15 +171,16 @@ def scan_index_ema_macd_option(spec: IndexOptionSpec) -> Signal | None:
             signal=EMA_MACD_SIGNAL_LENGTH,
         )["histogram"].iloc[-2]
     )
-    note = _signal_note(flip, ema_slow, hist)
+    note = _signal_note(flip, ema_slow, hist, interval)
 
     logger.info(
-        "%s EMA+MACD %s — spot=%.2f hist=%.2f ema21=%.2f",
+        "%s EMA+MACD %s — spot=%.2f hist=%.2f ema21=%.2f bars=%d",
         spec.label,
         flip,
         spot,
         hist,
         ema_slow,
+        len(bars),
     )
 
     return build_index_option_signal(

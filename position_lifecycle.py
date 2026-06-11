@@ -353,14 +353,22 @@ def _option_slot_key(instrument: str, side_label: str) -> str:
     return f"{instrument}|{side_label}"
 
 
-def premium_position_open(side_label: str, instrument: str = "NIFTY_OPTION") -> bool:
+def premium_position_open(
+    side_label: str,
+    instrument: str = "NIFTY_OPTION",
+    *,
+    strategy: str = "",
+) -> bool:
     blob = _load()
     for row in blob["premium"]:
         if row.get("status") != "OPEN":
             continue
         row_inst = str(row.get("instrument") or "NIFTY_OPTION")
-        if row_inst == instrument and row.get("side_label") == side_label:
-            return True
+        if row_inst != instrument or row.get("side_label") != side_label:
+            continue
+        if strategy and row.get("strategy") != strategy:
+            continue
+        return True
     return False
 
 

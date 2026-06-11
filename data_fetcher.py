@@ -140,3 +140,56 @@ def get_today_session(symbol: str, interval: Interval) -> pd.DataFrame:
 
         _SESSION_CACHE[key] = today_session_df(df, now_ist().date())
     return _SESSION_CACHE[key]
+
+
+def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    """Aggregate intraday OHLCV (e.g. 1m → 3min Heikin Ashi source bars)."""
+    if df.empty:
+        return df
+    agg: dict[str, str] = {
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+    }
+    if "Volume" in df.columns:
+        agg["Volume"] = "sum"
+    out = df.resample(rule).agg(agg).dropna(subset=["Close"])
+    return out
+
+
+def fetch_index_history(
+    ticker: str,
+    interval: str,
+    period: str | None = None,
+) -> pd.DataFrame:
+    """Index/futures yfinance history with throttle + retries (^NSEI, ^BSESN)."""
+    if period is None:
+        period = "7d" if interval == "1m" else ("10d" if interval in ("3m", "5m") else "60d")
+    last_err: Exception | None = None
+
+    for attempt in range(_YF_MAX_RETRIES):
+        _throttle_yfinance()
+        try:
+            df = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=True)
+            return _normalize_df(df)
+        except Exception as exc:
+            last_err = exc
+            if _is_rate_limited(exc):
+                wait = min(30.0, 2.0 * (2**attempt))
+                logger.warning(
+                    "yfinance rate limit for %s (%s) — retry %s/%s in %.0fs",
+                    ticker,
+                    interval,
+                    attempt + 1,
+                    _YF_MAX_RETRIES,
+                    wait,
+                )
+                time.sleep(wait)
+                continue
+            logger.exception("Failed to fetch index %s (%s)", ticker, interval)
+            return pd.DataFrame()
+
+    if last_err is not None:
+        logger.error("yfinance gave up on index %s (%s): %s", ticker, interval, last_err)
+    return pd.DataFrame()

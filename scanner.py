@@ -258,11 +258,12 @@ def run_index_options_scan(scan_fn, *, index_label: str) -> Signal | None:
     if sig is None:
         return None
     instrument = sig.instrument or "NIFTY_OPTION"
-    if premium_position_open(sig.side, instrument):
+    if premium_position_open(sig.side, instrument, strategy=sig.strategy):
         logger.info(
-            "Skip %s option (%s) — premium plan still awaiting SL/Target.",
+            "Skip %s option (%s / %s) — premium plan still awaiting SL/Target.",
             index_label,
             sig.side,
+            sig.strategy,
         )
         return None
 
@@ -408,7 +409,8 @@ def main() -> int:
 
     if is_premarket_window():
         run_premarket()
-        return 0
+        if not is_market_open():
+            return 0
 
     from config import NIFTY_BTST_ENABLED, STOCK_BTST_ENABLED
     from market_time import is_nifty_btst_window, is_stock_btst_window
