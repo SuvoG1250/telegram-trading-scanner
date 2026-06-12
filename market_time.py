@@ -175,13 +175,21 @@ def is_stock_btst_window(dt: datetime | None = None) -> bool:
     return _after((15, 10), t) and _before((15, 20), t)
 
 
-def is_nifty_btst_window(dt: datetime | None = None) -> bool:
-    """3:20 PM – 3:30 PM IST — Nifty BTST research alert before close."""
+def is_index_btst_window(dt: datetime | None = None) -> bool:
+    """3:15 PM – 3:25 PM IST — Nifty/Sensex overnight gap probability BTST."""
     dt = dt or now_ist()
     if not is_weekday(dt) or not is_market_open(dt):
         return False
     t = ist_time_tuple(dt)
-    return _after((15, 20), t) and _before((15, 30), t)
+    return _after((15, 15), t) and _before((15, 25), t)
+
+
+def is_nifty_btst_window(dt: datetime | None = None) -> bool:
+    return is_index_btst_window(dt)
+
+
+def is_sensex_btst_window(dt: datetime | None = None) -> bool:
+    return is_index_btst_window(dt)
 
 
 def is_eod_summary_due(dt: datetime | None = None) -> bool:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick check that GEMINI_API_KEY works for BTST summaries."""
+"""Dry-run Nifty BTST gap probability model."""
 
 from __future__ import annotations
 
@@ -9,25 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from config import GEMINI_API_KEY  # noqa: E402
-from gemini_client import gemini_generate  # noqa: E402
-from nifty_btst import _optional_gemini_summary  # noqa: E402
+from index_btst import assess_gap_probability, format_btst_report  # noqa: E402
+from nifty_btst import NIFTY_BTST_SPEC  # noqa: E402
 
 
 def main() -> int:
-    if not GEMINI_API_KEY:
-        print("Set GEMINI_API_KEY in .env")
-        return 1
-    text = _optional_gemini_summary(
-        ["Nifty holds gains ahead of Fed", "Bank Nifty leads advance"],
-        {"summary": "Mild bullish bias, gap up open"},
-        "CALL",
-    )
-    if not text:
-        print("Gemini returned empty — check API key / billing / model name.")
-        return 1
-    print("Gemini OK — sample BTST summary:")
-    print(text[:600])
+    a = assess_gap_probability(NIFTY_BTST_SPEC)
+    print(format_btst_report(NIFTY_BTST_SPEC, a).replace("<b>", "").replace("</b>", ""))
     return 0
 
 

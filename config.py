@@ -163,16 +163,19 @@ NO_SIGNAL_STATUS_ON_AUTO_SCAN = (
     in ("1", "true", "yes")
 )
 # Nifty options — Supertrend (Pine: ATR 10, factor 3)
-# Nifty BTST — one overnight CALL/PUT alert after sentiment + news research (3:20–3:30 PM IST)
+# Index BTST — probability gap model (Nifty + Sensex), 3:15–3:25 PM IST
 NIFTY_BTST_ENABLED = os.environ.get("NIFTY_BTST_ENABLED", "true").lower() in (
     "1",
     "true",
     "yes",
 )
-# BTST CALL/PUT only when all confirmation checks pass (else risky warning)
-NIFTY_BTST_MIN_SCORE = float(os.environ.get("NIFTY_BTST_MIN_SCORE", "2.5"))
-# Minimum confirmation % to send BUY CALL/PUT (default 80 = 5/6 checks pass)
-NIFTY_BTST_MIN_CONFIRM_PCT = float(os.environ.get("NIFTY_BTST_MIN_CONFIRM_PCT", "80"))
+SENSEX_BTST_ENABLED = os.environ.get("SENSEX_BTST_ENABLED", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+INDEX_BTST_MIN_GAP_PROB = float(os.environ.get("INDEX_BTST_MIN_GAP_PROB", "55"))
+INDEX_BTST_LOT_GUIDANCE_PCT = os.environ.get("INDEX_BTST_LOT_GUIDANCE_PCT", "25-50")
 # Stock BTST — BUY only, fundamental + news, 3:10–3:20 PM IST
 STOCK_BTST_ENABLED = os.environ.get("STOCK_BTST_ENABLED", "true").lower() in (
     "1",

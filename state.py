@@ -147,6 +147,7 @@ def _session_today() -> dict[str, Any]:
             "start_sent": False,
             "stop_sent": False,
             "nifty_btst_sent": False,
+            "sensex_btst_sent": False,
             "stock_btst_sent": False,
             "stock_btst_symbols": [],
             "premarket_summary_sent": False,
@@ -192,6 +193,16 @@ def nifty_btst_sent() -> bool:
 def mark_nifty_btst_sent() -> None:
     data = _session_today()
     data["nifty_btst_sent"] = True
+    _save_session(data)
+
+
+def sensex_btst_sent() -> bool:
+    return bool(_session_today().get("sensex_btst_sent"))
+
+
+def mark_sensex_btst_sent() -> None:
+    data = _session_today()
+    data["sensex_btst_sent"] = True
     _save_session(data)
 
 

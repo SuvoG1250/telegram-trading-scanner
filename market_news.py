@@ -25,6 +25,22 @@ _BEARISH = re.compile(
     r"downside|bearish|outflow|downgrade|war|inflation|rate hike)\b",
     re.I,
 )
+_HIGH_IMPACT = re.compile(
+    r"\b(RBI policy|repo rate|Fed|FOMC|US Fed|budget|union budget|"
+    r"inflation data|CPI print|GDP data|election result|war|geopolitical|"
+    r"trade war|sanctions|rate hike|rate cut decision)\b",
+    re.I,
+)
+
+
+def detect_high_impact_events(headlines: list[str]) -> list[str]:
+    """Major events → advise NO TRADE for overnight BTST."""
+    hits: list[str] = []
+    for h in headlines:
+        m = _HIGH_IMPACT.search(h)
+        if m:
+            hits.append(h[:120])
+    return hits[:5]
 
 _GOOGLE_NEWS_RSS = (
     "https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"

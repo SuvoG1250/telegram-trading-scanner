@@ -428,6 +428,11 @@ def main() -> int:
             from nifty_btst import run_nifty_btst_alert
 
             run_nifty_btst_alert()
+            from config import SENSEX_BTST_ENABLED
+            from sensex_btst import run_sensex_btst_alert
+
+            if SENSEX_BTST_ENABLED:
+                run_sensex_btst_alert()
             return 0
 
     if handle_session_alerts():
@@ -439,7 +444,7 @@ def main() -> int:
         return 0
 
     if not is_new_trade_window():
-        logger.info("After 3:00 PM IST — Stock BTST 3:10, Nifty BTST 3:20, summary 3:30 PM.")
+        logger.info("After 3:00 PM IST — Stock BTST 3:10, Index BTST 3:15, summary 3:32 PM.")
         return 0
 
     # Session start alert is handled centrally in handle_session_alerts().

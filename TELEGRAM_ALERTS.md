@@ -121,16 +121,22 @@ Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 
 ---
 
-### 5. Nifty BTST (once per day)
+### 5. Nifty + Sensex BTST (gap probability)
 
 | | |
 |---|---|
-| **When** | Mon–Fri, **3:20 – 3:30 PM IST** |
-| **Confirm** | >80% of 6 checks (≥5/6 pass) |
+| **When** | Mon–Fri, **3:15 – 3:25 PM IST** |
+| **Model** | GIFT premium · US futures · 15m/daily structure · PCR/OI · event risk |
+| **Output** | Gap Up / Down / Flat % + **HOLD CE** / **HOLD PE** / **NO TRADE** |
+| **Lot guidance** | 25–50% of normal size · exit **9:15 AM** next day |
 
-**Confirmed** → full BUY CALL/PUT BTST + research checklist + headlines + optional AI.
+```
+📊 NIFTY BTST Gap Analysis
+Probability Score · Technical Breakdown · Final Action
+HOLD CALL (CE) / HOLD PUT (PE) / NO TRADE
+```
 
-**Not confirmed** → `⚠️ BTST RISKY TODAY — DO NOT TAKE BTST` + checklist + score.
+High-impact events (RBI, Fed, Budget, etc.) → automatic **NO TRADE**.
 
 ---
 
