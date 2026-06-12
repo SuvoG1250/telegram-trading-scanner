@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import requests
@@ -18,7 +18,15 @@ from upstox_token import get_access_token
 logger = logging.getLogger(__name__)
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
+UPSTOX_V3_BASE = "https://api.upstox.com/v3"
 UPSTOX_HFT_BASE = "https://api-hft.upstox.com/v3"
+
+# Nifty weekly = Tue (1), Sensex weekly = Thu (3) — same as Fyers / index_options specs.
+_INDEX_WEEKLY_WEEKDAY = {
+    "NSE_INDEX|Nifty 50": 1,
+    "BSE_INDEX|SENSEX": 3,
+}
+_expiry_cache: dict[tuple[str, str], str] = {}
 
 _LAST_ERROR = ""
 
@@ -134,10 +142,74 @@ def fetch_expiries(instrument_key: str | None = None) -> list[str]:
     return sorted({str(row["expiry"]) for row in data if row.get("expiry")})
 
 
+def _weekly_expiry_date(expiry_weekday: int, ref: datetime | None = None) -> date:
+    """Next weekly expiry on expiry_weekday (0=Mon … 3=Thu)."""
+    from market_time import now_ist
+
+    dt = ref or now_ist()
+    days = (expiry_weekday - dt.weekday()) % 7
+    if days == 0 and dt.hour >= 15 and dt.minute >= 30:
+        days = 7
+    return (dt + timedelta(days=days)).date()
+
+
+def _normalize_instrument_key(key: str) -> str:
+    return key.replace(":", "|").strip()
+
+
+def fetch_ltp_v3(instrument_keys: list[str]) -> dict[str, float]:
+    """Live LTP via Upstox market-quote v3 (fresher than option-chain snapshot)."""
+    keys = [_normalize_instrument_key(k) for k in instrument_keys if k]
+    if not keys or not upstox_configured():
+        return {}
+    data = _request(
+        "GET",
+        f"{UPSTOX_V3_BASE}/market-quote/ltp",
+        params={"instrument_key": ",".join(keys)},
+    )
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, float] = {}
+    for raw_key, payload in data.items():
+        if not isinstance(payload, dict):
+            continue
+        lp = payload.get("last_price")
+        if lp is None:
+            continue
+        try:
+            out[_normalize_instrument_key(str(raw_key))] = float(lp)
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def refresh_option_ltp(quote: OptionQuote) -> OptionQuote:
+    """Prefer v3 LTP over stale option-chain snapshot."""
+    if not quote.instrument_key:
+        return quote
+    v3 = fetch_ltp_v3([quote.instrument_key])
+    ltp = v3.get(_normalize_instrument_key(quote.instrument_key))
+    if ltp and ltp > 0:
+        return OptionQuote(
+            last_price=round(ltp, 2),
+            bid=quote.bid,
+            ask=quote.ask,
+            security_id=quote.security_id,
+            spot=quote.spot,
+            expiry=quote.expiry,
+            strike=quote.strike,
+            option_type=quote.option_type,
+            instrument_key=quote.instrument_key,
+        )
+    return quote
+
+
 def nearest_expiry(expiries: list[str]) -> str | None:
     if not expiries:
         return None
-    today = datetime.now().date()
+    from market_time import now_ist
+
+    today = now_ist().date()
     future: list[tuple] = []
     for raw in expiries:
         try:
@@ -149,10 +221,92 @@ def nearest_expiry(expiries: list[str]) -> str | None:
     if not future:
         return expiries[-1]
     future.sort(key=lambda x: x[0])
-    for d, raw in future:
-        if (d - today).days <= 8:
-            return raw
     return future[0][1]
+
+
+def resolve_option_expiry(
+    index_instrument_key: str,
+    expiry: str | None = None,
+) -> str | None:
+    """Pick expiry with chain data — weekly first, then earliest listed."""
+    from market_time import now_ist
+
+    today = now_ist().date()
+    if expiry:
+        if fetch_option_chain(expiry, index_instrument_key):
+            return expiry
+        return None
+
+    cache_key = (index_instrument_key, today.isoformat())
+    cached = _expiry_cache.get(cache_key)
+    if cached and fetch_option_chain(cached, index_instrument_key):
+        return cached
+    weekday = _INDEX_WEEKLY_WEEKDAY.get(index_instrument_key)
+    if weekday is not None:
+        weekly = _weekly_expiry_date(weekday)
+        found: list[date] = []
+        seen: set[date] = set()
+        for week_offset in (-1, 0, 1, 2):
+            anchor = weekly + timedelta(weeks=week_offset)
+            for delta in (-2, -1, 0, 1, 2):
+                d = anchor + timedelta(days=delta)
+                if d in seen:
+                    continue
+                seen.add(d)
+                if fetch_option_chain(d.strftime("%Y-%m-%d"), index_instrument_key):
+                    found.append(d)
+        if found:
+            future = sorted(d for d in found if d >= today)
+            if future:
+                chosen = future[0].strftime("%Y-%m-%d")
+                _expiry_cache[cache_key] = chosen
+                return chosen
+            recent_past = sorted(d for d in found if 0 < (today - d).days <= 7)
+            if recent_past:
+                chosen = recent_past[-1].strftime("%Y-%m-%d")
+                _expiry_cache[cache_key] = chosen
+                return chosen
+            best = min(found, key=lambda d: abs((d - today).days))
+            chosen = best.strftime("%Y-%m-%d")
+            _expiry_cache[cache_key] = chosen
+            return chosen
+
+    expiries = fetch_expiries(index_instrument_key)
+    exp = nearest_expiry(expiries)
+    if exp and fetch_option_chain(exp, index_instrument_key):
+        _expiry_cache[cache_key] = exp
+        return exp
+    if exp:
+        _expiry_cache[cache_key] = exp
+    return exp
+
+
+def _find_chain_row(chain: list[dict], strike: int) -> dict | None:
+    best_row = None
+    best_diff: int | None = None
+    for row in chain:
+        sp = row.get("strike_price")
+        if sp is None:
+            continue
+        s = int(float(sp))
+        diff = abs(s - strike)
+        if best_diff is None or diff < best_diff:
+            best_diff = diff
+            best_row = row
+            if diff == 0:
+                break
+    return best_row
+
+
+def _ltp_from_leg_md(md: dict) -> float:
+    ltp = float(md.get("ltp") or 0)
+    if ltp > 0:
+        return ltp
+    bid = float(md.get("bid_price") or 0)
+    ask = float(md.get("ask_price") or 0)
+    if bid > 0 and ask > 0:
+        return (bid + ask) / 2.0
+    return bid or ask or 0.0
 
 
 def fetch_option_chain(expiry: str, instrument_key: str | None = None) -> list[dict] | None:
@@ -190,31 +344,28 @@ def lookup_option_leg(
     expiry: str | None = None,
 ) -> tuple[OptionQuote | None, str]:
     """Return quote + instrument_key for option leg."""
-    exp = expiry or nearest_expiry(fetch_expiries(index_instrument_key))
+    exp = resolve_option_expiry(index_instrument_key, expiry)
     if not exp:
         return None, ""
     chain = fetch_option_chain(exp, index_instrument_key)
     if not chain:
         return None, ""
 
-    row_match = None
-    spot = None
-    for row in chain:
-        sp = row.get("strike_price")
-        if sp is not None and int(float(sp)) == int(strike):
-            row_match = row
-            spot = row.get("underlying_spot_price")
-            break
+    row_match = _find_chain_row(chain, strike)
     if not row_match:
         return None, ""
+
+    leg_strike = int(float(row_match.get("strike_price") or strike))
+    spot = row_match.get("underlying_spot_price")
 
     leg_key = "call_options" if option_type.upper() == "CE" else "put_options"
     leg = row_match.get(leg_key) or {}
     inst_key = str(leg.get("instrument_key") or leg.get("instrument_token") or "")
     md = leg.get("market_data") or {}
-    ltp = float(md.get("ltp") or 0)
-    if ltp <= 0:
-        ltp = float(md.get("ask_price") or md.get("bid_price") or 0)
+    ltp = _ltp_from_leg_md(md)
+    if ltp <= 0 and inst_key:
+        v3 = fetch_ltp_v3([inst_key])
+        ltp = v3.get(_normalize_instrument_key(inst_key), 0.0)
     if ltp <= 0:
         return None, inst_key
 
@@ -225,11 +376,11 @@ def lookup_option_leg(
         security_id=None,
         spot=float(spot) if spot else None,
         expiry=exp,
-        strike=strike,
+        strike=leg_strike,
         option_type=option_type.upper(),
         instrument_key=inst_key,
     )
-    return quote, inst_key
+    return refresh_option_ltp(quote), inst_key
 
 
 def _fetch_index_option_quote(

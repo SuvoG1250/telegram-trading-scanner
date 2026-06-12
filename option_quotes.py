@@ -22,12 +22,13 @@ def fetch_nifty_option_quote(strike: int, option_type: str, expiry: str | None =
     if provider in ("upstox", "auto"):
         from upstox_api import fetch_nifty_option_quote as upstox_quote
         from upstox_api import upstox_configured
-        from upstox_websocket import get_ws_ltp
+        from upstox_websocket import get_ws_ltp, subscribe_instruments
 
         if upstox_configured():
             q = upstox_quote(strike, option_type, expiry)
             if q:
                 if q.instrument_key:
+                    subscribe_instruments([q.instrument_key])
                     ws_ltp = get_ws_ltp(q.instrument_key)
                     if ws_ltp and ws_ltp > 0:
                         q = replace(q, last_price=round(ws_ltp, 2))
@@ -59,12 +60,13 @@ def fetch_sensex_option_quote(strike: int, option_type: str, expiry: str | None 
     if provider in ("upstox", "auto"):
         from upstox_api import fetch_sensex_option_quote as upstox_quote
         from upstox_api import upstox_configured
-        from upstox_websocket import get_ws_ltp
+        from upstox_websocket import get_ws_ltp, subscribe_instruments
 
         if upstox_configured():
             q = upstox_quote(strike, option_type, expiry)
             if q:
                 if q.instrument_key:
+                    subscribe_instruments([q.instrument_key])
                     ws_ltp = get_ws_ltp(q.instrument_key)
                     if ws_ltp and ws_ltp > 0:
                         q = replace(q, last_price=round(ws_ltp, 2))

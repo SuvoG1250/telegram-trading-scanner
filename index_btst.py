@@ -383,6 +383,8 @@ def _build_option_signal(spec: IndexBtstSpec, a: GapAssessment) -> Signal | None
     if quote:
         premium = quote.last_price
         premium_source = src
+        if quote.strike:
+            strike = int(quote.strike)
         if quote.spot:
             spot = quote.spot
         exp_raw = (quote.expiry or "").strip()
