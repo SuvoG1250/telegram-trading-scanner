@@ -140,20 +140,20 @@ Sensex uses **100-point strikes**, Thursday weekly expiry, same premium plan.
 |---|---|
 | **When** | **7:00 AM – 11:00 PM IST**, all days — **not during NSE hours (9:15–15:30 Mon–Fri)** |
 | **Symbols** | BTCUSD, ETHUSD, XAUUSD |
-| **Timeframe** | **1 Hour** (last closed candle only) |
-| **SL / Target** | Swing structure (not fixed ATR/RR) |
-| **Min R:R** | ≥ 1:3 from structure (max ~1:8) |
-| **Dedup** | No repeat in same entry/target range until SL/target hit |
+| **Strategy** | **H4 EMA trend** + **M30 fractal sweep** + **engulfing** |
+| **Sessions** | London (08–16 UTC) or New York (13–22 UTC) |
+| **SL / Target** | Engulfing extreme · fixed **1:2 R:R** |
+| **Dedup** | One active plan per symbol until SL/target |
 
 ```
 🟢 BTCUSD BUY — Bitcoin
-Strategy: Global 1H Structure + Trend
-Timeframe: 1 Hour (confirmed closed candle)
+Strategy: Global H4 + M30 Fractal Sweep
+Timeframe: H4 bias · M30 entry (closed candle)
 Entry: 67500.00
-Stop Loss: 66200.00 (structure)
-Target: 70100.00 (structure)
-Risk:Reward: 1:3.45
-Market Analysis: 1H bullish structure… SL at swing low; target at resistance
+Stop Loss: 66800.00 (engulfing extreme)
+Target: 68900.00 (1:2 R:R)
+Fractal sweep: 66950.00
+Analysis: H4 bullish bias · M30 sweep + engulfing · London session
 Outside NSE hours · 07:00–23:00 IST · <time>
 ```
 
