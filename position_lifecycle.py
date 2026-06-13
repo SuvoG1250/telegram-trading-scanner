@@ -80,7 +80,7 @@ def _empty_blob() -> dict[str, Any]:
 _GLOBAL_TICKERS: dict[str, str] = {
     "BTCUSD": "BTC-USD",
     "ETHUSD": "ETH-USD",
-    "XAUUSD": "XAUUSD=X",
+    "XAUUSD": "GC=F",
 }
 
 

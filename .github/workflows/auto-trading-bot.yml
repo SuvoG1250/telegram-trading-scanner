@@ -106,6 +106,8 @@ jobs:
       GLOBAL_NY_END_HOUR: "22"
       GLOBAL_ENABLE_BUY: "true"
       GLOBAL_ENABLE_SELL: "true"
+      GLOBAL_CRYPTO_24H: "true"
+      GLOBAL_M30_LOOKBACK_BARS: "12"
       GLOBAL_DEDUP_ENTRY_PCT: "0.35"
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GEMINI_MODEL: gemini-2.5-flash

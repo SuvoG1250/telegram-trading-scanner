@@ -19,6 +19,7 @@ import pandas as pd
 
 from config import (
     GLOBAL_ASSETS_ENABLED,
+    GLOBAL_CRYPTO_24H,
     GLOBAL_ENABLE_BUY,
     GLOBAL_ENABLE_SELL,
     GLOBAL_ENGULF_ATR_MULT,
@@ -27,6 +28,7 @@ from config import (
     GLOBAL_HTF_INTERVAL,
     GLOBAL_LONDON_END_HOUR,
     GLOBAL_LONDON_START_HOUR,
+    GLOBAL_M30_LOOKBACK_BARS,
     GLOBAL_NY_END_HOUR,
     GLOBAL_NY_START_HOUR,
     GLOBAL_RR_RATIO,
@@ -44,10 +46,15 @@ from telegram_client import send_plain
 logger = logging.getLogger(__name__)
 
 _STRATEGY = "Global H4 + M30 Fractal Sweep"
-_ASSETS: dict[str, dict[str, str]] = {
-    "BTCUSD": {"ticker": "BTC-USD", "label": "Bitcoin"},
-    "ETHUSD": {"ticker": "ETH-USD", "label": "Ethereum"},
-    "XAUUSD": {"ticker": "XAUUSD=X", "label": "Gold Spot"},
+_ASSETS: dict[str, dict] = {
+    "BTCUSD": {"ticker": "BTC-USD", "label": "Bitcoin", "crypto": True},
+    "ETHUSD": {"ticker": "ETH-USD", "label": "Ethereum", "crypto": True},
+    "XAUUSD": {
+        "ticker": "GC=F",
+        "label": "Gold",
+        "tickers": ["GC=F", "XAUUSD=X", "GLD"],
+        "crypto": False,
+    },
 }
 
 
@@ -81,7 +88,18 @@ def _fetch_bars(ticker: str, interval: str, period: str) -> pd.DataFrame:
     return _normalize_df(raw)
 
 
-def _in_session_utc(ts: pd.Timestamp) -> bool:
+def _fetch_asset_bars(meta: dict, interval: str, period: str) -> pd.DataFrame:
+    tickers = meta.get("tickers") or [meta["ticker"]]
+    for ticker in tickers:
+        bars = _fetch_bars(ticker, interval, period)
+        if bars is not None and not bars.empty:
+            return bars
+    return pd.DataFrame()
+
+
+def _in_session_utc(ts: pd.Timestamp, symbol: str = "") -> bool:
+    if symbol in ("BTCUSD", "ETHUSD") and GLOBAL_CRYPTO_24H:
+        return True
     hour = int(ts.tz_convert("UTC").hour)
     london = GLOBAL_LONDON_START_HOUR <= hour < GLOBAL_LONDON_END_HOUR
     ny = GLOBAL_NY_START_HOUR <= hour < GLOBAL_NY_END_HOUR
@@ -103,13 +121,31 @@ def _htf_bias(df_h4: pd.DataFrame, idx: int = -2) -> str | None:
     return None
 
 
+def _htf_bias_as_of(df_h4: pd.DataFrame, ts: pd.Timestamp) -> str | None:
+    """H4 bias on the last completed H4 bar at or before the M30 signal time."""
+    if df_h4.empty:
+        return None
+    ts = ts.tz_convert(df_h4.index.tz) if ts.tzinfo else ts
+    hist = df_h4[df_h4.index <= ts]
+    if len(hist) < 55:
+        return None
+    return _htf_bias(hist, -2)
+
+
+def _bar_index(df: pd.DataFrame, idx: int) -> int:
+    return len(df) + idx if idx < 0 else idx
+
+
 def _fractal_levels(df: pd.DataFrame, side: str, idx: int, bars: int) -> list[float]:
     """Recent fractal highs/lows on completed bars before idx."""
+    pi = _bar_index(df, idx)
     high = df["High"]
     low = df["Low"]
     levels: list[float] = []
-    start = max(bars, idx - 40)
-    end = idx - bars
+    start = max(bars, pi - 40)
+    end = pi - bars
+    if end <= start:
+        return levels
     for i in range(start, end):
         if side == "low":
             if all(float(low.iloc[i]) < float(low.iloc[i - j]) for j in range(1, bars + 1)):
@@ -150,10 +186,11 @@ def _bearish_sweep(df: pd.DataFrame, idx: int, bars: int) -> float | None:
 
 
 def _bullish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
-    if idx < 1:
+    pi = _bar_index(df, idx)
+    if pi < 1:
         return False
-    cur = df.iloc[idx]
-    prev = df.iloc[idx - 1]
+    cur = df.iloc[pi]
+    prev = df.iloc[pi - 1]
     o, c = float(cur["Open"]), float(cur["Close"])
     po, pc = float(prev["Open"]), float(prev["Close"])
     if not (pc < po and c > o):
@@ -164,10 +201,11 @@ def _bullish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
 
 
 def _bearish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
-    if idx < 1:
+    pi = _bar_index(df, idx)
+    if pi < 1:
         return False
-    cur = df.iloc[idx]
-    prev = df.iloc[idx - 1]
+    cur = df.iloc[pi]
+    prev = df.iloc[pi - 1]
     o, c = float(cur["Open"]), float(cur["Close"])
     po, pc = float(prev["Open"]), float(prev["Close"])
     if not (pc > po and c < o):
@@ -177,16 +215,23 @@ def _bearish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
     return abs(o - c) >= min_body
 
 
-def _build_trade(symbol: str, label: str, df_h4: pd.DataFrame, df_m30: pd.DataFrame) -> dict | None:
-    idx = -2
+def _build_trade_at_idx(
+    symbol: str,
+    label: str,
+    df_h4: pd.DataFrame,
+    df_m30: pd.DataFrame,
+    idx: int,
+) -> dict | None:
     if len(df_m30) < 30 or len(df_h4) < 20:
+        return None
+    if abs(idx) >= len(df_m30):
         return None
 
     ts = df_m30.index[idx]
-    if not _in_session_utc(ts):
+    if not _in_session_utc(ts, symbol):
         return None
 
-    bias = _htf_bias(df_h4, idx=-2)
+    bias = _htf_bias_as_of(df_h4, ts)
     if bias is None:
         return None
 
@@ -229,7 +274,12 @@ def _build_trade(symbol: str, label: str, df_h4: pd.DataFrame, df_m30: pd.DataFr
         target = _round_px(entry - risk * GLOBAL_RR_RATIO, symbol)
 
     rr = GLOBAL_RR_RATIO
-    session = "London" if GLOBAL_LONDON_START_HOUR <= ts.tz_convert("UTC").hour < GLOBAL_LONDON_END_HOUR else "New York"
+    if symbol in ("BTCUSD", "ETHUSD") and GLOBAL_CRYPTO_24H:
+        session = "24h crypto"
+    elif GLOBAL_LONDON_START_HOUR <= ts.tz_convert("UTC").hour < GLOBAL_LONDON_END_HOUR:
+        session = "London"
+    else:
+        session = "New York"
     analysis = (
         f"H4 {'bullish' if side == 'BUY' else 'bearish'} bias (EMA20/50). "
         f"M30 fractal {'low' if side == 'BUY' else 'high'} sweep @ {sweep_lvl:.2f} + engulfing close. "
@@ -245,7 +295,18 @@ def _build_trade(symbol: str, label: str, df_h4: pd.DataFrame, df_m30: pd.DataFr
         "rr": rr,
         "sweep": sweep_lvl,
         "analysis": analysis,
+        "signal_time": ts.isoformat(),
     }
+
+
+def _build_trade(symbol: str, label: str, df_h4: pd.DataFrame, df_m30: pd.DataFrame) -> dict | None:
+    lookback = max(1, GLOBAL_M30_LOOKBACK_BARS)
+    for offset in range(2, 2 + lookback):
+        idx = -offset
+        plan = _build_trade_at_idx(symbol, label, df_h4, df_m30, idx)
+        if plan:
+            return plan
+    return None
 
 
 def _format_message(plan: dict) -> str:
@@ -271,23 +332,35 @@ def _format_message(plan: dict) -> str:
 
 def run_global_assets_alerts() -> int:
     """Scan BTC/ETH/XAU — H4 + M30 fractal sweep & engulfing."""
-    if not GLOBAL_ASSETS_ENABLED or not is_global_market_scan_allowed():
+    if not GLOBAL_ASSETS_ENABLED:
+        return 0
+    if not is_global_market_scan_allowed():
+        logger.debug("Global scan skipped — outside alert window or NSE session overlap")
         return 0
 
     reconcile_global_positions()
     sent = 0
     entry_iv = GLOBAL_ENTRY_INTERVAL if GLOBAL_ENTRY_INTERVAL in ("15m", "30m", "60m") else "30m"
     htf_iv = GLOBAL_HTF_INTERVAL if GLOBAL_HTF_INTERVAL in ("1h", "4h") else "4h"
+    logger.info("Global assets scan starting (lookback=%s M30 bars)", GLOBAL_M30_LOOKBACK_BARS)
 
     for symbol, meta in _ASSETS.items():
-        df_m30 = _fetch_bars(meta["ticker"], entry_iv, "60d")
-        df_h4 = _fetch_bars(meta["ticker"], htf_iv, "730d")
+        df_m30 = _fetch_asset_bars(meta, entry_iv, "60d")
+        df_h4 = _fetch_asset_bars(meta, htf_iv, "730d")
         if df_m30 is None or df_h4 is None or df_m30.empty or df_h4.empty:
-            logger.info("Global %s — insufficient data", symbol)
+            tickers = meta.get("tickers") or [meta["ticker"]]
+            logger.info("Global %s — no price data (%s)", symbol, ", ".join(tickers))
             continue
 
+        bias = _htf_bias_as_of(df_h4, df_m30.index[-2]) if len(df_h4) >= 55 else None
         plan = _build_trade(symbol, meta["label"], df_h4, df_m30)
         if not plan:
+            logger.info(
+                "Global %s — no setup (H4 bias=%s, m30_bars=%d)",
+                symbol,
+                bias or "neutral",
+                len(df_m30),
+            )
             continue
 
         block = global_signal_blocked(
@@ -311,5 +384,7 @@ def run_global_assets_alerts() -> int:
                 target=plan["target"],
             )
             sent += 1
-            logger.info("Global M30 signal sent: %s %s", symbol, plan["side"])
+            logger.info("Global M30 signal sent: %s %s @ %s", symbol, plan["side"], plan["entry"])
+    if sent == 0:
+        logger.info("Global assets scan complete — no new setups")
     return sent
