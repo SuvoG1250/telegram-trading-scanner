@@ -324,6 +324,27 @@ def global_signal_blocked(
     return None
 
 
+def global_bar_alerted(symbol: str, signal_time: str) -> bool:
+    """True if this M30 signal bar was already sent today."""
+    if not signal_time:
+        return False
+    blob = _load()
+    day = blob.setdefault("global_alerted_bars", {}).get(today_key(), {})
+    return signal_time in (day.get(symbol) or [])
+
+
+def mark_global_bar_alerted(symbol: str, signal_time: str) -> None:
+    if not signal_time:
+        return
+    blob = _load()
+    root = blob.setdefault("global_alerted_bars", {})
+    day = root.setdefault(today_key(), {})
+    bars = day.setdefault(symbol, [])
+    if signal_time not in bars:
+        bars.append(signal_time)
+    _save(blob)
+
+
 def register_global_open(
     *,
     symbol: str,

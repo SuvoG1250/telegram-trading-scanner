@@ -37,7 +37,9 @@ from data_fetcher import fetch_index_history, resample_ohlcv
 from indicators import atr, ema
 from market_time import is_global_market_scan_allowed, now_ist
 from position_lifecycle import (
+    global_bar_alerted,
     global_signal_blocked,
+    mark_global_bar_alerted,
     reconcile_global_positions,
     register_global_open,
 )
@@ -374,7 +376,13 @@ def run_global_assets_alerts() -> int:
             logger.info("Skip global %s %s — %s", symbol, plan["side"], block)
             continue
 
+        signal_time = str(plan.get("signal_time") or "")
+        if global_bar_alerted(symbol, signal_time):
+            logger.info("Skip global %s %s — bar already alerted (%s)", symbol, plan["side"], signal_time)
+            continue
+
         if send_plain(_format_message(plan), html_mode=True):
+            mark_global_bar_alerted(symbol, signal_time)
             register_global_open(
                 symbol=symbol,
                 strategy=_STRATEGY,
