@@ -322,15 +322,21 @@ def verify_upstox() -> bool:
 
 
 def verify_upstox_trading() -> tuple[bool, str]:
-    """Quotes work with read-only tokens; profile needs a trading token."""
+    """Quotes work with read-only tokens; profile/orders need a trading token."""
     if not upstox_configured():
         return False, "No token"
+    from upstox_token import token_is_likely_analytics
+
+    if token_is_likely_analytics():
+        return False, "Analytics token (read-only) — quotes OK, orders blocked. Use app Generate token."
     data = _get("/user/profile")
     if data:
         return True, "Trading token OK"
     err = (last_upstox_error() or "").lower()
     if "read only" in err or "read-only" in err:
         return False, "Read-only token — use app Generate → /upstox_token (not Analytics tab)"
+    if "static ip" in err:
+        return False, "Static IP lock on profile — disable IP whitelist in Upstox app or use OAuth /upstox_login"
     if err:
         return False, last_upstox_error()
     return False, "Could not verify trading access"

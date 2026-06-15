@@ -78,6 +78,34 @@ def get_access_token() -> str:
     return (UPSTOX_ACCESS_TOKEN or "").strip()
 
 
+def token_is_likely_analytics(token: str | None = None) -> bool:
+    """Extended long-lived JWT from Analytics tab — quotes only, no orders."""
+    tok = (token or get_access_token()).strip()
+    if not tok:
+        return False
+    payload = _jwt_payload(tok)
+    if not payload.get("isExtended"):
+        return False
+    exp = payload.get("exp")
+    if not exp:
+        return False
+    try:
+        exp_dt = datetime.fromtimestamp(int(exp), tz=IST)
+    except (TypeError, ValueError, OSError):
+        return False
+    # Daily trading tokens expire next ~3:30 AM IST; analytics often 1+ year out.
+    return (exp_dt - now_ist()).days > 30
+
+
+def token_kind_label(token: str | None = None) -> str:
+    tok = (token or get_access_token()).strip()
+    if not tok:
+        return "missing"
+    if token_is_likely_analytics(tok):
+        return "analytics (read-only)"
+    return "trading"
+
+
 def token_expiry_ist() -> datetime | None:
     token = get_access_token()
     if not token:
@@ -106,9 +134,10 @@ def token_status_line() -> str:
         return "❌ Upstox token <b>expired</b> — refresh with <code>/upstox_token</code> or <code>/upstox_login</code>"
     exp = token_expiry_ist()
     src = _load_record().get("source") or ("env" if UPSTOX_ACCESS_TOKEN else "unknown")
+    kind = token_kind_label(token)
     if exp:
-        return f"✅ Upstox token valid until <b>{exp.strftime('%d %b %H:%M IST')}</b> ({src})"
-    return f"✅ Upstox token set ({src})"
+        return f"✅ Upstox token valid until <b>{exp.strftime('%d %b %H:%M IST')}</b> ({kind}, {src})"
+    return f"✅ Upstox token set ({kind}, {src})"
 
 
 def build_auth_url() -> tuple[str | None, str]:

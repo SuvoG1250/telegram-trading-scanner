@@ -25,8 +25,8 @@ def main() -> int:
     print("UPSTOX_ACCESS_TOKEN:", "set" if UPSTOX_ACCESS_TOKEN else "MISSING")
     print("UPSTOX_API_KEY:", "set" if os.environ.get("UPSTOX_API_KEY") else "missing")
     if not upstox_configured():
-        print("\nAdd UPSTOX_ACCESS_TOKEN from Upstox Apps -> Analytics -> + Generate Token")
-        print("API Key + Secret alone are not enough for market data calls.")
+        print("\nAdd UPSTOX_ACCESS_TOKEN from Upstox Apps -> your app -> Generate (trading token)")
+        print("Analytics tab token is read-only: quotes OK, orders will fail.")
         return 1
     exp = fetch_expiries()
     print("expiries (first 5):", exp[:5] if exp else "none")

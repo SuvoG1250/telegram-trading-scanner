@@ -16,6 +16,8 @@ from upstox_token import (
     exchange_auth_code,
     save_access_token,
     token_is_expired,
+    token_is_likely_analytics,
+    token_kind_label,
     token_status_line,
 )
 from upstox_trade_state import get_lots, get_mode, set_lots, set_mode, status_text
@@ -105,9 +107,10 @@ def _handle_command(chat_id: str, text: str) -> None:
         quotes = "✅ Market data OK" if upstox_configured() and verify_upstox() else "❌ Market data unavailable"
         trade_ok, trade_msg = verify_upstox_trading()
         trade = f"✅ {trade_msg}" if trade_ok else f"❌ {trade_msg}"
+        kind = token_kind_label() if upstox_configured() else "missing"
         _reply(
             chat_id,
-            f"{status_text()}\n{token_status_line()}\n{quotes}\n<b>Orders:</b> {trade}",
+            f"{status_text()}\n{token_status_line()}\n<b>Token type:</b> {kind}\n{quotes}\n<b>Orders:</b> {trade}",
         )
         return
 
@@ -115,20 +118,34 @@ def _handle_command(chat_id: str, text: str) -> None:
         if not args:
             _reply(
                 chat_id,
-                "Paste token from Upstox app → <b>Generate</b>:\n"
+                "Paste token from Upstox app → <b>Generate</b> (main app page):\n"
                 "<code>/upstox_token eyJhbGciOi...</code>\n\n"
-                "<i>One line — copy full token after Generate.</i>",
+                "<i>NOT Analytics tab — that token is read-only (no orders).</i>",
             )
             return
         token = " ".join(args).strip()
         save_access_token(token, source="telegram")
         trade_ok, trade_msg = verify_upstox_trading()
+        kind = token_kind_label(token)
         if trade_ok:
-            _reply(chat_id, f"✅ <b>Upstox token saved</b>\n{token_status_line()}\nSend <b>/live</b> for real orders.")
+            _reply(chat_id, f"✅ <b>Trading token saved</b>\n{token_status_line()}\nSend <b>/live</b> for real orders.")
+        elif token_is_likely_analytics(token):
+            _reply(
+                chat_id,
+                "⚠️ <b>Analytics token saved</b> (read-only)\n"
+                f"{token_status_line()}\n\n"
+                "✅ Option <b>premiums/quotes</b> will work\n"
+                "❌ <b>Orders will NOT work</b> with this token\n\n"
+                "For live orders:\n"
+                "1) Upstox Apps → <b>your bot app</b> (not Analytics)\n"
+                "2) Click purple <b>Generate</b>\n"
+                "3) Send <code>/upstox_token</code> with that token\n"
+                "4) Send <b>/live</b>",
+            )
         else:
             _reply(
                 chat_id,
-                f"⚠️ Token saved but orders may fail:\n{trade_msg}\n"
+                f"⚠️ Token saved ({kind}) but orders may fail:\n{trade_msg}\n"
                 "Use app <b>Generate</b> (not Analytics tab).",
             )
         return
