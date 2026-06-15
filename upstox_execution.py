@@ -22,6 +22,28 @@ def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
         return None
     if not is_upstox_option_signal(signal):
         return None
+    from upstox_api import upstox_configured, verify_upstox_trading
+    from upstox_token import token_is_likely_analytics
+    from upstox_trade_state import paper_trade
+
+    if not upstox_configured():
+        return None
+    if not paper_trade():
+        if token_is_likely_analytics():
+            send_plain(
+                "❌ <b>Upstox order skipped</b> — Analytics token is read-only.\n"
+                "Use app <b>Generate</b> token → <code>/upstox_token</code> → <b>/live</b>"
+            )
+            return OrderResult(
+                False,
+                "analytics-token",
+                [],
+                "Analytics read-only token",
+            )
+        trade_ok, trade_msg = verify_upstox_trading()
+        if not trade_ok:
+            send_plain(f"❌ <b>Upstox order skipped</b>\n{trade_msg}")
+            return OrderResult(False, "trading-token", [], trade_msg or "Trading token invalid")
     try:
         result = execute_signal_orders(signal)
     except Exception:

@@ -54,9 +54,10 @@ def run_loop(max_minutes: int) -> int:
         poll_telegram_commands,
         start_command_poller,
     )
-    from upstox_websocket import start_upstox_feed, stop_upstox_feed
+    from upstox_live_feed import prepare_live_feed
+    from upstox_websocket import stop_upstox_feed
 
-    start_upstox_feed()
+    prepare_live_feed()
     start_command_poller(interval_sec=2.0)
     poll_telegram_commands()
     announce_automation_session()

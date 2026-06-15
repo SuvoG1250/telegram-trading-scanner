@@ -20,7 +20,7 @@ from config import (
 from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from market_time import today_key
 from telegram_client import Signal
-from upstox_api import last_upstox_error, lookup_option_leg, place_order, upstox_configured
+from upstox_api import last_upstox_error, lookup_option_leg, place_order, upstox_configured, verify_upstox_trading
 from upstox_websocket import subscribe_instruments
 
 logger = logging.getLogger(__name__)
@@ -146,6 +146,20 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         return None
     if signal.instrument not in ("NIFTY_OPTION", "SENSEX_OPTION"):
         return None
+
+    if not paper_trade():
+        from upstox_token import token_is_likely_analytics
+
+        if token_is_likely_analytics():
+            return OrderResult(
+                False,
+                "tg-order",
+                [],
+                "Analytics (read-only) token — use app Generate token via /upstox_token then /live",
+            )
+        trade_ok, trade_msg = verify_upstox_trading()
+        if not trade_ok:
+            return OrderResult(False, "tg-order", [], trade_msg or "Trading token not valid for orders")
 
     lv = signal.levels
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"

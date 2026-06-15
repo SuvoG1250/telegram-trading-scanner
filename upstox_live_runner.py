@@ -35,13 +35,13 @@ def main() -> int:
     args = parser.parse_args()
 
     from telegram_commands import announce_automation_session, start_command_poller
-    from upstox_websocket import start_upstox_feed, stop_upstox_feed
+    from upstox_live_feed import prepare_live_feed
+    from upstox_websocket import stop_upstox_feed
 
     start_command_poller(interval_sec=2.0)
     announce_automation_session()
-
-    if not start_upstox_feed():
-        logger.warning("Upstox WebSocket not started (check UPSTOX_ACCESS_TOKEN).")
+    if not prepare_live_feed():
+        logger.warning("Upstox live feed not started (check UPSTOX_ACCESS_TOKEN).")
 
     try:
         from session_runner import run_loop

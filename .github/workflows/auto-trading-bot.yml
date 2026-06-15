@@ -46,6 +46,9 @@ jobs:
       FYERS_ACCESS_TOKEN: ${{ secrets.FYERS_ACCESS_TOKEN }}
       OPTION_DATA_PROVIDER: upstox
       UPSTOX_WS_ENABLED: "true"
+      UPSTOX_WS_MODE: "ltpc"
+      UPSTOX_WS_WARMUP_SEC: "2.5"
+      UPSTOX_WS_WAIT_SEC: "2"
       UPSTOX_AUTO_TRADE_ENABLED: "true"
       UPSTOX_PAPER_TRADE: "false"
       TELEGRAM_COMMANDS_ENABLED: "true"

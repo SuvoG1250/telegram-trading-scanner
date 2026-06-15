@@ -333,6 +333,8 @@ UPSTOX_SENSEX_INSTRUMENT_KEY = os.environ.get(
 # WebSocket live LTP (Upstox MarketDataStreamerV3)
 UPSTOX_WS_ENABLED = os.environ.get("UPSTOX_WS_ENABLED", "true").lower() in ("1", "true", "yes")
 UPSTOX_WS_MODE = os.environ.get("UPSTOX_WS_MODE", "ltpc")
+UPSTOX_WS_WARMUP_SEC = float(os.environ.get("UPSTOX_WS_WARMUP_SEC", "2.5"))
+UPSTOX_WS_WAIT_SEC = float(os.environ.get("UPSTOX_WS_WAIT_SEC", "2.0"))
 # Auto place entry + SL + target on Upstox when Telegram signal fires (use VPS + upstox_live_runner.py)
 UPSTOX_AUTO_TRADE_ENABLED = os.environ.get("UPSTOX_AUTO_TRADE_ENABLED", "true").lower() in (
     "1",
@@ -359,7 +361,7 @@ def upstox_sensex_lot_size() -> int:
 UPSTOX_PRODUCT_OPTION = os.environ.get("UPSTOX_PRODUCT_OPTION", "I")
 # Upstox auto-trade: options only (NIFTY_OPTION, SENSEX_OPTION) — stocks/BTST are Telegram-only
 # upstox | fyers | dhan | auto (fyers → upstox → dhan)
-OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "auto").lower()
+OPTION_DATA_PROVIDER = os.environ.get("OPTION_DATA_PROVIDER", "upstox").lower()
 # Fyers My API — App ID + access token from login (https://myapi.fyers.in/)
 FYERS_APP_ID = os.environ.get("FYERS_APP_ID", os.environ.get("FYERS_CLIENT_ID", ""))
 FYERS_SECRET_KEY = os.environ.get("FYERS_SECRET_KEY", "")
