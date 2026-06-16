@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 _OFFSET_FILE = __import__("pathlib").Path(__file__).resolve().parent / "data" / "telegram_offset.json"
 _poll_lock = threading.Lock()
+_denied_chat_warned: set[str] = set()
 
 
 def _allowed_chat(chat_id: str) -> bool:
@@ -47,11 +48,22 @@ def _save_offset(offset: int) -> None:
     _OFFSET_FILE.write_text(json.dumps({"offset": offset}), encoding="utf-8")
 
 
-def _reply(chat_id: str, text: str) -> None:
+def _normalize_command(text: str) -> str:
+    """Strip @BotName suffix Telegram adds in groups."""
+    parts = (text or "").strip().split()
+    if not parts:
+        return ""
+    head = parts[0].lower()
+    if "@" in head:
+        head = head.split("@", 1)[0]
+    return head
+
+
+def _reply(chat_id: str, text: str) -> bool:
     if not TELEGRAM_TOKEN:
-        return
+        return False
     try:
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
             json={
                 "chat_id": chat_id,
@@ -61,8 +73,19 @@ def _reply(chat_id: str, text: str) -> None:
             },
             timeout=20,
         )
+        body = resp.json() if resp.content else {}
+        if not resp.ok or not body.get("ok"):
+            logger.error(
+                "Telegram reply failed chat=%s status=%s body=%s",
+                chat_id,
+                resp.status_code,
+                body,
+            )
+            return False
+        return True
     except requests.RequestException:
         logger.exception("Telegram command reply failed")
+        return False
 
 
 def _help_text() -> str:
@@ -96,8 +119,8 @@ def _upstox_connect_help() -> str:
 
 def _handle_command(chat_id: str, text: str) -> None:
     parts = (text or "").strip().split()
-    cmd = parts[0].lower() if parts else ""
-    args = parts[1:]
+    cmd = _normalize_command(text)
+    args = parts[1:] if parts else []
 
     if cmd in ("/start", "/help"):
         _reply(chat_id, _help_text())
@@ -234,12 +257,8 @@ def poll_telegram_commands() -> int:
         try:
             resp = requests.get(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
-                params={
-                    "offset": offset,
-                    "timeout": 0,
-                    "allowed_updates": json.dumps(["message"]),
-                },
-                timeout=15,
+                params={"offset": offset, "timeout": 0},
+                timeout=20,
             )
             data = resp.json()
         except requests.RequestException:
@@ -247,20 +266,35 @@ def poll_telegram_commands() -> int:
             return 0
 
         if not data.get("ok"):
+            logger.warning("Telegram getUpdates error: %s", data.get("description", data))
             return 0
 
         handled = 0
         max_id = offset
+        allowed = {str(c) for c in telegram_chat_ids()}
         for upd in data.get("result", []):
             max_id = max(max_id, int(upd.get("update_id", 0)) + 1)
             msg = upd.get("message") or {}
             chat = msg.get("chat") or {}
             chat_id = str(chat.get("id", ""))
-            text = msg.get("text") or ""
+            text = (msg.get("text") or "").strip()
             if not chat_id or not text.startswith("/"):
                 continue
             if not _allowed_chat(chat_id):
-                logger.warning("Ignored command from unauthorized chat %s", chat_id)
+                logger.warning(
+                    "Ignored command from chat %s (allowed: %s)",
+                    chat_id,
+                    ", ".join(sorted(allowed)) if allowed else "(none configured)",
+                )
+                if chat_id not in _denied_chat_warned:
+                    _denied_chat_warned.add(chat_id)
+                    _reply(
+                        chat_id,
+                        "⛔ <b>Unauthorized chat</b>\n"
+                        f"Your chat id: <code>{chat_id}</code>\n"
+                        "Add this to GitHub secret <code>TELEGRAM_GROUP_CHAT_ID</code> "
+                        "or <code>TELEGRAM_CHAT_ID</code>, then retry.",
+                    )
                 continue
             try:
                 _handle_command(chat_id, text)

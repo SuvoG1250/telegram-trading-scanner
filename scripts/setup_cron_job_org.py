@@ -41,11 +41,16 @@ WORKFLOW_ID = "278548320"
 
 JOB_TITLE_NSE = "Telegram Trading Bot — NSE session"
 JOB_TITLE_GLOBAL = "Telegram Trading Bot — Global window"
-KEEP_JOB_TITLES = {JOB_TITLE_NSE, JOB_TITLE_GLOBAL}
+JOB_TITLE_COMMANDS = "Telegram Trading Bot — Commands poll"
+KEEP_JOB_TITLES = {JOB_TITLE_NSE, JOB_TITLE_GLOBAL, JOB_TITLE_COMMANDS}
 
 DISPATCH_URL = (
     f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
-    f"/actions/workflows/{WORKFLOW_ID}/dispatches"
+    f"/actions/workflows/auto-trading-bot.yml/dispatches"
+)
+DISPATCH_COMMANDS_URL = (
+    f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
+    f"/actions/workflows/telegram-commands.yml/dispatches"
 )
 
 
@@ -86,6 +91,38 @@ def build_nse_job_payload(github_pat: str) -> dict:
                     "Content-Type": "application/json",
                 },
                 "body": _dispatch_body(max_minutes="390"),
+            },
+        }
+    }
+
+
+def build_commands_job_payload(github_pat: str) -> dict:
+    """Weekday 8:00–15:55 IST every 5 min — /upstox_token /live work outside NSE loop gaps."""
+    return {
+        "job": {
+            "title": JOB_TITLE_COMMANDS,
+            "enabled": True,
+            "saveResponses": False,
+            "url": DISPATCH_COMMANDS_URL,
+            "requestMethod": 1,
+            "requestTimeout": 120,
+            "schedule": {
+                "timezone": "Asia/Kolkata",
+                "expiresAt": 0,
+                "hours": [8, 9, 10, 11, 12, 13, 14, 15],
+                "minutes": [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
+                "mdays": [-1],
+                "months": [-1],
+                "wdays": [1, 2, 3, 4, 5],
+            },
+            "extendedData": {
+                "headers": {
+                    "Accept": "application/vnd.github+json",
+                    "Authorization": f"Bearer {github_pat}",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "Content-Type": "application/json",
+                },
+                "body": json.dumps({"ref": "main"}),
             },
         }
     }
@@ -328,10 +365,12 @@ def main() -> int:
 
     upsert_job(cron_key, github_pat, JOB_TITLE_NSE, build_nse_job_payload(github_pat))
     upsert_job(cron_key, github_pat, JOB_TITLE_GLOBAL, build_global_job_payload(github_pat))
+    upsert_job(cron_key, github_pat, JOB_TITLE_COMMANDS, build_commands_job_payload(github_pat))
 
     print()
     print("NSE:      Mon-Fri 9:10 IST -> full_session 390 min (scan every 3 min)")
     print("Global:   7-8 and 16-22 IST daily -> full_session 58 min (BTC/ETH/XAU)")
+    print("Commands: Mon-Fri 8:00-15:55 IST every 5 min -> /upstox_token /live /help")
     print()
     print("Verify: python scripts/setup_cron_job_org.py --test")
     return 0
