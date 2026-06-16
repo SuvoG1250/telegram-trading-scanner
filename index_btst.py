@@ -429,8 +429,10 @@ def _build_option_signal(spec: IndexBtstSpec, a: GapAssessment) -> Signal | None
     )
 
 
-def run_index_btst_alert(spec: IndexBtstSpec) -> Signal | None:
-    if not is_market_open() or not is_index_btst_window():
+def run_index_btst_alert(spec: IndexBtstSpec, *, force: bool = False) -> Signal | None:
+    if not force and (not is_market_open() or not is_index_btst_window()):
+        return None
+    if force and not is_market_open():
         return None
     if spec.sent_check():
         logger.info("%s BTST already sent today.", spec.label)

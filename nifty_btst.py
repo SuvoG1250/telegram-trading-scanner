@@ -26,7 +26,7 @@ NIFTY_BTST_SPEC = IndexBtstSpec(
 )
 
 
-def run_nifty_btst_alert() -> Signal | None:
+def run_nifty_btst_alert(*, force: bool = False) -> Signal | None:
     if not NIFTY_BTST_ENABLED:
         return None
-    return run_index_btst_alert(NIFTY_BTST_SPEC)
+    return run_index_btst_alert(NIFTY_BTST_SPEC, force=force)

@@ -31,7 +31,7 @@ SENSEX_BTST_SPEC = IndexBtstSpec(
 )
 
 
-def run_sensex_btst_alert() -> Signal | None:
+def run_sensex_btst_alert(*, force: bool = False) -> Signal | None:
     if not SENSEX_BTST_ENABLED:
         return None
-    return run_index_btst_alert(SENSEX_BTST_SPEC)
+    return run_index_btst_alert(SENSEX_BTST_SPEC, force=force)

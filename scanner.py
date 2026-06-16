@@ -422,7 +422,6 @@ def main() -> int:
             n = run_stock_btst_alerts()
             if n:
                 logger.info("Stock BTST alerts sent: %s", n)
-            return 0
 
         if NIFTY_BTST_ENABLED and is_nifty_btst_window():
             from nifty_btst import run_nifty_btst_alert

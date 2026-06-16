@@ -18,6 +18,7 @@ from market_time import (
     is_market_open,
     is_premarket_window,
     is_weekday,
+    ist_time_tuple,
     now_ist,
 )
 
@@ -29,6 +30,30 @@ logging.basicConfig(
 logger = logging.getLogger("session_runner")
 
 SCAN_INTERVAL_SEC = 180
+
+
+def _ensure_index_btst_sent() -> None:
+    """Safety net if the 3:10–3:29 PM window was missed during the scan loop."""
+    if not is_weekday() or not is_market_open():
+        return
+    from config import NIFTY_BTST_ENABLED, SENSEX_BTST_ENABLED
+
+    t = ist_time_tuple()
+    if t < (15, 15):
+        return
+
+    from state import nifty_btst_sent, sensex_btst_sent
+
+    if NIFTY_BTST_ENABLED and not nifty_btst_sent():
+        from nifty_btst import run_nifty_btst_alert
+
+        logger.info("BTST safety net — running Nifty BTST.")
+        run_nifty_btst_alert(force=True)
+    if SENSEX_BTST_ENABLED and not sensex_btst_sent():
+        from sensex_btst import run_sensex_btst_alert
+
+        logger.info("BTST safety net — running Sensex BTST.")
+        run_sensex_btst_alert(force=True)
 
 
 def _should_continue() -> bool:
@@ -96,6 +121,7 @@ def run_loop(max_minutes: int) -> int:
 
         from session_alerts import handle_session_alerts
 
+        _ensure_index_btst_sent()
         handle_session_alerts()
     finally:
         stop_upstox_feed()

@@ -1,10 +1,10 @@
-"""Pre-market market summary — news + sentiment (positive / negative)."""
+"""Pre-market market summary — full analysis or compact news + sentiment."""
 
 from __future__ import annotations
 
 import logging
 
-from config import SEND_PREMARKET_MARKET_SUMMARY
+from config import SEND_PREMARKET_FULL_ANALYSIS, SEND_PREMARKET_MARKET_SUMMARY
 from market_news import build_market_news_digest, classify_headlines
 from market_sentiment import assess_market_sentiment
 from market_time import is_premarket_summary_window, now_ist
@@ -81,7 +81,12 @@ def send_premarket_market_summary(*, force_window: bool = True) -> bool:
         return False
     if force_window and not is_premarket_summary_window():
         return False
-    text = format_premarket_market_summary()
+    if SEND_PREMARKET_FULL_ANALYSIS:
+        from premarket_analysis import format_full_premarket_analysis
+
+        text = format_full_premarket_analysis(use_llm=True)
+    else:
+        text = format_premarket_market_summary()
     if send_plain(text):
         mark_premarket_summary_sent()
         logger.info("Pre-market market summary sent.")

@@ -176,12 +176,12 @@ def is_stock_btst_window(dt: datetime | None = None) -> bool:
 
 
 def is_index_btst_window(dt: datetime | None = None) -> bool:
-    """3:15 PM – 3:25 PM IST — Nifty/Sensex overnight gap probability BTST."""
+    """3:10 PM – 3:29 PM IST — Nifty/Sensex overnight gap probability BTST."""
     dt = dt or now_ist()
     if not is_weekday(dt) or not is_market_open(dt):
         return False
     t = ist_time_tuple(dt)
-    return _after((15, 15), t) and _before((15, 25), t)
+    return _after((15, 10), t) and _before((15, 29), t)
 
 
 def is_nifty_btst_window(dt: datetime | None = None) -> bool:
