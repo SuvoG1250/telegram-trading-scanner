@@ -24,6 +24,14 @@ fi
 # Keep any existing non-tradingbot crontab lines
 crontab -l 2>/dev/null | grep -v "telegram-trading-scanner" | grep -v "tradingbot-logs" > "$CRON_FILE" || true
 
+if ! command -v crontab >/dev/null 2>&1; then
+  rm -f "$CRON_FILE"
+  echo "crontab not installed (no sudo on this VM)."
+  echo "Use the no-cron scheduler instead:"
+  echo "  bash $APP/scripts/install_gcp_automation.sh"
+  exit 1
+fi
+
 cat >> "$CRON_FILE" << EOF
 # Telegram Trading Bot — GCP automation (IST via TZ)
 CRON_TZ=Asia/Kolkata
