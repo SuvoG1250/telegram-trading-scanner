@@ -1,0 +1,10 @@
+[Unit]
+Description=Start trading bot at 9:08 AM IST (Mon-Fri)
+
+[Timer]
+OnCalendar=Mon-Fri *-*-* 09:08:00
+Persistent=true
+Unit=tradingbot-session.service
+
+[Install]
+WantedBy=timers.target

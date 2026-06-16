@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram Trading Bot — NSE session (scan every 3 min)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h/telegram-trading-scanner
+Environment=PATH=%h/telegram-trading-scanner/venv/bin:/usr/local/bin:/usr/bin
+Environment=TZ=Asia/Kolkata
+ExecStart=%h/telegram-trading-scanner/venv/bin/python upstox_live_runner.py --max-minutes 390
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

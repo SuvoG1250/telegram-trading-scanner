@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram Trading Bot — command listener (/live /upstox_token)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=%h/telegram-trading-scanner
+Environment=PATH=%h/telegram-trading-scanner/venv/bin:/usr/local/bin:/usr/bin
+ExecStart=%h/telegram-trading-scanner/venv/bin/python scripts/telegram_command_listener.py --seconds 86400 --interval 1.5
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
