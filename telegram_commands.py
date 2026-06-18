@@ -59,18 +59,21 @@ def _normalize_command(text: str) -> str:
     return head
 
 
-def _reply(chat_id: str, text: str) -> bool:
+def _reply(chat_id: str, text: str, *, reply_markup: dict | None = None) -> bool:
     if not TELEGRAM_TOKEN:
         return False
+    payload: dict = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False,
+    }
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
         resp = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": False,
-            },
+            json=payload,
             timeout=20,
         )
         body = resp.json() if resp.content else {}
@@ -88,13 +91,103 @@ def _reply(chat_id: str, text: str) -> bool:
         return False
 
 
+def _answer_callback(callback_id: str, text: str = "") -> None:
+    if not TELEGRAM_TOKEN or not callback_id:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/answerCallbackQuery",
+            json={"callback_query_id": callback_id, "text": text[:180]},
+            timeout=15,
+        )
+    except requests.RequestException:
+        logger.debug("answerCallbackQuery failed", exc_info=True)
+
+
+def _strategy_picker_markup() -> dict:
+    return {
+        "inline_keyboard": [
+            [
+                {"text": "📈 ST+TSL (SuperTrend 5m)", "callback_data": "exec:st_tsl"},
+            ],
+            [
+                {"text": "📊 EMA+MACD Sync (3m HA)", "callback_data": "exec:ema_macd_sync"},
+            ],
+        ]
+    }
+
+
+def _send_strategy_picker(chat_id: str, *, mode_hint: str = "live") -> None:
+    from upstox_execution_strategy import STRATEGY_LABELS
+
+    _reply(
+        chat_id,
+        "<b>Select today's auto-execution strategy</b>\n\n"
+        "Both strategies still send <b>Telegram alerts</b> every day.\n"
+        "Only the strategy you pick here will place <b>Upstox GTT orders</b>.\n\n"
+        f"• <b>{STRATEGY_LABELS['st_tsl']}</b>\n"
+        f"• <b>{STRATEGY_LABELS['ema_macd_sync']}</b>\n\n"
+        f"<i>Mode after selection: {mode_hint.upper()}</i>",
+        reply_markup=_strategy_picker_markup(),
+    )
+
+
+def _activate_live_mode(chat_id: str) -> None:
+    from upstox_execution_strategy import execution_strategy_label, get_execution_strategy
+
+    if not get_execution_strategy():
+        _send_strategy_picker(chat_id, mode_hint="live")
+        return
+    set_mode("live")
+    _reply(
+        chat_id,
+        "🔴 <b>LIVE enabled</b>\n"
+        f"<b>Auto-exec:</b> {execution_strategy_label()}\n"
+        f"<b>Orders:</b> GTT · entry = alert premium + ₹5–10 · {get_lots()} lot(s)\n"
+        "Both strategies still alert — only selected one trades.\n"
+        "Send /strategy to change · /stop to disable.",
+    )
+
+
+def _handle_callback(chat_id: str, callback_id: str, data: str) -> None:
+    if not data.startswith("exec:"):
+        _answer_callback(callback_id)
+        return
+
+    from upstox_execution_strategy import STRATEGY_LABELS, set_execution_strategy
+
+    key = data.split(":", 1)[1].strip().lower()
+    if key not in STRATEGY_LABELS:
+        _answer_callback(callback_id, "Unknown strategy")
+        return
+
+    set_execution_strategy(key)  # type: ignore[arg-type]
+    pending = _PENDING_MODE.pop(chat_id, "live")
+    set_mode(pending)
+    label = STRATEGY_LABELS[key]
+    _answer_callback(callback_id, f"Selected: {label}")
+    mode_label = "LIVE" if pending == "live" else "PAPER"
+    _reply(
+        chat_id,
+        f"✅ <b>{mode_label} + strategy set</b>\n"
+        f"<b>Auto-exec today:</b> {label}\n"
+        "<b>Orders:</b> Upstox GTT (entry premium + ₹5–10 buffer)\n"
+        "Other strategy alerts still arrive — only this one places orders.\n"
+        "Use /strategy to switch · /status to verify.",
+    )
+
+
+_PENDING_MODE: dict[str, str] = {}
+
+
 def _help_text() -> str:
     return (
         "<b>📱 Trading bot commands</b>\n\n"
-        "<b>/live</b> — REAL Upstox option orders (Nifty/Sensex CE/PE)\n"
-        "<b>/paper</b> — test mode (no broker orders)\n"
+        "<b>/live</b> — enable REAL Upstox GTT orders (pick strategy first)\n"
+        "<b>/paper</b> — test mode (pick strategy, no real broker orders)\n"
+        "<b>/strategy</b> — change today's auto-exec strategy\n"
         "<b>/stop</b> — disable Upstox orders\n"
-        "<b>/status</b> — mode + lots + Upstox token\n\n"
+        "<b>/status</b> — mode + strategy + token\n\n"
         "<b>Upstox token (daily before 9:15 AM)</b>\n"
         "<b>/upstox_token</b> eyJ… — paste token from app <b>Generate</b> button\n"
         "<b>/upstox_login</b> — OAuth login link (if Generate fails)\n"
@@ -213,19 +306,30 @@ def _handle_command(chat_id: str, text: str) -> None:
         if not trade_ok:
             _reply(chat_id, f"❌ {trade_msg}\n\n{_upstox_connect_help()}")
             return
-        set_mode("live")
-        _reply(
-            chat_id,
-            "🔴 <b>LIVE enabled</b> (cloud automation)\n"
-            "Nifty/Sensex <b>option</b> signals will place REAL orders on Upstox "
-            f"(entry + SL + target, {get_lots()} lot(s)).\n"
-            "Send /stop to disable · /status to check.",
-        )
+        _PENDING_MODE[chat_id] = "live"
+        _activate_live_mode(chat_id)
         return
 
     if cmd == "/paper":
+        _PENDING_MODE[chat_id] = "paper"
+        from upstox_execution_strategy import get_execution_strategy
+
+        if not get_execution_strategy():
+            _send_strategy_picker(chat_id, mode_hint="paper")
+            return
         set_mode("paper")
-        _reply(chat_id, "📝 <b>PAPER mode</b> — orders logged only, nothing sent to broker.")
+        from upstox_execution_strategy import execution_strategy_label
+
+        _reply(
+            chat_id,
+            f"📝 <b>PAPER mode</b> — GTT flow simulated only.\n"
+            f"<b>Auto-exec:</b> {execution_strategy_label()}",
+        )
+        return
+
+    if cmd == "/strategy":
+        _PENDING_MODE[chat_id] = get_mode() if get_mode() in ("live", "paper") else "live"
+        _send_strategy_picker(chat_id, mode_hint=_PENDING_MODE.get(chat_id, "live"))
         return
 
     if cmd == "/stop":
@@ -274,6 +378,21 @@ def poll_telegram_commands() -> int:
         allowed = {str(c) for c in telegram_chat_ids()}
         for upd in data.get("result", []):
             max_id = max(max_id, int(upd.get("update_id", 0)) + 1)
+
+            cb = upd.get("callback_query") or {}
+            if cb:
+                chat = cb.get("message", {}).get("chat") or {}
+                chat_id = str(chat.get("id", ""))
+                cb_id = str(cb.get("id", ""))
+                cb_data = str(cb.get("data") or "")
+                if chat_id and _allowed_chat(chat_id):
+                    try:
+                        _handle_callback(chat_id, cb_id, cb_data)
+                        handled += 1
+                    except Exception:
+                        logger.exception("Callback failed: %s", cb_data)
+                continue
+
             msg = upd.get("message") or {}
             chat = msg.get("chat") or {}
             chat_id = str(chat.get("id", ""))
@@ -339,7 +458,8 @@ def announce_automation_session() -> None:
         "<b>🤖 Automation session online</b> (GitHub + cron)\n\n"
         f"{status_text()}\n{token_note}\n\n"
         "<b>/upstox_token</b> — refresh trading token (daily)\n"
-        "<b>/live</b> — real orders · <b>/paper</b> · <b>/stop</b> · <b>/help</b>",
+        "<b>/live</b> — pick strategy + real GTT orders · <b>/strategy</b> to switch\n"
+        "<b>/paper</b> · <b>/stop</b> · <b>/help</b>",
     )
     mark_automation_session_announced()
 

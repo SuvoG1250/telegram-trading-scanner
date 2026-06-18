@@ -1,5 +1,5 @@
 """
-Index options — EMA 9/21 crossover + MACD histogram confirmation.
+Index options — EMA 9/21 crossover + simultaneous MACD histogram color flip.
 
 Chart setup (TradingView):
   • Heikin Ashi candles, 3-minute
@@ -7,8 +7,8 @@ Chart setup (TradingView):
   • MACD fast=34, slow=144, signal=9, source=close
 
 Signals (options only):
-  • MACD histogram green → only BUY CALL on EMA 9 cross above 21
-  • MACD histogram red   → only BUY PUT  on EMA 9 cross below 21
+  • CALL: EMA 9 crosses above 21 AND MACD histogram turns green on same bar
+  • PUT:  EMA 9 crosses below 21 AND MACD histogram turns red on same bar
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ from telegram_client import Signal
 
 logger = logging.getLogger(__name__)
 
-STRATEGY_NAME = "EMA 9/21 + MACD Options"
+STRATEGY_NAME = "EMA 9/21 + MACD Sync Options"
 
 NIFTY_EMA_MACD_SPEC = IndexOptionSpec(
     key="nifty_ema_macd",
@@ -89,8 +89,9 @@ def _prepare_bars(raw: pd.DataFrame) -> pd.DataFrame:
 
 def _ema_macd_flip(df: pd.DataFrame) -> str | None:
     """
-    Detect EMA cross on last closed bar (-2 vs -3) with MACD histogram regime on -2.
-    Returns 'CALL', 'PUT', or None.
+    EMA 9/21 cross on last closed bar (-2 vs -3) AND MACD histogram color flip on same bar.
+    CALL: cross above + hist turns green (<=0 to >0).
+    PUT:  cross below + hist turns red (>=0 to <0).
     """
     if len(df) < 4:
         return None
@@ -109,24 +110,32 @@ def _ema_macd_flip(df: pd.DataFrame) -> str | None:
 
     prev = df.iloc[-3]
     cur = df.iloc[-2]
-    hist = float(cur["MACD_Hist"])
+    prev_hist = float(prev["MACD_Hist"])
+    cur_hist = float(cur["MACD_Hist"])
 
     bull_cross = prev["EMA_Fast"] <= prev["EMA_Slow"] and cur["EMA_Fast"] > cur["EMA_Slow"]
     bear_cross = prev["EMA_Fast"] >= prev["EMA_Slow"] and cur["EMA_Fast"] < cur["EMA_Slow"]
 
-    if bull_cross and hist > 0:
+    turned_green = cur_hist > 0 and prev_hist <= 0
+    turned_red = cur_hist < 0 and prev_hist >= 0
+
+    if bull_cross and turned_green:
         return "CALL"
-    if bear_cross and hist < 0:
+    if bear_cross and turned_red:
         return "PUT"
     return None
 
 
-def _signal_note(flip: str, ema_slow: float, hist: float, interval: str) -> str:
+def _signal_note(flip: str, ema_slow: float, hist: float, prev_hist: float, interval: str) -> str:
     candle = "Heikin Ashi" if EMA_MACD_USE_HEIKIN else "OHLC"
-    macd_tag = "green" if hist > 0 else "red"
-    cross = "EMA 9 crossed above EMA 21" if flip == "CALL" else "EMA 9 crossed below EMA 21"
+    if flip == "CALL":
+        cross = "EMA 9 crossed above EMA 21"
+        macd_tag = "histogram turned green"
+    else:
+        cross = "EMA 9 crossed below EMA 21"
+        macd_tag = "histogram turned red"
     return (
-        f"{cross} · MACD hist {macd_tag} "
+        f"{cross} · MACD {macd_tag} ({prev_hist:.2f}→{hist:.2f}) "
         f"({EMA_MACD_FAST_LENGTH}/{EMA_MACD_SLOW_LENGTH}/{EMA_MACD_SIGNAL_LENGTH}) · "
         f"{candle} {interval} · EMA21 ref ₹{ema_slow:,.2f}"
     )
@@ -171,7 +180,15 @@ def scan_index_ema_macd_option(spec: IndexOptionSpec) -> Signal | None:
             signal=EMA_MACD_SIGNAL_LENGTH,
         )["histogram"].iloc[-2]
     )
-    note = _signal_note(flip, ema_slow, hist, interval)
+    prev_hist = float(
+        compute_macd(
+            bars["Close"],
+            fast=EMA_MACD_FAST_LENGTH,
+            slow=EMA_MACD_SLOW_LENGTH,
+            signal=EMA_MACD_SIGNAL_LENGTH,
+        )["histogram"].iloc[-3]
+    )
+    note = _signal_note(flip, ema_slow, hist, prev_hist, interval)
 
     logger.info(
         "%s EMA+MACD %s — spot=%.2f hist=%.2f ema21=%.2f bars=%d",

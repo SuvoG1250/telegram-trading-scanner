@@ -1,4 +1,4 @@
-"""Place Upstox orders — entry + SL + target from scanner signals."""
+"""Place Upstox orders — GTT multi-leg entry + SL + target from scanner signals."""
 
 from __future__ import annotations
 
@@ -11,16 +11,20 @@ from typing import Any
 
 from config import (
     DATA_DIR,
+    UPSTOX_GTT_ENTRY_BUFFER_MAX,
+    UPSTOX_GTT_ENTRY_BUFFER_MIN,
+    UPSTOX_GTT_ENTRY_BUFFER_RS,
     UPSTOX_NIFTY_INSTRUMENT_KEY,
     UPSTOX_PRODUCT_OPTION,
     UPSTOX_SENSEX_INSTRUMENT_KEY,
+    UPSTOX_USE_GTT,
     upstox_nifty_lot_size,
     upstox_sensex_lot_size,
 )
-from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from market_time import today_key
 from telegram_client import Signal
-from upstox_api import last_upstox_error, lookup_option_leg, place_order, upstox_configured, verify_upstox_trading
+from upstox_api import last_upstox_error, lookup_option_leg, place_gtt_order, place_order, upstox_configured, verify_upstox_trading
+from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
 from upstox_websocket import subscribe_instruments
 
 logger = logging.getLogger(__name__)
@@ -78,7 +82,14 @@ def _parse_expiry_label(label: str | None) -> str | None:
         return None
 
 
-def _place(
+def _entry_buffer_rs() -> float:
+    buf = UPSTOX_GTT_ENTRY_BUFFER_RS
+    lo = min(UPSTOX_GTT_ENTRY_BUFFER_MIN, UPSTOX_GTT_ENTRY_BUFFER_MAX)
+    hi = max(UPSTOX_GTT_ENTRY_BUFFER_MIN, UPSTOX_GTT_ENTRY_BUFFER_MAX)
+    return round(max(lo, min(hi, buf)), 2)
+
+
+def _place_regular(
     *,
     instrument_key: str,
     transaction_type: str,
@@ -115,6 +126,48 @@ def _place(
     return order_ids[0]
 
 
+def _place_gtt_bundle(
+    *,
+    instrument_key: str,
+    quantity: int,
+    product: str,
+    entry_price: float,
+    sl_price: float,
+    target_price: float,
+    tag: str,
+) -> list[str]:
+    payload = {
+        "type": "MULTIPLE",
+        "quantity": quantity,
+        "product": product,
+        "instrument_token": instrument_key,
+        "transaction_type": "BUY",
+        "rules": [
+            {
+                "strategy": "ENTRY",
+                "trigger_type": "IMMEDIATE",
+                "trigger_price": round(entry_price, 2),
+            },
+            {
+                "strategy": "STOPLOSS",
+                "trigger_type": "IMMEDIATE",
+                "trigger_price": round(sl_price, 2),
+            },
+            {
+                "strategy": "TARGET",
+                "trigger_type": "IMMEDIATE",
+                "trigger_price": round(target_price, 2),
+            },
+        ],
+    }
+    if paper_trade():
+        logger.info("PAPER Upstox GTT: %s", payload)
+        return [f"PAPER-GTT-{tag}"]
+
+    ids, _data = place_gtt_order(payload)
+    return ids
+
+
 def _option_context(signal: Signal) -> tuple[str, int, str] | None:
     strike = int(signal.strike or 0)
     opt = (signal.option_type or "CE").upper()
@@ -127,7 +180,7 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
         index_key = UPSTOX_NIFTY_INSTRUMENT_KEY
         lot = upstox_nifty_lot_size()
     expiry = _parse_expiry_label(signal.expiry_label)
-    quote, inst = lookup_option_leg(
+    _quote, inst = lookup_option_leg(
         strike=strike,
         option_type=opt,
         index_instrument_key=index_key,
@@ -141,7 +194,7 @@ def _option_context(signal: Signal) -> tuple[str, int, str] | None:
 
 
 def execute_signal_orders(signal: Signal) -> OrderResult | None:
-    """Place entry + SL + target on Upstox — Nifty/Sensex options only (no stocks/BTST)."""
+    """Place entry + SL + target on Upstox — Nifty/Sensex options only."""
     if not auto_trade_enabled() or not upstox_configured():
         return None
     if signal.instrument not in ("NIFTY_OPTION", "SENSEX_OPTION"):
@@ -163,19 +216,53 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
 
     lv = signal.levels
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"
-    order_ids: list[str] = []
+    alert_premium = float(lv.entry)
+    buffer_rs = _entry_buffer_rs()
+    entry_price = round(alert_premium + buffer_rs, 2)
 
     ctx = _option_context(signal)
     if not ctx:
         return OrderResult(False, tag_base, [], "Could not resolve option instrument_key")
     inst_key, qty, product = ctx
 
-    entry_id = _place(
+    if UPSTOX_USE_GTT:
+        gtt_ids = _place_gtt_bundle(
+            instrument_key=inst_key,
+            quantity=qty,
+            product=product,
+            entry_price=entry_price,
+            sl_price=float(lv.stop_loss),
+            target_price=float(lv.primary_target),
+            tag=tag_base,
+        )
+        if not gtt_ids:
+            detail = last_upstox_error() or "GTT order failed"
+            res = OrderResult(False, tag_base, [], detail)
+            _record(tag_base, {"signal": signal.symbol, "gtt": True}, res)
+            return res
+        is_paper = paper_trade()
+        mode = "PAPER" if is_paper else "LIVE"
+        res = OrderResult(
+            True,
+            tag_base,
+            gtt_ids,
+            (
+                f"{mode} GTT: entry ₹{entry_price:.2f} (alert ₹{alert_premium:.2f} + ₹{buffer_rs:.0f}) · "
+                f"SL ₹{lv.stop_loss:.2f} · target ₹{lv.primary_target:.2f}"
+            ),
+            paper=is_paper,
+        )
+        _record(tag_base, {"instrument_key": inst_key, "qty": qty, "gtt": True}, res)
+        return res
+
+    order_ids: list[str] = []
+    entry_id = _place_regular(
         instrument_key=inst_key,
         transaction_type="BUY",
-        order_type="MARKET",
+        order_type="LIMIT",
         quantity=qty,
         product=product,
+        price=entry_price,
         tag=f"{tag_base}-entry",
     )
     if not entry_id:
@@ -185,7 +272,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         return res
     order_ids.append(entry_id)
 
-    sl_id = _place(
+    sl_id = _place_regular(
         instrument_key=inst_key,
         transaction_type="SELL",
         order_type="SL-M",
@@ -197,7 +284,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     if sl_id:
         order_ids.append(sl_id)
 
-    tgt_id = _place(
+    tgt_id = _place_regular(
         instrument_key=inst_key,
         transaction_type="SELL",
         order_type="LIMIT",
@@ -211,20 +298,11 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
 
     is_paper = paper_trade()
     mode = "PAPER" if is_paper else "LIVE"
-    legs = ["entry"]
-    if sl_id:
-        legs.append(f"SL-M @ {lv.stop_loss:.2f}")
-    else:
-        legs.append("SL-M failed")
-    if tgt_id:
-        legs.append(f"LIMIT @ {lv.primary_target:.2f}")
-    else:
-        legs.append("target LIMIT failed")
     res = OrderResult(
         True,
         tag_base,
         order_ids,
-        f"{mode} option: {' + '.join(legs)}",
+        f"{mode} LIMIT entry ₹{entry_price:.2f} (alert + ₹{buffer_rs:.0f})",
         paper=is_paper,
     )
     _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)

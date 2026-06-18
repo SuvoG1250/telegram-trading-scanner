@@ -450,3 +450,16 @@ def place_order(payload: dict) -> tuple[list[str], dict | None]:
     if ids_v2:
         return ids_v2, data_v2
     return [], data
+
+
+def place_gtt_order(payload: dict) -> tuple[list[str], dict | None]:
+    """Place GTT via POST /v3/order/gtt/place. Returns (gtt_order_ids, raw_data)."""
+    global _LAST_ERROR
+    if not upstox_configured():
+        _LAST_ERROR = "UPSTOX_ACCESS_TOKEN not set"
+        return [], None
+    body = _request("POST", f"{UPSTOX_V3_BASE}/order/gtt/place", json_body=payload)
+    if not isinstance(body, dict):
+        return [], None
+    ids = [str(x) for x in (body.get("gtt_order_ids") or []) if x]
+    return ids, body

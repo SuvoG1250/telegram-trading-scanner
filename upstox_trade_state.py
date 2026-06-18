@@ -87,6 +87,8 @@ def is_live_trading() -> bool:
 
 
 def status_text() -> str:
+    from upstox_execution_strategy import execution_strategy_status_line
+
     mode = get_mode()
     labels = {
         "off": "⏹ OFF — no Upstox orders",
@@ -95,6 +97,7 @@ def status_text() -> str:
     }
     return (
         f"<b>Upstox trading:</b> {labels.get(mode, mode)}\n"
+        f"{execution_strategy_status_line()}\n"
         f"<b>Lots:</b> {get_lots()} (Nifty lot={upstox_nifty_lot_size()}, Sensex lot={upstox_sensex_lot_size()})\n"
-        f"<b>Scope:</b> Nifty + Sensex <b>options only</b>"
+        f"<b>Scope:</b> Nifty + Sensex <b>options only</b> · orders via <b>GTT</b>"
     )

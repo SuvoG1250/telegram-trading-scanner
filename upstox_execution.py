@@ -22,6 +22,25 @@ def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
         return None
     if not is_upstox_option_signal(signal):
         return None
+
+    from upstox_execution_strategy import (
+        execution_strategy_label,
+        get_execution_strategy,
+        signal_allowed_for_execution,
+    )
+
+    if not signal_allowed_for_execution(signal.strategy):
+        selected = get_execution_strategy()
+        if selected:
+            logger.info(
+                "Upstox skip %s — today's auto-exec is %s only (alert still sent).",
+                signal.strategy,
+                execution_strategy_label(),
+            )
+        else:
+            logger.info("Upstox skip %s — no execution strategy selected (/live).", signal.strategy)
+        return None
+
     from upstox_api import upstox_configured, verify_upstox_trading
     from upstox_token import token_is_likely_analytics
     from upstox_trade_state import paper_trade

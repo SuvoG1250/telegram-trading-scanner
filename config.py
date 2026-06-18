@@ -346,6 +346,10 @@ UPSTOX_AUTO_TRADE_ENABLED = os.environ.get("UPSTOX_AUTO_TRADE_ENABLED", "true").
     "true",
     "yes",
 )
+UPSTOX_USE_GTT = os.environ.get("UPSTOX_USE_GTT", "true").lower() in ("1", "true", "yes")
+UPSTOX_GTT_ENTRY_BUFFER_RS = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_RS", "7"))
+UPSTOX_GTT_ENTRY_BUFFER_MIN = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MIN", "5"))
+UPSTOX_GTT_ENTRY_BUFFER_MAX = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MAX", "10"))
 UPSTOX_PAPER_TRADE = os.environ.get("UPSTOX_PAPER_TRADE", "false").lower() in ("1", "true", "yes")
 TELEGRAM_COMMANDS_ENABLED = os.environ.get("TELEGRAM_COMMANDS_ENABLED", "true").lower() in (
     "1",
