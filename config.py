@@ -364,6 +364,12 @@ TELEGRAM_COMMANDS_ENABLED = os.environ.get("TELEGRAM_COMMANDS_ENABLED", "true").
     "true",
     "yes",
 )
+# Set false on GCP (daemon listener polls 24/7). Set true for GitHub Actions-only runs.
+TELEGRAM_POLL_IN_SESSION = os.environ.get("TELEGRAM_POLL_IN_SESSION", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 UPSTOX_DEFAULT_LOTS = max(1, int(os.environ.get("UPSTOX_DEFAULT_LOTS", "1")))
 UPSTOX_NIFTY_LOT_SIZE = int(os.environ.get("UPSTOX_NIFTY_LOT_SIZE", "65"))
 UPSTOX_SENSEX_LOT_SIZE = int(os.environ.get("UPSTOX_SENSEX_LOT_SIZE", "20"))

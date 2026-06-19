@@ -73,6 +73,7 @@ def _should_continue() -> bool:
 
 
 def run_loop(max_minutes: int) -> int:
+    from config import TELEGRAM_POLL_IN_SESSION
     from scanner import main as scan_once
     from telegram_commands import (
         announce_automation_session,
@@ -83,9 +84,11 @@ def run_loop(max_minutes: int) -> int:
     from upstox_websocket import stop_upstox_feed
 
     start_command_poller(interval_sec=2.0)
-    poll_telegram_commands()
+    if TELEGRAM_POLL_IN_SESSION:
+        poll_telegram_commands()
     prepare_live_feed()
-    poll_telegram_commands()
+    if TELEGRAM_POLL_IN_SESSION:
+        poll_telegram_commands()
     announce_automation_session()
     iteration = 0
     try:
@@ -95,10 +98,11 @@ def run_loop(max_minutes: int) -> int:
 
         event = os.environ.get("GITHUB_EVENT_NAME", "local")
         logger.info(
-            "Session loop started | trigger=%s | max %s min | IST %s | telegram_cmds=on",
+            "Session loop started | trigger=%s | max %s min | IST %s | telegram_poll=%s",
             event,
             max_minutes,
             now_ist().strftime("%H:%M:%S"),
+            TELEGRAM_POLL_IN_SESSION,
         )
 
         while time.time() < deadline:

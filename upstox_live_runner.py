@@ -34,11 +34,10 @@ def main() -> int:
     parser.add_argument("--max-minutes", type=int, default=390)
     args = parser.parse_args()
 
-    from telegram_commands import announce_automation_session, start_command_poller
+    from telegram_commands import announce_automation_session
     from upstox_live_feed import prepare_live_feed
     from upstox_websocket import stop_upstox_feed
 
-    start_command_poller(interval_sec=2.0)
     announce_automation_session()
     if not prepare_live_feed():
         logger.warning("Upstox live feed not started (check UPSTOX_ACCESS_TOKEN).")

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import threading
+from contextlib import contextmanager
 
 import requests
 
@@ -25,8 +27,45 @@ from upstox_trade_state import get_lots, get_mode, set_lots, set_mode, status_te
 logger = logging.getLogger(__name__)
 
 _OFFSET_FILE = __import__("pathlib").Path(__file__).resolve().parent / "data" / "telegram_offset.json"
+_POLL_LOCK_FILE = _OFFSET_FILE.parent / "telegram_poll.lock"
 _poll_lock = threading.Lock()
 _denied_chat_warned: set[str] = set()
+_poller_started = False
+
+
+@contextmanager
+def _cross_process_poll_lock():
+    """Only one process may call getUpdates (Telegram allows one consumer)."""
+    _OFFSET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        with _poll_lock:
+            yield
+        return
+
+    import fcntl
+
+    lock_handle = open(_POLL_LOCK_FILE, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock_handle.close()
+        raise
+    try:
+        yield
+    finally:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+        lock_handle.close()
+
+
+def _callback_chat_id(cb: dict) -> str:
+    msg = cb.get("message") or {}
+    chat = msg.get("chat") or {}
+    if chat.get("id") is not None:
+        return str(chat["id"])
+    user = cb.get("from") or {}
+    if user.get("id") is not None:
+        return str(user["id"])
+    return ""
 
 
 def _allowed_chat(chat_id: str) -> bool:
@@ -91,17 +130,24 @@ def _reply(chat_id: str, text: str, *, reply_markup: dict | None = None) -> bool
         return False
 
 
-def _answer_callback(callback_id: str, text: str = "") -> None:
+def _answer_callback(callback_id: str, text: str = "", *, show_alert: bool = False) -> None:
     if not TELEGRAM_TOKEN or not callback_id:
         return
+    payload: dict = {"callback_query_id": callback_id}
+    if text:
+        payload["text"] = text[:180]
+        payload["show_alert"] = show_alert
     try:
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/answerCallbackQuery",
-            json={"callback_query_id": callback_id, "text": text[:180]},
+            json=payload,
             timeout=15,
         )
+        body = resp.json() if resp.content else {}
+        if not resp.ok or not body.get("ok"):
+            logger.warning("answerCallbackQuery failed: %s", body)
     except requests.RequestException:
-        logger.debug("answerCallbackQuery failed", exc_info=True)
+        logger.warning("answerCallbackQuery request failed", exc_info=True)
 
 
 def _strategy_picker_markup() -> dict:
@@ -145,7 +191,6 @@ def _activate_live_mode(chat_id: str) -> None:
 
 def _handle_callback(chat_id: str, callback_id: str, data: str) -> None:
     if not data.startswith("exec:"):
-        _answer_callback(callback_id)
         return
 
     from daily_strategy_setup import confirmation_message
@@ -156,24 +201,21 @@ def _handle_callback(chat_id: str, callback_id: str, data: str) -> None:
 
     if key == "pause":
         pause_live_execution(clear_strategy=True)
-        _answer_callback(callback_id, "Paused for today")
         _reply(chat_id, confirmation_message("pause"))
         return
 
     if key not in STRATEGY_LABELS:
-        _answer_callback(callback_id, "Unknown choice")
+        _reply(chat_id, "❌ Unknown strategy. Send <code>/strategy</code> to pick again.")
         return
 
     authorize_live_execution(key)
     _PENDING_MODE.pop(chat_id, None)
-    label = STRATEGY_LABELS[key]
-    _answer_callback(callback_id, f"Selected: {label}")
-    _reply(
-        chat_id,
-        confirmation_message(key)
-        + "\n\n"
-        + status_text(),
-    )
+    try:
+        extra = status_text()
+    except Exception:
+        logger.exception("status_text failed after strategy select")
+        extra = "<i>Send /status to verify.</i>"
+    _reply(chat_id, confirmation_message(key) + "\n\n" + extra)
 
 
 _PENDING_MODE: dict[str, str] = {}
@@ -357,78 +399,109 @@ def poll_telegram_commands() -> int:
     if not TELEGRAM_COMMANDS_ENABLED or not TELEGRAM_TOKEN:
         return 0
 
-    with _poll_lock:
-        offset = _load_offset()
-        try:
-            resp = requests.get(
-                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
-                params={"offset": offset, "timeout": 0},
-                timeout=20,
-            )
-            data = resp.json()
-        except requests.RequestException:
-            logger.debug("Telegram poll failed", exc_info=True)
-            return 0
+    try:
+        with _cross_process_poll_lock():
+            with _poll_lock:
+                return _poll_telegram_commands_locked()
+    except BlockingIOError:
+        return 0
 
-        if not data.get("ok"):
-            logger.warning("Telegram getUpdates error: %s", data.get("description", data))
-            return 0
 
-        handled = 0
-        max_id = offset
-        allowed = {str(c) for c in telegram_chat_ids()}
-        for upd in data.get("result", []):
-            max_id = max(max_id, int(upd.get("update_id", 0)) + 1)
+def _poll_telegram_commands_locked() -> int:
+    offset = _load_offset()
+    try:
+        resp = requests.get(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates",
+            params={
+                "offset": offset,
+                "timeout": 0,
+                "allowed_updates": json.dumps(["message", "callback_query"]),
+            },
+            timeout=20,
+        )
+        data = resp.json()
+    except requests.RequestException:
+        logger.debug("Telegram poll failed", exc_info=True)
+        return 0
 
-            cb = upd.get("callback_query") or {}
-            if cb:
-                chat = cb.get("message", {}).get("chat") or {}
-                chat_id = str(chat.get("id", ""))
-                cb_id = str(cb.get("id", ""))
-                cb_data = str(cb.get("data") or "")
-                if chat_id and _allowed_chat(chat_id):
-                    try:
-                        _handle_callback(chat_id, cb_id, cb_data)
-                        handled += 1
-                    except Exception:
-                        logger.exception("Callback failed: %s", cb_data)
-                continue
+    if not data.get("ok"):
+        logger.warning("Telegram getUpdates error: %s", data.get("description", data))
+        return 0
 
-            msg = upd.get("message") or {}
-            chat = msg.get("chat") or {}
-            chat_id = str(chat.get("id", ""))
-            text = (msg.get("text") or "").strip()
-            if not chat_id or not text.startswith("/"):
-                continue
-            if not _allowed_chat(chat_id):
-                logger.warning(
-                    "Ignored command from chat %s (allowed: %s)",
-                    chat_id,
-                    ", ".join(sorted(allowed)) if allowed else "(none configured)",
-                )
-                if chat_id not in _denied_chat_warned:
-                    _denied_chat_warned.add(chat_id)
+    handled = 0
+    max_id = offset
+    allowed = {str(c) for c in telegram_chat_ids()}
+    for upd in data.get("result", []):
+        max_id = max(max_id, int(upd.get("update_id", 0)) + 1)
+
+        cb = upd.get("callback_query") or {}
+        if cb:
+            chat_id = _callback_chat_id(cb)
+            cb_id = str(cb.get("id", ""))
+            cb_data = str(cb.get("data") or "")
+            _answer_callback(cb_id)
+            if chat_id and _allowed_chat(chat_id):
+                try:
+                    _handle_callback(chat_id, cb_id, cb_data)
+                    handled += 1
+                except Exception:
+                    logger.exception("Callback failed: %s", cb_data)
                     _reply(
                         chat_id,
-                        "⛔ <b>Unauthorized chat</b>\n"
-                        f"Your chat id: <code>{chat_id}</code>\n"
-                        "Add this to GitHub secret <code>TELEGRAM_GROUP_CHAT_ID</code> "
-                        "or <code>TELEGRAM_CHAT_ID</code>, then retry.",
+                        "❌ <b>Strategy selection failed.</b>\n"
+                        "Send <code>/strategy</code> and tap again, or <code>/status</code> to check.",
                     )
-                continue
-            try:
-                _handle_command(chat_id, text)
-                handled += 1
-            except Exception:
-                logger.exception("Command failed: %s", text)
+            elif chat_id:
+                logger.warning(
+                    "Ignored callback from chat %s (allowed: %s)",
+                    chat_id,
+                    ", ".join(sorted(allowed)) if allowed else "(none)",
+                )
+            continue
 
-        if max_id > offset:
-            _save_offset(max_id)
-        return handled
+        msg = upd.get("message") or {}
+        chat = msg.get("chat") or {}
+        chat_id = str(chat.get("id", ""))
+        text = (msg.get("text") or "").strip()
+        if not chat_id or not text.startswith("/"):
+            continue
+        if not _allowed_chat(chat_id):
+            logger.warning(
+                "Ignored command from chat %s (allowed: %s)",
+                chat_id,
+                ", ".join(sorted(allowed)) if allowed else "(none configured)",
+            )
+            if chat_id not in _denied_chat_warned:
+                _denied_chat_warned.add(chat_id)
+                _reply(
+                    chat_id,
+                    "⛔ <b>Unauthorized chat</b>\n"
+                    f"Your chat id: <code>{chat_id}</code>\n"
+                    "Add this to <code>TELEGRAM_CHAT_ID</code> in .env, then restart bot.",
+                )
+            continue
+        try:
+            _handle_command(chat_id, text)
+            handled += 1
+        except Exception:
+            logger.exception("Command failed: %s", text)
+
+    if max_id > offset:
+        _save_offset(max_id)
+    return handled
 
 
-def start_command_poller(interval_sec: float = 2.0) -> threading.Thread:
-    """Background thread for Telegram commands (live runner)."""
+def start_command_poller(interval_sec: float = 2.0) -> threading.Thread | None:
+    """Background thread for Telegram commands (only when session polling is enabled)."""
+    global _poller_started
+    from config import TELEGRAM_POLL_IN_SESSION
+
+    if not TELEGRAM_POLL_IN_SESSION:
+        logger.info("Telegram session poller skipped (external listener handles commands).")
+        return None
+    if _poller_started:
+        return None
+    _poller_started = True
 
     def _loop() -> None:
         while True:
