@@ -27,7 +27,8 @@ def _fresh_state() -> dict:
     return {"date": today_key(), "mode": "off", "lots": UPSTOX_DEFAULT_LOTS}
 
 
-def _load() -> dict:
+def load_trade_state() -> dict:
+    """Load today's trade state (mode, lots, execution_strategy)."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not _STATE_FILE.exists():
         return _fresh_state()
@@ -36,16 +37,44 @@ def _load() -> dict:
     except (json.JSONDecodeError, OSError):
         return _fresh_state()
     if data.get("date") != today_key():
-        return _fresh_state()
+        fresh = _fresh_state()
+        save_trade_state(fresh)
+        return fresh
     data.setdefault("mode", "off")
     data.setdefault("lots", UPSTOX_DEFAULT_LOTS)
     return data
 
 
-def _save(data: dict) -> None:
+def save_trade_state(data: dict) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     data["date"] = today_key()
     _STATE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def _load() -> dict:
+    return load_trade_state()
+
+
+def _save(data: dict) -> None:
+    save_trade_state(data)
+
+
+def authorize_live_execution(strategy: str) -> None:
+    """Atomically set strategy + LIVE mode (single write — avoids race wipes)."""
+    data = load_trade_state()
+    data["execution_strategy"] = strategy
+    data["mode"] = "live"
+    save_trade_state(data)
+    logger.info("Authorized live execution: strategy=%s", strategy)
+
+
+def pause_live_execution(*, clear_strategy: bool = True) -> None:
+    data = load_trade_state()
+    data["mode"] = "off"
+    if clear_strategy:
+        data.pop("execution_strategy", None)
+    save_trade_state(data)
+    logger.info("Paused live execution (clear_strategy=%s)", clear_strategy)
 
 
 def get_mode() -> TradeMode:
@@ -99,5 +128,5 @@ def status_text() -> str:
         f"<b>Upstox trading:</b> {labels.get(mode, mode)}\n"
         f"{execution_strategy_status_line()}\n"
         f"<b>Lots:</b> {get_lots()} (Nifty lot={upstox_nifty_lot_size()}, Sensex lot={upstox_sensex_lot_size()})\n"
-        f"<b>Scope:</b> Nifty + Sensex <b>options only</b> · orders via <b>GTT</b>"
+        f"<b>Scope:</b> Nifty + Sensex <b>options only</b> · GTT/LIMIT at exact alert premium"
     )

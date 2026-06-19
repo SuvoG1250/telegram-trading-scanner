@@ -347,9 +347,17 @@ UPSTOX_AUTO_TRADE_ENABLED = os.environ.get("UPSTOX_AUTO_TRADE_ENABLED", "true").
     "yes",
 )
 UPSTOX_USE_GTT = os.environ.get("UPSTOX_USE_GTT", "true").lower() in ("1", "true", "yes")
-UPSTOX_GTT_ENTRY_BUFFER_RS = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_RS", "7"))
-UPSTOX_GTT_ENTRY_BUFFER_MIN = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MIN", "5"))
-UPSTOX_GTT_ENTRY_BUFFER_MAX = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MAX", "10"))
+# Exact alert premium for GTT/LIMIT entry (zero buffer)
+UPSTOX_GTT_ENTRY_BUFFER_RS = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_RS", "0"))
+UPSTOX_GTT_ENTRY_BUFFER_MIN = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MIN", "0"))
+UPSTOX_GTT_ENTRY_BUFFER_MAX = float(os.environ.get("UPSTOX_GTT_ENTRY_BUFFER_MAX", "0"))
+SEND_DAILY_STRATEGY_PROMPT = os.environ.get("SEND_DAILY_STRATEGY_PROMPT", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+DAILY_STRATEGY_PROMPT_HOUR = int(os.environ.get("DAILY_STRATEGY_PROMPT_HOUR", "8"))
+DAILY_STRATEGY_PROMPT_MINUTE = int(os.environ.get("DAILY_STRATEGY_PROMPT_MINUTE", "30"))
 UPSTOX_PAPER_TRADE = os.environ.get("UPSTOX_PAPER_TRADE", "false").lower() in ("1", "true", "yes")
 TELEGRAM_COMMANDS_ENABLED = os.environ.get("TELEGRAM_COMMANDS_ENABLED", "true").lower() in (
     "1",

@@ -11,9 +11,6 @@ from typing import Any
 
 from config import (
     DATA_DIR,
-    UPSTOX_GTT_ENTRY_BUFFER_MAX,
-    UPSTOX_GTT_ENTRY_BUFFER_MIN,
-    UPSTOX_GTT_ENTRY_BUFFER_RS,
     UPSTOX_NIFTY_INSTRUMENT_KEY,
     UPSTOX_PRODUCT_OPTION,
     UPSTOX_SENSEX_INSTRUMENT_KEY,
@@ -80,13 +77,6 @@ def _parse_expiry_label(label: str | None) -> str | None:
         return datetime.strptime(label.strip(), "%d %b %Y").strftime("%Y-%m-%d")
     except ValueError:
         return None
-
-
-def _entry_buffer_rs() -> float:
-    buf = UPSTOX_GTT_ENTRY_BUFFER_RS
-    lo = min(UPSTOX_GTT_ENTRY_BUFFER_MIN, UPSTOX_GTT_ENTRY_BUFFER_MAX)
-    hi = max(UPSTOX_GTT_ENTRY_BUFFER_MIN, UPSTOX_GTT_ENTRY_BUFFER_MAX)
-    return round(max(lo, min(hi, buf)), 2)
 
 
 def _place_regular(
@@ -217,8 +207,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     lv = signal.levels
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"
     alert_premium = float(lv.entry)
-    buffer_rs = _entry_buffer_rs()
-    entry_price = round(alert_premium + buffer_rs, 2)
+    entry_price = round(alert_premium, 2)
 
     ctx = _option_context(signal)
     if not ctx:
@@ -247,7 +236,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
             tag_base,
             gtt_ids,
             (
-                f"{mode} GTT: entry ₹{entry_price:.2f} (alert ₹{alert_premium:.2f} + ₹{buffer_rs:.0f}) · "
+                f"{mode} GTT: entry ₹{entry_price:.2f} (exact alert premium) · "
                 f"SL ₹{lv.stop_loss:.2f} · target ₹{lv.primary_target:.2f}"
             ),
             paper=is_paper,
@@ -302,7 +291,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         True,
         tag_base,
         order_ids,
-        f"{mode} LIMIT entry ₹{entry_price:.2f} (alert + ₹{buffer_rs:.0f})",
+        f"{mode} LIMIT entry ₹{entry_price:.2f} (exact alert premium)",
         paper=is_paper,
     )
     _record(tag_base, {"instrument_key": inst_key, "qty": qty}, res)

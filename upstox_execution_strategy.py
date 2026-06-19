@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Literal
 
-from config import DATA_DIR
-from market_time import today_key
+from upstox_trade_state import load_trade_state, save_trade_state
 
 logger = logging.getLogger(__name__)
 
 ExecutionStrategy = Literal["st_tsl", "ema_macd_sync"]
-
-_STATE_FILE = DATA_DIR / "upstox_trade_state.json"
 
 ST_TSL_STRATEGIES = frozenset(
     {
@@ -28,40 +24,29 @@ EMA_MACD_SYNC_STRATEGIES = frozenset(
 )
 
 STRATEGY_LABELS = {
-    "st_tsl": "ST+TSL (SuperTrend flip · 5m)",
-    "ema_macd_sync": "EMA 9/21 + MACD Sync (cross + hist flip · 3m HA)",
+    "st_tsl": "Original Strategy (ST+TSL · 5m)",
+    "ema_macd_sync": "9/21 EMA + MACD Strategy (3m HA)",
 }
 
 
-def _load() -> dict:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not _STATE_FILE.exists():
-        return {"date": today_key()}
-    try:
-        data = json.loads(_STATE_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {"date": today_key()}
-    if data.get("date") != today_key():
-        data = {"date": today_key()}
-    return data
-
-
-def _save_patch(patch: dict) -> None:
-    data = _load()
-    data.update(patch)
-    data["date"] = today_key()
-    _STATE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+def clear_execution_strategy() -> None:
+    data = load_trade_state()
+    data.pop("execution_strategy", None)
+    save_trade_state(data)
+    logger.info("Upstox execution strategy cleared (paused).")
 
 
 def get_execution_strategy() -> ExecutionStrategy | None:
-    raw = str(_load().get("execution_strategy") or "").strip().lower()
+    raw = str(load_trade_state().get("execution_strategy") or "").strip().lower()
     if raw in ("st_tsl", "ema_macd_sync"):
         return raw  # type: ignore[return-value]
     return None
 
 
 def set_execution_strategy(key: ExecutionStrategy) -> None:
-    _save_patch({"execution_strategy": key})
+    data = load_trade_state()
+    data["execution_strategy"] = key
+    save_trade_state(data)
     logger.info("Upstox execution strategy -> %s", key)
 
 
@@ -93,5 +78,5 @@ def signal_allowed_for_execution(signal_strategy: str) -> bool:
 def execution_strategy_status_line() -> str:
     key = get_execution_strategy()
     if not key:
-        return "<b>Auto-exec strategy:</b> ⚠️ not selected — use <b>/live</b> to choose"
+        return "<b>Auto-exec strategy:</b> ⏸ PAUSED — tap morning buttons or /strategy"
     return f"<b>Auto-exec strategy:</b> {STRATEGY_LABELS[key]}"

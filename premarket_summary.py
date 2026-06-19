@@ -81,11 +81,15 @@ def send_premarket_market_summary(*, force_window: bool = True) -> bool:
         return False
     if force_window and not is_premarket_summary_window():
         return False
-    if SEND_PREMARKET_FULL_ANALYSIS:
-        from premarket_analysis import format_full_premarket_analysis
+    try:
+        if SEND_PREMARKET_FULL_ANALYSIS:
+            from premarket_analysis import format_full_premarket_analysis
 
-        text = format_full_premarket_analysis(use_llm=True)
-    else:
+            text = format_full_premarket_analysis(use_llm=True)
+        else:
+            text = format_premarket_market_summary()
+    except Exception:
+        logger.exception("Pre-market summary build failed — sending compact fallback.")
         text = format_premarket_market_summary()
     if send_plain(text):
         mark_premarket_summary_sent()

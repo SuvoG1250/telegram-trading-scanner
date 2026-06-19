@@ -86,6 +86,10 @@ logger = logging.getLogger("scanner")
 
 def run_premarket() -> list[str]:
     """Build today's scan list; send pre-market report when enabled."""
+    from daily_strategy_setup import send_daily_strategy_setup
+
+    if send_daily_strategy_setup():
+        logger.info("Daily strategy setup prompt sent.")
     if send_premarket_market_summary():
         logger.info("Pre-market news summary sent.")
     watchlist, ranked = build_watchlist()

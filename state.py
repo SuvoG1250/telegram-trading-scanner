@@ -151,6 +151,7 @@ def _session_today() -> dict[str, Any]:
             "stock_btst_sent": False,
             "stock_btst_symbols": [],
             "premarket_summary_sent": False,
+            "daily_strategy_prompt_sent": False,
             "automation_session_announced": False,
         }
     return data
@@ -227,6 +228,16 @@ def premarket_summary_sent() -> bool:
 def mark_premarket_summary_sent() -> None:
     data = _session_today()
     data["premarket_summary_sent"] = True
+    _save_session(data)
+
+
+def daily_strategy_prompt_sent() -> bool:
+    return bool(_session_today().get("daily_strategy_prompt_sent"))
+
+
+def mark_daily_strategy_prompt_sent() -> None:
+    data = _session_today()
+    data["daily_strategy_prompt_sent"] = True
     _save_session(data)
 
 

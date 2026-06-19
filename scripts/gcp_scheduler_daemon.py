@@ -153,6 +153,53 @@ def _maybe_global_session(state: dict) -> None:
     _save_state(state)
 
 
+def _maybe_daily_strategy_prompt(state: dict) -> None:
+    weekday, hour, minute, _ = _now_parts()
+    if weekday >= 5:
+        return
+    from config import SEND_DAILY_STRATEGY_PROMPT
+
+    if not SEND_DAILY_STRATEGY_PROMPT:
+        return
+
+    from config import DAILY_STRATEGY_PROMPT_HOUR, DAILY_STRATEGY_PROMPT_MINUTE
+
+    if hour < DAILY_STRATEGY_PROMPT_HOUR or (
+        hour == DAILY_STRATEGY_PROMPT_HOUR and minute < DAILY_STRATEGY_PROMPT_MINUTE
+    ):
+        return
+
+    key = f"daily_strategy_{_today_key()}"
+    if state.get(key):
+        return
+
+    from daily_strategy_setup import send_daily_strategy_setup
+
+    if send_daily_strategy_setup(force=True):
+        state[key] = True
+        _save_state(state)
+
+
+def _maybe_premarket_summary(state: dict) -> None:
+    weekday, hour, minute, _ = _now_parts()
+    if weekday >= 5:
+        return
+    if hour < 8 or (hour == 8 and minute < 55):
+        return
+    if hour > 9 or (hour == 9 and minute > 45):
+        return
+
+    key = f"premarket_{_today_key()}"
+    if state.get(key):
+        return
+
+    from premarket_summary import send_premarket_market_summary
+
+    if send_premarket_market_summary(force_window=True):
+        state[key] = True
+        _save_state(state)
+
+
 def _prune_old_state(state: dict) -> dict:
     today = _today_key()
     keep = {k: v for k, v in state.items() if today in k or k.startswith("cmd_restart_")}
@@ -181,6 +228,8 @@ def main() -> int:
         try:
             state = _prune_old_state(_load_state())
             _ensure_commands_listener(state)
+            _maybe_daily_strategy_prompt(state)
+            _maybe_premarket_summary(state)
             _maybe_nse_session(state)
             _maybe_global_session(state)
         except Exception:

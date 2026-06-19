@@ -72,12 +72,12 @@ def is_premarket_window(dt: datetime | None = None) -> bool:
 
 
 def is_premarket_summary_window(dt: datetime | None = None) -> bool:
-    """9:10–9:35 IST — send pre-market news summary (wider than watchlist window)."""
+    """8:55–9:45 IST — pre-market sentiment (wider than watchlist build window)."""
     dt = dt or now_ist()
     if not is_weekday(dt):
         return False
     t = ist_time_tuple(dt)
-    return _after(PREMARKET_START, t) and _before((9, 35), t)
+    return _after((8, 55), t) and _before((9, 45), t)
 
 
 def is_orb_allowed(dt: datetime | None = None) -> bool:

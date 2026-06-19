@@ -105,16 +105,9 @@ def _answer_callback(callback_id: str, text: str = "") -> None:
 
 
 def _strategy_picker_markup() -> dict:
-    return {
-        "inline_keyboard": [
-            [
-                {"text": "📈 ST+TSL (SuperTrend 5m)", "callback_data": "exec:st_tsl"},
-            ],
-            [
-                {"text": "📊 EMA+MACD Sync (3m HA)", "callback_data": "exec:ema_macd_sync"},
-            ],
-        ]
-    }
+    from daily_strategy_setup import daily_strategy_markup
+
+    return daily_strategy_markup()
 
 
 def _send_strategy_picker(chat_id: str, *, mode_hint: str = "live") -> None:
@@ -124,7 +117,8 @@ def _send_strategy_picker(chat_id: str, *, mode_hint: str = "live") -> None:
         chat_id,
         "<b>Select today's auto-execution strategy</b>\n\n"
         "Both strategies still send <b>Telegram alerts</b> every day.\n"
-        "Only the strategy you pick here will place <b>Upstox GTT orders</b>.\n\n"
+        "Only the strategy you pick here will place <b>Upstox orders</b> "
+        "at the <b>exact alert premium</b> (zero buffer).\n\n"
         f"• <b>{STRATEGY_LABELS['st_tsl']}</b>\n"
         f"• <b>{STRATEGY_LABELS['ema_macd_sync']}</b>\n\n"
         f"<i>Mode after selection: {mode_hint.upper()}</i>",
@@ -143,7 +137,7 @@ def _activate_live_mode(chat_id: str) -> None:
         chat_id,
         "🔴 <b>LIVE enabled</b>\n"
         f"<b>Auto-exec:</b> {execution_strategy_label()}\n"
-        f"<b>Orders:</b> GTT · entry = alert premium + ₹5–10 · {get_lots()} lot(s)\n"
+        f"<b>Orders:</b> GTT/LIMIT · entry = alert premium exactly · {get_lots()} lot(s)\n"
         "Both strategies still alert — only selected one trades.\n"
         "Send /strategy to change · /stop to disable.",
     )
@@ -154,26 +148,31 @@ def _handle_callback(chat_id: str, callback_id: str, data: str) -> None:
         _answer_callback(callback_id)
         return
 
-    from upstox_execution_strategy import STRATEGY_LABELS, set_execution_strategy
+    from daily_strategy_setup import confirmation_message
+    from upstox_execution_strategy import STRATEGY_LABELS
+    from upstox_trade_state import authorize_live_execution, pause_live_execution
 
     key = data.split(":", 1)[1].strip().lower()
-    if key not in STRATEGY_LABELS:
-        _answer_callback(callback_id, "Unknown strategy")
+
+    if key == "pause":
+        pause_live_execution(clear_strategy=True)
+        _answer_callback(callback_id, "Paused for today")
+        _reply(chat_id, confirmation_message("pause"))
         return
 
-    set_execution_strategy(key)  # type: ignore[arg-type]
-    pending = _PENDING_MODE.pop(chat_id, "live")
-    set_mode(pending)
+    if key not in STRATEGY_LABELS:
+        _answer_callback(callback_id, "Unknown choice")
+        return
+
+    authorize_live_execution(key)
+    _PENDING_MODE.pop(chat_id, None)
     label = STRATEGY_LABELS[key]
     _answer_callback(callback_id, f"Selected: {label}")
-    mode_label = "LIVE" if pending == "live" else "PAPER"
     _reply(
         chat_id,
-        f"✅ <b>{mode_label} + strategy set</b>\n"
-        f"<b>Auto-exec today:</b> {label}\n"
-        "<b>Orders:</b> Upstox GTT (entry premium + ₹5–10 buffer)\n"
-        "Other strategy alerts still arrive — only this one places orders.\n"
-        "Use /strategy to switch · /status to verify.",
+        confirmation_message(key)
+        + "\n\n"
+        + status_text(),
     )
 
 
@@ -183,11 +182,13 @@ _PENDING_MODE: dict[str, str] = {}
 def _help_text() -> str:
     return (
         "<b>📱 Trading bot commands</b>\n\n"
-        "<b>/live</b> — enable REAL Upstox GTT orders (pick strategy first)\n"
+        "<b>/live</b> — enable REAL Upstox orders (pick strategy first)\n"
         "<b>/paper</b> — test mode (pick strategy, no real broker orders)\n"
         "<b>/strategy</b> — change today's auto-exec strategy\n"
         "<b>/stop</b> — disable Upstox orders\n"
         "<b>/status</b> — mode + strategy + token\n\n"
+        "<b>Daily setup</b> — ~8:30 AM IST buttons: Original / EMA+MACD / Pause\n"
+        "Execution stays paused until you tap a button.\n\n"
         "<b>Upstox token (daily before 9:15 AM)</b>\n"
         "<b>/upstox_token</b> eyJ… — paste token from app <b>Generate</b> button\n"
         "<b>/upstox_login</b> — OAuth login link (if Generate fails)\n"
@@ -195,7 +196,7 @@ def _help_text() -> str:
         "<b>/lots 1</b> — option lots (1–10)\n"
         "<b>/help</b> — this message\n\n"
         "<i>Use trading app token (NOT Analytics read-only).\n"
-        "Token expires ~3:30 AM IST — refresh each morning, then /live.</i>"
+        "Token expires ~3:30 AM IST — refresh each morning, then tap strategy button.</i>"
     )
 
 

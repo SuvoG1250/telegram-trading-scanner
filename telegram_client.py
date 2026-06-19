@@ -184,20 +184,54 @@ def _post_message(chat_id: str, payload: dict) -> requests.Response:
     return requests.post(url, json=payload, timeout=30)
 
 
+def _split_telegram_text(text: str, limit: int = 4000) -> list[str]:
+    """Split long HTML messages on paragraph boundaries for Telegram's 4096 cap."""
+    if len(text) <= limit:
+        return [text]
+    chunks: list[str] = []
+    current = ""
+    for block in text.split("\n\n"):
+        piece = block if not current else f"{current}\n\n{block}"
+        if len(piece) <= limit:
+            current = piece
+            continue
+        if current:
+            chunks.append(current)
+        while len(block) > limit:
+            chunks.append(block[:limit])
+            block = block[limit:]
+        current = block
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def _send_to_all(payload: dict) -> bool:
     chat_ids = telegram_chat_ids()
     if not TELEGRAM_TOKEN or not chat_ids:
         logger.warning("Telegram credentials missing; message not sent.")
         return False
 
+    text = payload.get("text", "")
+    chunks = _split_telegram_text(text) if text else [""]
+
     ok_any = False
     for chat_id in chat_ids:
         try:
-            resp = _post_message(chat_id, payload)
-            if resp.ok:
-                ok_any = True
-            else:
-                logger.error("Telegram send to %s failed: %s", chat_id, _api_error(resp))
+            for i, chunk in enumerate(chunks):
+                part = dict(payload)
+                part["text"] = chunk
+                resp = _post_message(chat_id, part)
+                if resp.ok:
+                    ok_any = True
+                else:
+                    logger.error(
+                        "Telegram send to %s failed (part %s/%s): %s",
+                        chat_id,
+                        i + 1,
+                        len(chunks),
+                        _api_error(resp),
+                    )
         except requests.RequestException:
             logger.exception("Telegram send to %s failed", chat_id)
     return ok_any
