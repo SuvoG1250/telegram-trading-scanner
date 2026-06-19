@@ -13,6 +13,8 @@ concurrency:
 
 jobs:
   poll:
+    # Disabled: GCP VM runs telegram_command_listener 24/7. Enabling this causes getUpdates Conflict.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 4
     env:

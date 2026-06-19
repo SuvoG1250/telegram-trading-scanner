@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Poll Telegram bot commands for a fixed duration (used by GitHub Actions + cron)."""
+"""Poll Telegram bot commands for a fixed duration (used by GCP daemon + GitHub Actions)."""
 
 from __future__ import annotations
 
 import argparse
+import atexit
 import logging
 import sys
 import time
@@ -36,11 +37,21 @@ def main() -> int:
     args = parser.parse_args()
 
     from config import TELEGRAM_COMMANDS_ENABLED, TELEGRAM_TOKEN
-    from telegram_commands import poll_telegram_commands
+    from telegram_commands import (
+        acquire_telegram_poll_ownership,
+        poll_telegram_commands,
+        release_telegram_poll_ownership,
+    )
 
     if not TELEGRAM_COMMANDS_ENABLED or not TELEGRAM_TOKEN:
         logger.warning("Telegram commands disabled or TELEGRAM_TOKEN missing.")
         return 0
+
+    if not acquire_telegram_poll_ownership():
+        logger.error("Another Telegram command listener is already running — exiting.")
+        return 1
+
+    atexit.register(release_telegram_poll_ownership)
 
     try:
         import requests
@@ -55,7 +66,7 @@ def main() -> int:
 
     deadline = time.time() + max(10, args.seconds)
     total = 0
-    logger.info("Telegram command listener started for %s seconds.", args.seconds)
+    logger.info("Telegram command listener started for %s seconds (exclusive poll owner).", args.seconds)
     while time.time() < deadline:
         try:
             n = poll_telegram_commands()

@@ -75,16 +75,12 @@ def _should_continue() -> bool:
 def run_loop(max_minutes: int) -> int:
     from config import TELEGRAM_POLL_IN_SESSION
     from scanner import main as scan_once
-    from telegram_commands import (
-        announce_automation_session,
-        poll_telegram_commands,
-        start_command_poller,
-    )
+    from telegram_commands import announce_automation_session, poll_telegram_commands, start_command_poller
     from upstox_live_feed import prepare_live_feed
     from upstox_websocket import stop_upstox_feed
 
-    start_command_poller(interval_sec=2.0)
     if TELEGRAM_POLL_IN_SESSION:
+        start_command_poller(interval_sec=2.0)
         poll_telegram_commands()
     prepare_live_feed()
     if TELEGRAM_POLL_IN_SESSION:

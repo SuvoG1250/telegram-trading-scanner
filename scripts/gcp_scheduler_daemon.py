@@ -93,6 +93,16 @@ def _start_bg(args: list[str], log_name: str) -> None:
     logger.info("Started: %s -> %s", " ".join(args), log_path)
 
 
+def _pgrep_pids(pattern: str) -> list[str]:
+    try:
+        r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            return []
+        return [p.strip() for p in r.stdout.splitlines() if p.strip()]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+
+
 def _ensure_commands_listener(state: dict) -> None:
     weekday, hour, minute, _ = _now_parts()
     day = _today_key()
@@ -101,13 +111,20 @@ def _ensure_commands_listener(state: dict) -> None:
     if due_restart and state.get(restart_key):
         due_restart = False
 
-    running = _pgrep("telegram_command_listener.py")
-    if running and not due_restart:
+    pids = _pgrep_pids("telegram_command_listener.py")
+    if len(pids) > 1:
+        logger.warning("Killing %s duplicate telegram listeners: %s", len(pids), pids)
+        subprocess.run(["pkill", "-f", "telegram_command_listener.py"], check=False)
+        time.sleep(2)
+        pids = []
+
+    if len(pids) == 1 and not due_restart:
         return
 
-    if running and due_restart:
+    if pids and due_restart:
+        logger.info("Daily listener restart — stopping existing listener.")
         subprocess.run(["pkill", "-f", "telegram_command_listener.py"], check=False)
-        time.sleep(1)
+        time.sleep(2)
 
     _start_bg(
         [str(PY), "scripts/telegram_command_listener.py", "--seconds", "86400", "--interval", "1.5"],

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import threading
+import time
 from contextlib import contextmanager
 
 import requests
@@ -31,6 +33,64 @@ _POLL_LOCK_FILE = _OFFSET_FILE.parent / "telegram_poll.lock"
 _poll_lock = threading.Lock()
 _denied_chat_warned: set[str] = set()
 _poller_started = False
+_poll_owner_handle = None
+_conflict_backoff_until = 0.0
+_last_conflict_log = 0.0
+
+
+def acquire_telegram_poll_ownership() -> bool:
+    """
+    Exclusive getUpdates ownership for the lifetime of this process.
+    Call once from telegram_command_listener.py only.
+    """
+    global _poll_owner_handle
+    if _poll_owner_handle is not None:
+        return True
+    _OFFSET_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        _poll_owner_handle = open(_POLL_LOCK_FILE, "a+", encoding="utf-8")
+        _poll_owner_handle.write(str(os.getpid()))
+        _poll_owner_handle.flush()
+        logger.info("Telegram poll ownership acquired (pid=%s, win32)", os.getpid())
+        return True
+
+    import fcntl
+
+    handle = open(_POLL_LOCK_FILE, "a+", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        logger.error(
+            "Another Telegram poller already holds the lock (%s). Exiting.",
+            _POLL_LOCK_FILE,
+        )
+        return False
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()))
+    handle.flush()
+    _poll_owner_handle = handle
+    logger.info("Telegram poll ownership acquired (pid=%s)", os.getpid())
+    return True
+
+
+def release_telegram_poll_ownership() -> None:
+    global _poll_owner_handle
+    if _poll_owner_handle is None:
+        return
+    if sys.platform != "win32":
+        import fcntl
+
+        try:
+            fcntl.flock(_poll_owner_handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+    try:
+        _poll_owner_handle.close()
+    except OSError:
+        pass
+    _poll_owner_handle = None
 
 
 @contextmanager
@@ -399,6 +459,18 @@ def poll_telegram_commands() -> int:
     if not TELEGRAM_COMMANDS_ENABLED or not TELEGRAM_TOKEN:
         return 0
 
+    from config import TELEGRAM_POLL_IN_SESSION
+
+    if _poll_owner_handle is None and not TELEGRAM_POLL_IN_SESSION:
+        return 0
+
+    if time.time() < _conflict_backoff_until:
+        return 0
+
+    if _poll_owner_handle is not None:
+        with _poll_lock:
+            return _poll_telegram_commands_locked()
+
     try:
         with _cross_process_poll_lock():
             with _poll_lock:
@@ -425,7 +497,21 @@ def _poll_telegram_commands_locked() -> int:
         return 0
 
     if not data.get("ok"):
-        logger.warning("Telegram getUpdates error: %s", data.get("description", data))
+        desc = str(data.get("description", data))
+        if "Conflict" in desc or "terminated by other getUpdates" in desc:
+            global _conflict_backoff_until, _last_conflict_log
+            now = time.time()
+            _conflict_backoff_until = now + 90
+            if now - _last_conflict_log > 60:
+                _last_conflict_log = now
+                logger.warning(
+                    "getUpdates conflict — duplicate poller detected (pid=%s). "
+                    "On GCP run: pkill -f telegram_command_listener; "
+                    "bash scripts/install_gcp_automation.sh",
+                    os.getpid(),
+                )
+            return 0
+        logger.warning("Telegram getUpdates error: %s", desc)
         return 0
 
     handled = 0
