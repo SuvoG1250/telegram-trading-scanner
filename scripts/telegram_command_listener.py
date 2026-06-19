@@ -36,16 +36,17 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    from config import TELEGRAM_COMMANDS_ENABLED, TELEGRAM_TOKEN
+    from config import telegram_commands_status
     from telegram_commands import (
         acquire_telegram_poll_ownership,
         poll_telegram_commands,
         release_telegram_poll_ownership,
     )
 
-    if not TELEGRAM_COMMANDS_ENABLED or not TELEGRAM_TOKEN:
-        logger.warning("Telegram commands disabled or TELEGRAM_TOKEN missing.")
-        return 0
+    tg_ok, tg_msg = telegram_commands_status()
+    if not tg_ok:
+        logger.error("Cannot start listener: %s | .env=%s", tg_msg, ROOT / ".env")
+        return 1
 
     if not acquire_telegram_poll_ownership():
         logger.error("Another Telegram command listener is already running — exiting.")
@@ -55,6 +56,7 @@ def main() -> int:
 
     try:
         import requests
+        from config import TELEGRAM_TOKEN
 
         requests.get(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook",

@@ -2,24 +2,24 @@
 """
 GCP automation daemon — no crontab/sudo required.
 
-Replaces cron-job.org schedule on a VPS:
-  • Keep Telegram command listener alive 24/7
+Single process handles:
+  • Telegram commands (/live /strategy /upstox_token) — polls getUpdates here only
   • Mon–Fri 9:10 IST — NSE session (upstox_live_runner, 390 min)
   • Daily 7–8 & 16–22 IST — global session (session_runner, 58 min)
 
 Start once:
-  nohup ./venv/bin/python scripts/gcp_scheduler_daemon.py >> ~/tradingbot-logs/scheduler.log 2>&1 &
+  bash scripts/install_gcp_automation.sh
 """
 
 from __future__ import annotations
 
+import atexit
 import json
 import logging
 import os
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,11 +34,11 @@ logger = logging.getLogger("gcp_scheduler")
 STATE_FILE = ROOT / "data" / "gcp_scheduler_state.json"
 LOG_DIR = Path.home() / "tradingbot-logs"
 PY = ROOT / "venv" / "bin" / "python"
-POLL_SEC = 30
+SCHEDULER_INTERVAL_SEC = 30
+TELEGRAM_POLL_INTERVAL_SEC = 1.5
 
 NSE_HOUR, NSE_MIN = 9, 10
 GLOBAL_HOURS = (7, 8, 16, 17, 18, 19, 20, 21, 22)
-CMD_RESTART_HOUR, CMD_RESTART_MIN = 6, 55
 
 
 def _load_state() -> dict:
@@ -93,45 +93,20 @@ def _start_bg(args: list[str], log_name: str) -> None:
     logger.info("Started: %s -> %s", " ".join(args), log_path)
 
 
-def _pgrep_pids(pattern: str) -> list[str]:
+def _stop_legacy_listeners() -> None:
+    """Remove separate listener subprocesses — scheduler polls Telegram directly."""
     try:
-        r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(["pgrep", "-f", "telegram_command_listener.py"], capture_output=True, text=True, timeout=5)
         if r.returncode != 0:
-            return []
-        return [p.strip() for p in r.stdout.splitlines() if p.strip()]
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return []
-
-
-def _ensure_commands_listener(state: dict) -> None:
-    weekday, hour, minute, _ = _now_parts()
-    day = _today_key()
-    restart_key = f"cmd_restart_{day}"
-    due_restart = hour == CMD_RESTART_HOUR and minute >= CMD_RESTART_MIN
-    if due_restart and state.get(restart_key):
-        due_restart = False
-
-    pids = _pgrep_pids("telegram_command_listener.py")
-    if len(pids) > 1:
-        logger.warning("Killing %s duplicate telegram listeners: %s", len(pids), pids)
+            return
+        pids = [p.strip() for p in r.stdout.splitlines() if p.strip()]
+        if not pids:
+            return
+        logger.warning("Stopping %s legacy telegram_command_listener process(es): %s", len(pids), pids)
         subprocess.run(["pkill", "-f", "telegram_command_listener.py"], check=False)
         time.sleep(2)
-        pids = []
-
-    if len(pids) == 1 and not due_restart:
-        return
-
-    if pids and due_restart:
-        logger.info("Daily listener restart — stopping existing listener.")
-        subprocess.run(["pkill", "-f", "telegram_command_listener.py"], check=False)
-        time.sleep(2)
-
-    _start_bg(
-        [str(PY), "scripts/telegram_command_listener.py", "--seconds", "86400", "--interval", "1.5"],
-        "commands.log",
-    )
-    state[restart_key] = True
-    _save_state(state)
+    except (OSError, subprocess.SubprocessError):
+        pass
 
 
 def _maybe_nse_session(state: dict) -> None:
@@ -219,9 +194,17 @@ def _maybe_premarket_summary(state: dict) -> None:
 
 def _prune_old_state(state: dict) -> dict:
     today = _today_key()
-    keep = {k: v for k, v in state.items() if today in k or k.startswith("cmd_restart_")}
+    keep = {k: v for k, v in state.items() if today in k}
     if len(keep) < len(state):
         return keep
+    return state
+
+
+def _scheduler_tick(state: dict) -> dict:
+    _maybe_daily_strategy_prompt(state)
+    _maybe_premarket_summary(state)
+    _maybe_nse_session(state)
+    _maybe_global_session(state)
     return state
 
 
@@ -229,29 +212,70 @@ def main() -> int:
     if not PY.is_file():
         logger.error("Missing venv python: %s", PY)
         return 1
-    if not (ROOT / ".env").is_file():
+    env_file = ROOT / ".env"
+    if not env_file.is_file():
         logger.error("Missing .env in %s", ROOT)
         return 1
 
     os.environ.setdefault("TZ", "Asia/Kolkata")
-    logger.info("GCP scheduler daemon started (no crontab). Repo: %s", ROOT)
+    _stop_legacy_listeners()
+
+    from config import telegram_commands_status
+
+    tg_ok, tg_msg = telegram_commands_status()
+    if not tg_ok:
+        logger.error(
+            "Telegram commands NOT active: %s | .env=%s | Fix .env then restart.",
+            tg_msg,
+            env_file,
+        )
+    else:
+        from telegram_commands import (
+            acquire_telegram_poll_ownership,
+            poll_telegram_commands,
+            release_telegram_poll_ownership,
+        )
+
+        if not acquire_telegram_poll_ownership():
+            logger.error(
+                "Another process is polling Telegram (getUpdates conflict). "
+                "Run: pkill -f gcp_scheduler_daemon; pkill -f telegram_command_listener; "
+                "bash scripts/install_gcp_automation.sh"
+            )
+            return 1
+        atexit.register(release_telegram_poll_ownership)
+        logger.info("Telegram polling embedded in scheduler (single poller, pid=%s).", os.getpid())
+
+    logger.info("GCP scheduler daemon started. Repo: %s", ROOT)
 
     try:
         subprocess.run([str(PY), "scripts/telegram_delete_webhook.py"], cwd=str(ROOT), check=False, timeout=30)
     except Exception:
         pass
 
+    state = _prune_old_state(_load_state())
+    last_scheduler = 0.0
+
     while True:
-        try:
-            state = _prune_old_state(_load_state())
-            _ensure_commands_listener(state)
-            _maybe_daily_strategy_prompt(state)
-            _maybe_premarket_summary(state)
-            _maybe_nse_session(state)
-            _maybe_global_session(state)
-        except Exception:
-            logger.exception("Scheduler tick failed")
-        time.sleep(POLL_SEC)
+        loop_start = time.time()
+
+        if tg_ok:
+            try:
+                poll_telegram_commands()
+            except Exception:
+                logger.exception("Telegram poll failed")
+
+        if loop_start - last_scheduler >= SCHEDULER_INTERVAL_SEC:
+            try:
+                state = _prune_old_state(_load_state())
+                state = _scheduler_tick(state)
+                _save_state(state)
+            except Exception:
+                logger.exception("Scheduler tick failed")
+            last_scheduler = loop_start
+
+        elapsed = time.time() - loop_start
+        time.sleep(max(0.2, TELEGRAM_POLL_INTERVAL_SEC - elapsed))
 
 
 if __name__ == "__main__":

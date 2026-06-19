@@ -8,7 +8,8 @@ from pathlib import Path
 # Local secrets: .env is gitignored — never commit real tokens.
 _env_path = Path(__file__).resolve().parent / ".env"
 if _env_path.exists():
-    for line in _env_path.read_text(encoding="utf-8").splitlines():
+    raw_env = _env_path.read_text(encoding="utf-8-sig")
+    for line in raw_env.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -434,6 +435,15 @@ SEND_DAILY_SUMMARY = os.environ.get("SEND_DAILY_SUMMARY", "true").lower() in ("1
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 TELEGRAM_GROUP_CHAT_ID = os.environ.get("TELEGRAM_GROUP_CHAT_ID", "")
+
+
+def telegram_commands_status() -> tuple[bool, str]:
+    """Whether Telegram command polling can run."""
+    if not TELEGRAM_COMMANDS_ENABLED:
+        return False, "TELEGRAM_COMMANDS_ENABLED=false in .env"
+    if not TELEGRAM_TOKEN:
+        return False, "TELEGRAM_TOKEN is empty — add it to .env"
+    return True, "ok"
 
 
 def telegram_chat_ids() -> list[str]:

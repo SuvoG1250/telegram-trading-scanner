@@ -13,44 +13,56 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-# Ensure only ONE Telegram poller and ONE scheduler (duplicate getUpdates = Conflict errors)
-echo "Stopping duplicate Telegram pollers and schedulers..."
+echo "=== Stopping ALL Telegram pollers and schedulers ==="
 pkill -f "telegram_command_listener.py" 2>/dev/null || true
 pkill -f "gcp_scheduler_daemon.py" 2>/dev/null || true
 sleep 2
+pkill -9 -f "telegram_command_listener.py" 2>/dev/null || true
+pkill -9 -f "gcp_scheduler_daemon.py" 2>/dev/null || true
+sleep 1
+rm -f "$APP/data/telegram_poll.lock" 2>/dev/null || true
 
-LISTENERS=$(pgrep -fc "telegram_command_listener.py" 2>/dev/null || echo 0)
-SCHEDULERS=$(pgrep -fc "gcp_scheduler_daemon.py" 2>/dev/null || echo 0)
-if [[ "$LISTENERS" != "0" ]] || [[ "$SCHEDULERS" != "0" ]]; then
-  echo "Force-killing remaining processes..."
-  pkill -9 -f "telegram_command_listener.py" 2>/dev/null || true
-  pkill -9 -f "gcp_scheduler_daemon.py" 2>/dev/null || true
-  sleep 1
-fi
-
-# Session runner must NOT poll when daemon listener is active
-if ! grep -q "TELEGRAM_POLL_IN_SESSION" .env 2>/dev/null; then
+# Session runner must NOT poll when scheduler handles Telegram
+if ! grep -q "^TELEGRAM_POLL_IN_SESSION=" .env 2>/dev/null; then
   echo "TELEGRAM_POLL_IN_SESSION=false" >> .env
-  echo "Added TELEGRAM_POLL_IN_SESSION=false to .env"
+  echo "Added TELEGRAM_POLL_IN_SESSION=false"
 fi
+if grep -q "^TELEGRAM_COMMANDS_ENABLED=" .env 2>/dev/null; then
+  sed -i 's/^TELEGRAM_COMMANDS_ENABLED=.*/TELEGRAM_COMMANDS_ENABLED=true/' .env 2>/dev/null || true
+else
+  echo "TELEGRAM_COMMANDS_ENABLED=true" >> .env
+fi
+
+echo ""
+echo "=== Pre-flight Telegram config ==="
+"$PY" -c "
+from config import telegram_commands_status, telegram_chat_ids
+ok, msg = telegram_commands_status()
+print('Ready:', ok, '-', msg)
+print('Chat IDs:', telegram_chat_ids())
+if not ok:
+    raise SystemExit(1)
+" || {
+  echo ""
+  echo "ERROR: Fix .env — TELEGRAM_TOKEN must be set."
+  echo "Upload your .env from PC or edit: nano is not needed, use:"
+  echo "  cat > .env << 'EOF'"
+  echo "  (paste contents)"
+  echo "  EOF"
+  exit 1
+}
 
 export TZ=Asia/Kolkata
 nohup "$PY" scripts/gcp_scheduler_daemon.py >> "$LOG/scheduler.log" 2>&1 &
 echo "Scheduler daemon PID: $!"
-sleep 3
+sleep 4
 
-LISTENERS=$(pgrep -fc "telegram_command_listener.py" 2>/dev/null || echo 0)
-echo "Telegram listeners running: $LISTENERS (should be 1)"
-if [[ "$LISTENERS" != "1" ]]; then
-  echo "WARNING: expected exactly 1 listener. Check: pgrep -af telegram_command_listener"
-fi
+echo ""
+echo "=== Running processes (should be 1 scheduler, 0 listeners) ==="
+pgrep -af "gcp_scheduler_daemon|telegram_command_listener" || echo "(none — check scheduler.log)"
 
-echo "Logs: tail -f $LOG/scheduler.log  and  tail -f $LOG/commands.log"
+bash scripts/diagnose_telegram.sh
+
 echo ""
-echo "Schedule (IST):"
-echo "  • Commands 24/7 (/upstox_token /strategy)"
-echo "  • NSE Mon-Fri 9:10 AM"
-echo "  • Global 7-8 AM & 4-10 PM"
-echo ""
-echo "Do NOT also run scripts/start_gcp_now.sh (creates duplicate listener)."
-echo "Disable cron-job.org + GitHub telegram-commands workflow on your PC."
+echo "Telegram commands poll inside scheduler.log (not commands.log)."
+echo "Test: send /status in Telegram."
