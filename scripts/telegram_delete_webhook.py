@@ -15,9 +15,12 @@ from config import TELEGRAM_TOKEN
 
 
 def main() -> int:
-    if not TELEGRAM_TOKEN:
-        print("TELEGRAM_TOKEN missing")
-        return 1
+    from config import TELEGRAM_TOKEN, telegram_commands_status
+
+    ok, msg = telegram_commands_status()
+    if not ok:
+        print(f"Telegram skip deleteWebhook: {msg}")
+        return 0
     r = requests.get(
         f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/deleteWebhook",
         params={"drop_pending_updates": "false"},

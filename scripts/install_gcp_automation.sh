@@ -9,8 +9,17 @@ mkdir -p "$LOG"
 cd "$APP"
 
 if [[ ! -f .env ]]; then
-  echo "Missing $APP/.env"
-  exit 1
+  if [[ -f env ]]; then
+    mv env .env
+    echo "Renamed env -> .env"
+  elif [[ -f .env.txt ]]; then
+    mv .env.txt .env
+    echo "Renamed .env.txt -> .env"
+  else
+    echo "Missing $APP/.env"
+    echo "Upload your .env to: $APP/.env"
+    exit 1
+  fi
 fi
 
 echo "=== Stopping ALL Telegram pollers and schedulers ==="
@@ -34,23 +43,8 @@ else
 fi
 
 echo ""
-echo "=== Pre-flight Telegram config ==="
-"$PY" -c "
-from config import telegram_commands_status, telegram_chat_ids
-ok, msg = telegram_commands_status()
-print('Ready:', ok, '-', msg)
-print('Chat IDs:', telegram_chat_ids())
-if not ok:
-    raise SystemExit(1)
-" || {
-  echo ""
-  echo "ERROR: Fix .env — TELEGRAM_TOKEN must be set."
-  echo "Upload your .env from PC or edit: nano is not needed, use:"
-  echo "  cat > .env << 'EOF'"
-  echo "  (paste contents)"
-  echo "  EOF"
-  exit 1
-}
+echo "=== Validating .env ==="
+"$PY" scripts/validate_env.py || exit 1
 
 export TZ=Asia/Kolkata
 nohup "$PY" scripts/gcp_scheduler_daemon.py >> "$LOG/scheduler.log" 2>&1 &

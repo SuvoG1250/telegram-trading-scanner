@@ -5,17 +5,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from env_loader import load_dotenv
+
 # Local secrets: .env is gitignored — never commit real tokens.
-_env_path = Path(__file__).resolve().parent / ".env"
-if _env_path.exists():
-    raw_env = _env_path.read_text(encoding="utf-8-sig")
-    for line in raw_env.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        # Assign so repo `.env` wins over stale shell exports (common Fyers -15 cause).
-        os.environ[key.strip()] = value.strip().strip('"').strip("'")
+load_dotenv()
 
 # Indian market (NSE) session in IST
 MARKET_OPEN_HOUR = 9
