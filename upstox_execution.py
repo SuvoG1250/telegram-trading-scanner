@@ -41,6 +41,24 @@ def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
             logger.info("Upstox skip %s — no execution strategy selected (/live).", signal.strategy)
         return None
 
+    from upstox_execution_index import (
+        execution_index_label,
+        get_execution_index,
+        signal_allowed_for_index,
+    )
+
+    if not signal_allowed_for_index(signal.instrument or ""):
+        idx = get_execution_index()
+        if idx:
+            logger.info(
+                "Upstox skip %s — today's index is %s only (alert still sent).",
+                signal.symbol,
+                execution_index_label(),
+            )
+        else:
+            logger.info("Upstox skip %s — no trade index selected (/menu).", signal.symbol)
+        return None
+
     from upstox_api import upstox_configured, verify_upstox_trading
     from upstox_token import token_is_likely_analytics
     from upstox_trade_state import paper_trade
@@ -75,11 +93,19 @@ def maybe_execute_upstox_trade(signal: Signal) -> OrderResult | None:
 
 
 def _notify_order_result(signal: Signal, result: OrderResult) -> None:
+    from gtt_premium_levels import gtt_prices
+
     emoji = "📝" if result.paper else ("✅" if result.ok else "❌")
     ids = ", ".join(result.order_ids) if result.order_ids else "—"
+    entry, sl, target = gtt_prices(float(signal.levels.entry), signal.instrument or "NIFTY_OPTION")
+    risk_pts = round(entry - sl, 2)
+    reward_pts = round(target - entry, 2)
     text = (
-        f"{emoji} <b>Upstox {'Paper' if result.paper else 'Live'}</b> — {signal.symbol}\n"
+        f"{emoji} <b>{'Paper' if result.paper else 'Live'} Trade Entry</b>\n"
+        f"<b>{signal.symbol}</b> · {signal.strategy}\n"
+        f"Entry <b>₹{entry:,.2f}</b> · SL <b>₹{sl:,.2f}</b> (−₹{risk_pts:.0f}) · "
+        f"Target <b>₹{target:,.2f}</b> (+₹{reward_pts:.0f})\n"
         f"{result.message}\n"
-        f"<i>Order IDs: {ids}</i>"
+        f"<i>GTT IDs: {ids}</i>"
     )
     send_plain(text)

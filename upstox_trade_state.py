@@ -59,13 +59,29 @@ def _save(data: dict) -> None:
     save_trade_state(data)
 
 
-def authorize_live_execution(strategy: str) -> None:
-    """Atomically set strategy + LIVE mode (single write — avoids race wipes)."""
+def authorize_live_execution(strategy: str, *, index: str | None = None) -> None:
+    """Atomically set strategy (+ optional index) + LIVE mode."""
     data = load_trade_state()
     data["execution_strategy"] = strategy
+    if index:
+        data["execution_index"] = index
     data["mode"] = "live"
     save_trade_state(data)
-    logger.info("Authorized live execution: strategy=%s", strategy)
+    logger.info(
+        "Authorized live execution: strategy=%s index=%s",
+        strategy,
+        index or data.get("execution_index"),
+    )
+
+
+def set_execution_strategy_pending(strategy: str) -> None:
+    """Save strategy; live mode starts after index is selected."""
+    data = load_trade_state()
+    data["execution_strategy"] = strategy
+    data.pop("execution_index", None)
+    data["mode"] = "off"
+    save_trade_state(data)
+    logger.info("Strategy pending index selection: %s", strategy)
 
 
 def pause_live_execution(*, clear_strategy: bool = True) -> None:
@@ -73,6 +89,7 @@ def pause_live_execution(*, clear_strategy: bool = True) -> None:
     data["mode"] = "off"
     if clear_strategy:
         data.pop("execution_strategy", None)
+        data.pop("execution_index", None)
     save_trade_state(data)
     logger.info("Paused live execution (clear_strategy=%s)", clear_strategy)
 
@@ -116,6 +133,7 @@ def is_live_trading() -> bool:
 
 
 def status_text() -> str:
+    from upstox_execution_index import execution_index_status_line
     from upstox_execution_strategy import execution_strategy_status_line
 
     mode = get_mode()
@@ -127,6 +145,7 @@ def status_text() -> str:
     return (
         f"<b>Upstox trading:</b> {labels.get(mode, mode)}\n"
         f"{execution_strategy_status_line()}\n"
+        f"{execution_index_status_line()}\n"
         f"<b>Lots:</b> {get_lots()} (Nifty lot={upstox_nifty_lot_size()}, Sensex lot={upstox_sensex_lot_size()})\n"
-        f"<b>Scope:</b> Nifty + Sensex <b>options only</b> · GTT/LIMIT at exact alert premium"
+        f"<b>GTT:</b> index-specific SL/target · entry = exact alert premium"
     )

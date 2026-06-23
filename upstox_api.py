@@ -463,3 +463,48 @@ def place_gtt_order(payload: dict) -> tuple[list[str], dict | None]:
         return [], None
     ids = [str(x) for x in (body.get("gtt_order_ids") or []) if x]
     return ids, body
+
+
+def fetch_gtt_orders(gtt_order_id: str | None = None) -> list[dict]:
+    """List active GTT orders (or fetch one by id)."""
+    params: dict[str, str] = {}
+    if gtt_order_id:
+        params["gtt_order_id"] = gtt_order_id
+    data = _request("GET", f"{UPSTOX_V3_BASE}/order/gtt", params=params or None)
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return []
+
+
+def cancel_gtt_order(gtt_order_id: str) -> bool:
+    """Cancel an active GTT order."""
+    body = _request(
+        "DELETE",
+        f"{UPSTOX_V3_BASE}/order/gtt/cancel",
+        json_body={"gtt_order_id": gtt_order_id},
+    )
+    if body is None:
+        return False
+    if isinstance(body, dict):
+        ids = body.get("gtt_order_ids") or body.get("gtt_order_id")
+        return bool(ids)
+    return True
+
+
+def fetch_short_term_positions() -> list[dict]:
+    """Open intraday/delivery positions from portfolio API."""
+    data = _get("/portfolio/short-term-positions")
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)]
+    return []
+
+
+def cancel_order_v3(order_id: str) -> bool:
+    body = _request(
+        "DELETE",
+        f"{UPSTOX_V3_BASE}/order/cancel",
+        json_body={"order_id": order_id},
+    )
+    return body is not None

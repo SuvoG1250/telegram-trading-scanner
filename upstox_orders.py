@@ -20,8 +20,10 @@ from config import (
 )
 from market_time import today_key
 from telegram_client import Signal
+from gtt_premium_levels import gtt_points_summary, gtt_prices
 from upstox_api import last_upstox_error, lookup_option_leg, place_gtt_order, place_order, upstox_configured, verify_upstox_trading
 from upstox_trade_state import auto_trade_enabled, get_lots, paper_trade
+
 from upstox_websocket import subscribe_instruments
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,27 @@ def _load_log() -> dict[str, Any]:
 def _save_log(data: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     _ORDERS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def list_today_gtt_orders() -> list[dict]:
+    """Return today's GTT order log entries with metadata."""
+    data = _load_log()
+    if data.get("date") != today_key():
+        return []
+    out: list[dict] = []
+    for row in data.get("orders") or []:
+        if not row.get("ok"):
+            continue
+        payload = row.get("payload") or {}
+        if not payload.get("gtt"):
+            continue
+        merged = dict(payload)
+        merged["tag"] = row.get("tag")
+        merged["order_ids"] = row.get("order_ids") or payload.get("gtt_order_ids") or []
+        merged["gtt_order_ids"] = merged["order_ids"]
+        merged["paper"] = row.get("paper")
+        out.append(merged)
+    return out
 
 
 def _record(tag: str, payload: dict, result: OrderResult) -> None:
@@ -207,7 +230,8 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
     lv = signal.levels
     tag_base = f"tg-{signal.symbol.replace(' ', '-')[:12]}"
     alert_premium = float(lv.entry)
-    entry_price = round(alert_premium, 2)
+    entry_price, sl_price, target_price = gtt_prices(alert_premium, signal.instrument or "NIFTY_OPTION")
+    gtt_summary = gtt_points_summary(signal.instrument or "NIFTY_OPTION")
 
     ctx = _option_context(signal)
     if not ctx:
@@ -220,8 +244,8 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
             quantity=qty,
             product=product,
             entry_price=entry_price,
-            sl_price=float(lv.stop_loss),
-            target_price=float(lv.primary_target),
+            sl_price=sl_price,
+            target_price=target_price,
             tag=tag_base,
         )
         if not gtt_ids:
@@ -237,11 +261,25 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
             gtt_ids,
             (
                 f"{mode} GTT: entry ₹{entry_price:.2f} (exact alert premium) · "
-                f"SL ₹{lv.stop_loss:.2f} · target ₹{lv.primary_target:.2f}"
+                f"SL ₹{sl_price:.2f} · target ₹{target_price:.2f} · {gtt_summary}"
             ),
             paper=is_paper,
         )
-        _record(tag_base, {"instrument_key": inst_key, "qty": qty, "gtt": True}, res)
+        _record(
+            tag_base,
+            {
+                "instrument_key": inst_key,
+                "qty": qty,
+                "gtt": True,
+                "symbol": signal.symbol,
+                "instrument": signal.instrument,
+                "entry": entry_price,
+                "sl": sl_price,
+                "target": target_price,
+                "gtt_order_ids": gtt_ids,
+            },
+            res,
+        )
         return res
 
     order_ids: list[str] = []
@@ -267,7 +305,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         order_type="SL-M",
         quantity=qty,
         product=product,
-        trigger_price=float(lv.stop_loss),
+        trigger_price=sl_price,
         tag=f"{tag_base}-sl",
     )
     if sl_id:
@@ -279,7 +317,7 @@ def execute_signal_orders(signal: Signal) -> OrderResult | None:
         order_type="LIMIT",
         quantity=qty,
         product=product,
-        price=float(lv.primary_target),
+        price=target_price,
         tag=f"{tag_base}-tgt",
     )
     if tgt_id:

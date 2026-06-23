@@ -77,6 +77,11 @@ def _empty_blob() -> dict[str, Any]:
     }
 
 
+def load_active_positions() -> dict[str, Any]:
+    """Public read-only view of today's active position tracker."""
+    return _load()
+
+
 _GLOBAL_TICKERS: dict[str, str] = {
     "BTCUSD": "BTC-USD",
     "ETHUSD": "ETH-USD",
@@ -147,10 +152,10 @@ def reconcile_equity_positions() -> list[tuple[str, str, ExitReason]]:
     return closed
 
 
-def reconcile_premium_positions() -> list[tuple[str, ExitReason]]:
-    """Resolve Nifty premium legs using OPTION_DATA_PROVIDER chain."""
+def reconcile_premium_positions() -> list[tuple[str, ExitReason, dict[str, Any]]]:
+    """Resolve option legs using OPTION_DATA_PROVIDER chain."""
     blob = _load()
-    closed: list[tuple[str, ExitReason]] = []
+    closed: list[tuple[str, ExitReason, dict[str, Any]]] = []
     reentry_opt: dict[str, str] = blob.get("reentry_option") or {}
     touched = False
 
@@ -190,7 +195,7 @@ def reconcile_premium_positions() -> list[tuple[str, ExitReason]]:
         row["exit_reason"] = reason
         row["exit_ltp"] = round(ltp, 4)
         reentry_opt[side_key] = reason
-        closed.append((side_key, reason))
+        closed.append((side_key, reason, dict(row)))
         touched = True
 
     if touched:
@@ -246,7 +251,7 @@ def reconcile_global_positions() -> list[tuple[str, ExitReason]]:
 
 def reconcile_all_positions() -> tuple[
     list[tuple[str, str, ExitReason]],
-    list[tuple[str, ExitReason]],
+    list[tuple[str, ExitReason, dict[str, Any]]],
     list[tuple[str, ExitReason]],
 ]:
     eq = reconcile_equity_positions()

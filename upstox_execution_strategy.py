@@ -32,6 +32,7 @@ STRATEGY_LABELS = {
 def clear_execution_strategy() -> None:
     data = load_trade_state()
     data.pop("execution_strategy", None)
+    data.pop("execution_index", None)
     save_trade_state(data)
     logger.info("Upstox execution strategy cleared (paused).")
 

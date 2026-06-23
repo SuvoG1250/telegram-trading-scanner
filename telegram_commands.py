@@ -233,49 +233,69 @@ def _send_strategy_picker(chat_id: str, *, mode_hint: str = "live") -> None:
 
 
 def _activate_live_mode(chat_id: str) -> None:
+    from upstox_execution_index import get_execution_index
     from upstox_execution_strategy import execution_strategy_label, get_execution_strategy
+    from telegram_control_panel import index_picker_markup, index_picker_text, main_menu_markup
 
     if not get_execution_strategy():
         _send_strategy_picker(chat_id, mode_hint="live")
+        return
+    if not get_execution_index():
+        _reply(
+            chat_id,
+            index_picker_text(),
+            reply_markup=index_picker_markup(),
+        )
         return
     set_mode("live")
     _reply(
         chat_id,
         "🔴 <b>LIVE enabled</b>\n"
         f"<b>Auto-exec:</b> {execution_strategy_label()}\n"
-        f"<b>Orders:</b> GTT/LIMIT · entry = alert premium exactly · {get_lots()} lot(s)\n"
-        "Both strategies still alert — only selected one trades.\n"
-        "Send /strategy to change · /stop to disable.",
+        f"<b>Orders:</b> GTT at exact alert premium · {get_lots()} lot(s)\n"
+        "Send /menu for control panel · /stop to disable.",
+        reply_markup=main_menu_markup(),
     )
 
 
 def _handle_callback(chat_id: str, callback_id: str, data: str) -> None:
+    from telegram_control_panel import (
+        handle_exec_callback,
+        handle_gtt_cancel_callback,
+        handle_index_callback,
+        handle_lots_callback,
+        handle_menu_callback,
+    )
+
+    if data.startswith("menu:"):
+        handle_menu_callback(chat_id, data, _reply)
+        return
+
+    if data.startswith("index:"):
+        key = data.split(":", 1)[1].strip().lower()
+        handle_index_callback(chat_id, key, _reply, pending_mode=_PENDING_MODE.get(chat_id, "live"))
+        _PENDING_MODE.pop(chat_id, None)
+        return
+
+    if data.startswith("lots:"):
+        try:
+            n = int(data.split(":", 1)[1])
+        except ValueError:
+            _reply(chat_id, "Invalid lots.")
+            return
+        handle_lots_callback(chat_id, n, _reply)
+        return
+
+    if data.startswith("gtt:cancel:"):
+        gid = data.split(":", 2)[2]
+        handle_gtt_cancel_callback(chat_id, gid, _reply)
+        return
+
     if not data.startswith("exec:"):
         return
 
-    from daily_strategy_setup import confirmation_message
-    from upstox_execution_strategy import STRATEGY_LABELS
-    from upstox_trade_state import authorize_live_execution, pause_live_execution
-
     key = data.split(":", 1)[1].strip().lower()
-
-    if key == "pause":
-        pause_live_execution(clear_strategy=True)
-        _reply(chat_id, confirmation_message("pause"))
-        return
-
-    if key not in STRATEGY_LABELS:
-        _reply(chat_id, "❌ Unknown strategy. Send <code>/strategy</code> to pick again.")
-        return
-
-    authorize_live_execution(key)
-    _PENDING_MODE.pop(chat_id, None)
-    try:
-        extra = status_text()
-    except Exception:
-        logger.exception("status_text failed after strategy select")
-        extra = "<i>Send /status to verify.</i>"
-    _reply(chat_id, confirmation_message(key) + "\n\n" + extra)
+    handle_exec_callback(chat_id, key, _reply)
 
 
 _PENDING_MODE: dict[str, str] = {}
@@ -284,13 +304,14 @@ _PENDING_MODE: dict[str, str] = {}
 def _help_text() -> str:
     return (
         "<b>📱 Trading bot commands</b>\n\n"
-        "<b>/live</b> — enable REAL Upstox orders (pick strategy first)\n"
-        "<b>/paper</b> — test mode (pick strategy, no real broker orders)\n"
+        "<b>/menu</b> — control panel (strategy, index, lots, positions, GTT)\n"
+        "<b>/live</b> — enable REAL Upstox orders (pick strategy + index first)\n"
+        "<b>/paper</b> — test mode (pick strategy + index, no real broker orders)\n"
         "<b>/strategy</b> — change today's auto-exec strategy\n"
         "<b>/stop</b> — disable Upstox orders\n"
-        "<b>/status</b> — mode + strategy + token\n\n"
-        "<b>Daily setup</b> — ~8:30 AM IST buttons: Original / EMA+MACD / Pause\n"
-        "Execution stays paused until you tap a button.\n\n"
+        "<b>/status</b> — mode + strategy + index + token\n\n"
+        "<b>Daily setup</b> — ~8:30 AM IST: Strategy → Index (Nifty/Sensex)\n"
+        "<b>GTT points:</b> Nifty SL 15 / Target 30 · Sensex SL 20 / Target 50\n\n"
         "<b>Upstox token (daily before 9:15 AM)</b>\n"
         "<b>/upstox_token</b> eyJ… — paste token from app <b>Generate</b> button\n"
         "<b>/upstox_login</b> — OAuth login link (if Generate fails)\n"
@@ -298,7 +319,7 @@ def _help_text() -> str:
         "<b>/lots 1</b> — option lots (1–10)\n"
         "<b>/help</b> — this message\n\n"
         "<i>Use trading app token (NOT Analytics read-only).\n"
-        "Token expires ~3:30 AM IST — refresh each morning, then tap strategy button.</i>"
+        "Token expires ~3:30 AM IST — refresh each morning, then /menu to configure.</i>"
     )
 
 
@@ -320,6 +341,12 @@ def _handle_command(chat_id: str, text: str) -> None:
 
     if cmd in ("/start", "/help"):
         _reply(chat_id, _help_text())
+        return
+
+    if cmd in ("/menu",):
+        from telegram_control_panel import main_menu_markup, main_menu_text
+
+        _reply(chat_id, main_menu_text(), reply_markup=main_menu_markup())
         return
 
     if cmd == "/status":
@@ -415,14 +442,17 @@ def _handle_command(chat_id: str, text: str) -> None:
 
     if cmd == "/paper":
         _PENDING_MODE[chat_id] = "paper"
-        from upstox_execution_strategy import get_execution_strategy
+        from upstox_execution_index import get_execution_index
+        from upstox_execution_strategy import execution_strategy_label, get_execution_strategy
+        from telegram_control_panel import index_picker_markup, index_picker_text
 
         if not get_execution_strategy():
             _send_strategy_picker(chat_id, mode_hint="paper")
             return
+        if not get_execution_index():
+            _reply(chat_id, index_picker_text(), reply_markup=index_picker_markup())
+            return
         set_mode("paper")
-        from upstox_execution_strategy import execution_strategy_label
-
         _reply(
             chat_id,
             f"📝 <b>PAPER mode</b> — GTT flow simulated only.\n"

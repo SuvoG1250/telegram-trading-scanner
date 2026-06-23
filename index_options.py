@@ -28,6 +28,7 @@ from config import (
     NIFTY_ST_FACTOR,
     NIFTY_ST_INTERVAL,
 )
+from gtt_premium_levels import trade_levels_from_entry
 from data_fetcher import fetch_index_history, today_session_df
 from indicators import (
     atr,
@@ -238,7 +239,11 @@ def build_index_option_signal(
         premium = _estimate_atm_premium(spot, atr_val)
 
     use_points = NIFTY_OPTION_PREMIUM_SL_POINTS > 0
-    levels = _option_levels_points(premium) if use_points else _option_levels_percent(premium)
+    levels = (
+        trade_levels_from_entry(premium, spec.instrument)
+        if use_points
+        else _option_levels_percent(premium)
+    )
     if not use_points:
         profit_pct = levels.target_profit_pct("BUY")
         if profit_pct < MIN_TARGET_PROFIT_PCT:

@@ -75,18 +75,12 @@ def _format_option_signal(signal: Signal) -> str:
             f"<b>Index target:</b> ₹{signal.underlying_target:,.2f}"
         )
     if signal.option_points_mode:
-        from config import (
-            NIFTY_OPTION_PREMIUM_SL_POINTS,
-            NIFTY_OPTION_PREMIUM_TARGET_POINTS,
-            NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS,
-        )
+        from gtt_premium_levels import gtt_sl_target_points
 
-        sp = int(NIFTY_OPTION_PREMIUM_SL_POINTS)
-        tp = int(NIFTY_OPTION_PREMIUM_TARGET_POINTS)
-        mx = int(NIFTY_OPTION_PREMIUM_TRAIL_MAX_POINTS)
+        sl_pts, tgt_pts = gtt_sl_target_points(signal.instrument or "NIFTY_OPTION")
         lines.append(
-            f"<i>SL −₹{sp} · Book +₹{tp} · Trail runner up to +₹{mx} from entry (manual trail)  ·  "
-            f"1:{lv.risk_reward_best} R:R to max target  ·  {ts}</i>"
+            f"<i>GTT plan: SL −₹{int(sl_pts)} · Target +₹{int(tgt_pts)} on premium  ·  "
+            f"1:{lv.risk_reward_best} R:R  ·  {ts}</i>"
         )
     else:
         lines.append(f"<i>1:{lv.risk_reward_best} R:R on premium  ·  {ts}</i>")

@@ -335,10 +335,18 @@ def broadcast_lifecycle_updates(equity_hits: list, premium_hits: list) -> None:
             f"({html_module.escape(strat)}) — awaiting fresh scanner ideas.",
             html_mode=True,
         )
-    for side_label, reason in premium_hits:
-        label = "✅ TARGET" if reason == "TARGET_HIT" else "⚠️ STOP LOSS"
+    for side_label, reason, row in premium_hits:
+        label = "🎯 TARGET HIT" if reason == "TARGET_HIT" else "🛑 STOP LOSS HIT"
+        entry = float(row.get("entry") or 0)
+        exit_ltp = float(row.get("exit_ltp") or 0)
+        pnl_pts = round(exit_ltp - entry, 2)
+        sym = html_module.escape(str(row.get("symbol") or side_label))
         send_plain(
-            f"{label} cleared premium <b>{html_module.escape(side_label)}</b> — scanners may relist.",
+            f"{label}\n"
+            f"<b>{sym}</b>\n"
+            f"Entry ₹{entry:,.2f} → Exit ₹{exit_ltp:,.2f}\n"
+            f"<b>P&L:</b> {'+' if pnl_pts >= 0 else ''}₹{pnl_pts:,.2f} per unit\n"
+            f"<i>Scanners may relist after this slot clears.</i>",
             html_mode=True,
         )
 

@@ -26,6 +26,8 @@ DAILY_SETUP_MESSAGE = (
     "<b>LIVE Upstox execution</b> today:\n\n"
     "📉 <b>Option 1:</b> Original Strategy (ST+TSL · 5m)\n"
     "📈 <b>Option 2:</b> 9/21 EMA + MACD Strategy (3m HA)\n\n"
+    "After strategy, you'll pick <b>Nifty</b> or <b>Sensex</b> "
+    "(GTT SL/Target points apply per index).\n\n"
     "Tap a button below to confirm your choice:"
 )
 
@@ -110,7 +112,8 @@ def send_daily_strategy_setup(*, force: bool = False) -> bool:
     return sent_any
 
 
-def confirmation_message(strategy_key: str) -> str:
+def confirmation_message(strategy_key: str, *, index_key: str | None = None) -> str:
+    from upstox_execution_index import INDEX_LABELS
     from upstox_execution_strategy import STRATEGY_LABELS
 
     if strategy_key == "pause":
@@ -119,7 +122,11 @@ def confirmation_message(strategy_key: str) -> str:
             "Background alerts will continue — no Upstox orders will be placed."
         )
     label = STRATEGY_LABELS.get(strategy_key, strategy_key)
+    idx_line = ""
+    if index_key and index_key in INDEX_LABELS:
+        sl_tgt = "SL 15 / Target 30" if index_key == "nifty" else "SL 20 / Target 50"
+        idx_line = f"\n<b>Index:</b> {INDEX_LABELS[index_key]} · GTT {sl_tgt}"
     return (
-        f"✅ <b>Confirmed!</b> Live execution started for <b>{label}</b> "
-        f"with <b>exact price matching</b> (alert premium = GTT entry, zero buffer)."
+        f"✅ <b>Confirmed!</b> Live execution started for <b>{label}</b>{idx_line}\n"
+        f"GTT entry = exact alert premium (zero buffer)."
     )
