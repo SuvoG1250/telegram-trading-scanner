@@ -1,12 +1,13 @@
 """
-Global assets (BTC / ETH / XAU) — H4 bias + M30 fractal sweep & engulfing.
+Global assets (BTC / ETH / XAU) — EMA 9/21 crossover + MACD histogram sync on 15m.
 
 Strategy:
-  • HTF H4 — EMA20/50 trend bias
-  • Entry M30 — liquidity sweep of fractal high/low + engulfing confirmation
-  • SL — beyond engulfing candle extreme
-  • TP — fixed 1:2 R:R (configurable)
-  • Sessions — London or New York (UTC hours)
+  • 15-minute OHLC candles
+  • BUY: EMA 9 crosses above EMA 21 AND MACD histogram turns green on same bar
+  • SELL: EMA 9 crosses below EMA 21 AND MACD histogram turns red on same bar
+  • SL — beyond signal bar extreme / EMA 21 (whichever is wider)
+  • TP — fixed R:R (configurable, default 1:2)
+  • Crypto (BTC/ETH): 24h · Gold: London or New York session (UTC)
   • One active plan per symbol until SL/target
 """
 
@@ -20,21 +21,23 @@ import pandas as pd
 from config import (
     GLOBAL_ASSETS_ENABLED,
     GLOBAL_CRYPTO_24H,
+    GLOBAL_EMA_FAST,
+    GLOBAL_EMA_SLOW,
     GLOBAL_ENABLE_BUY,
     GLOBAL_ENABLE_SELL,
-    GLOBAL_ENGULF_ATR_MULT,
     GLOBAL_ENTRY_INTERVAL,
-    GLOBAL_FRACTAL_BARS,
-    GLOBAL_HTF_INTERVAL,
     GLOBAL_LONDON_END_HOUR,
     GLOBAL_LONDON_START_HOUR,
-    GLOBAL_M30_LOOKBACK_BARS,
+    GLOBAL_LOOKBACK_BARS,
+    GLOBAL_MACD_FAST,
+    GLOBAL_MACD_SIGNAL,
+    GLOBAL_MACD_SLOW,
     GLOBAL_NY_END_HOUR,
     GLOBAL_NY_START_HOUR,
     GLOBAL_RR_RATIO,
 )
-from data_fetcher import fetch_index_history, resample_ohlcv
-from indicators import atr, ema
+from data_fetcher import fetch_index_history
+from indicators import atr, compute_macd, ema
 from market_time import is_global_market_scan_allowed, now_ist
 from position_lifecycle import (
     global_bar_alerted,
@@ -47,7 +50,7 @@ from telegram_client import send_plain
 
 logger = logging.getLogger(__name__)
 
-_STRATEGY = "Global H4 + M30 Fractal Sweep"
+_STRATEGY = "Global EMA 9/21 + MACD (15m)"
 _ASSETS: dict[str, dict] = {
     "BTCUSD": {"ticker": "BTC-USD", "label": "Bitcoin", "crypto": True},
     "ETHUSD": {"ticker": "ETH-USD", "label": "Ethereum", "crypto": True},
@@ -79,21 +82,11 @@ def _normalize_df(raw: pd.DataFrame) -> pd.DataFrame:
     return raw.dropna(subset=["Close"])
 
 
-def _fetch_bars(ticker: str, interval: str, period: str) -> pd.DataFrame:
-    if interval == "4h":
-        raw = fetch_index_history(ticker, "1h", period=period)
-        raw = _normalize_df(raw)
-        if raw.empty:
-            return raw
-        return resample_ohlcv(raw, "4h")
-    raw = fetch_index_history(ticker, interval, period=period)
-    return _normalize_df(raw)
-
-
 def _fetch_asset_bars(meta: dict, interval: str, period: str) -> pd.DataFrame:
     tickers = meta.get("tickers") or [meta["ticker"]]
     for ticker in tickers:
-        bars = _fetch_bars(ticker, interval, period)
+        raw = fetch_index_history(ticker, interval, period=period)
+        bars = _normalize_df(raw)
         if bars is not None and not bars.empty:
             return bars
     return pd.DataFrame()
@@ -108,172 +101,108 @@ def _in_session_utc(ts: pd.Timestamp, symbol: str = "") -> bool:
     return london or ny
 
 
-def _htf_bias(df_h4: pd.DataFrame, idx: int = -2) -> str | None:
-    """H4 trend: BUY if EMA20>EMA50 and close above EMA20; SELL opposite."""
-    if len(df_h4) < 55:
+def _ema_macd_side(df: pd.DataFrame, idx: int) -> str | None:
+    """
+    EMA 9/21 cross on bar idx vs idx-1 AND MACD histogram color flip on same bar.
+    Returns BUY or SELL.
+    """
+    pi = len(df) + idx if idx < 0 else idx
+    if pi < 3 or pi >= len(df):
         return None
-    close = df_h4["Close"]
-    e20 = float(ema(close, 20).iloc[idx])
-    e50 = float(ema(close, 50).iloc[idx])
-    c = float(close.iloc[idx])
-    if c > e20 > e50:
+
+    close = df["Close"]
+    e_fast = ema(close, GLOBAL_EMA_FAST)
+    e_slow = ema(close, GLOBAL_EMA_SLOW)
+    macd = compute_macd(
+        close,
+        fast=GLOBAL_MACD_FAST,
+        slow=GLOBAL_MACD_SLOW,
+        signal=GLOBAL_MACD_SIGNAL,
+    )
+    hist = macd["histogram"]
+
+    prev = df.iloc[pi - 1]
+    cur = df.iloc[pi]
+    prev_hist = float(hist.iloc[pi - 1])
+    cur_hist = float(hist.iloc[pi])
+
+    bull_cross = (
+        float(e_fast.iloc[pi - 1]) <= float(e_slow.iloc[pi - 1])
+        and float(e_fast.iloc[pi]) > float(e_slow.iloc[pi])
+    )
+    bear_cross = (
+        float(e_fast.iloc[pi - 1]) >= float(e_slow.iloc[pi - 1])
+        and float(e_fast.iloc[pi]) < float(e_slow.iloc[pi])
+    )
+    turned_green = cur_hist > 0 and prev_hist <= 0
+    turned_red = cur_hist < 0 and prev_hist >= 0
+
+    if bull_cross and turned_green and GLOBAL_ENABLE_BUY:
         return "BUY"
-    if c < e20 < e50:
+    if bear_cross and turned_red and GLOBAL_ENABLE_SELL:
         return "SELL"
     return None
-
-
-def _htf_bias_as_of(df_h4: pd.DataFrame, ts: pd.Timestamp) -> str | None:
-    """H4 bias on the last completed H4 bar at or before the M30 signal time."""
-    if df_h4.empty:
-        return None
-    ts = ts.tz_convert(df_h4.index.tz) if ts.tzinfo else ts
-    hist = df_h4[df_h4.index <= ts]
-    if len(hist) < 55:
-        return None
-    return _htf_bias(hist, -2)
-
-
-def _bar_index(df: pd.DataFrame, idx: int) -> int:
-    return len(df) + idx if idx < 0 else idx
-
-
-def _fractal_levels(df: pd.DataFrame, side: str, idx: int, bars: int) -> list[float]:
-    """Recent fractal highs/lows on completed bars before idx."""
-    pi = _bar_index(df, idx)
-    high = df["High"]
-    low = df["Low"]
-    levels: list[float] = []
-    start = max(bars, pi - 40)
-    end = pi - bars
-    if end <= start:
-        return levels
-    for i in range(start, end):
-        if side == "low":
-            if all(float(low.iloc[i]) < float(low.iloc[i - j]) for j in range(1, bars + 1)):
-                if all(float(low.iloc[i]) < float(low.iloc[i + j]) for j in range(1, bars + 1)):
-                    levels.append(float(low.iloc[i]))
-        else:
-            if all(float(high.iloc[i]) > float(high.iloc[i - j]) for j in range(1, bars + 1)):
-                if all(float(high.iloc[i]) > float(high.iloc[i + j]) for j in range(1, bars + 1)):
-                    levels.append(float(high.iloc[i]))
-    return levels[-5:]
-
-
-def _bullish_sweep(df: pd.DataFrame, idx: int, bars: int) -> float | None:
-    """Wick below fractal low, close back above — returns swept level."""
-    bar = df.iloc[idx]
-    lows = _fractal_levels(df, "low", idx, bars)
-    if not lows:
-        return None
-    c = float(bar["Close"])
-    lo = float(bar["Low"])
-    for lvl in reversed(lows):
-        if lo < lvl and c > lvl:
-            return lvl
-    return None
-
-
-def _bearish_sweep(df: pd.DataFrame, idx: int, bars: int) -> float | None:
-    bar = df.iloc[idx]
-    highs = _fractal_levels(df, "high", idx, bars)
-    if not highs:
-        return None
-    c = float(bar["Close"])
-    hi = float(bar["High"])
-    for lvl in reversed(highs):
-        if hi > lvl and c < lvl:
-            return lvl
-    return None
-
-
-def _bullish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
-    pi = _bar_index(df, idx)
-    if pi < 1:
-        return False
-    cur = df.iloc[pi]
-    prev = df.iloc[pi - 1]
-    o, c = float(cur["Open"]), float(cur["Close"])
-    po, pc = float(prev["Open"]), float(prev["Close"])
-    if not (pc < po and c > o):
-        return False
-    if not (o <= pc and c >= po):
-        return False
-    return abs(c - o) >= min_body
-
-
-def _bearish_engulfing(df: pd.DataFrame, idx: int, min_body: float) -> bool:
-    pi = _bar_index(df, idx)
-    if pi < 1:
-        return False
-    cur = df.iloc[pi]
-    prev = df.iloc[pi - 1]
-    o, c = float(cur["Open"]), float(cur["Close"])
-    po, pc = float(prev["Open"]), float(prev["Close"])
-    if not (pc > po and c < o):
-        return False
-    if not (o >= pc and c <= po):
-        return False
-    return abs(o - c) >= min_body
 
 
 def _build_trade_at_idx(
     symbol: str,
     label: str,
-    df_h4: pd.DataFrame,
-    df_m30: pd.DataFrame,
+    df: pd.DataFrame,
     idx: int,
 ) -> dict | None:
-    if len(df_m30) < 30 or len(df_h4) < 20:
+    min_len = max(GLOBAL_MACD_SLOW, GLOBAL_EMA_SLOW, GLOBAL_MACD_SIGNAL) + 5
+    if len(df) < min_len:
         return None
-    if abs(idx) >= len(df_m30):
+    if abs(idx) >= len(df):
         return None
 
-    ts = df_m30.index[idx]
+    ts = df.index[idx]
     if not _in_session_utc(ts, symbol):
         return None
 
-    bias = _htf_bias_as_of(df_h4, ts)
-    if bias is None:
+    side = _ema_macd_side(df, idx)
+    if side is None:
         return None
 
-    atr_val = float(
-        atr(df_m30["High"], df_m30["Low"], df_m30["Close"], 14).iloc[idx]
-    )
-    min_body = max(atr_val * GLOBAL_ENGULF_ATR_MULT, float(df_m30["Close"].iloc[idx]) * 0.0005)
-    bars = max(1, GLOBAL_FRACTAL_BARS)
-
-    side: str | None = None
-    sweep_lvl: float | None = None
-
-    if bias == "BUY" and GLOBAL_ENABLE_BUY:
-        sweep_lvl = _bullish_sweep(df_m30, idx, bars)
-        if sweep_lvl and _bullish_engulfing(df_m30, idx, min_body):
-            side = "BUY"
-    elif bias == "SELL" and GLOBAL_ENABLE_SELL:
-        sweep_lvl = _bearish_sweep(df_m30, idx, bars)
-        if sweep_lvl and _bearish_engulfing(df_m30, idx, min_body):
-            side = "SELL"
-
-    if side is None or sweep_lvl is None:
-        return None
-
-    bar = df_m30.iloc[idx]
+    bar = df.iloc[idx]
     entry = _round_px(float(bar["Close"]), symbol)
+    ema21 = float(ema(df["Close"], GLOBAL_EMA_SLOW).iloc[idx])
+    atr_val = float(atr(df["High"], df["Low"], df["Close"], 14).iloc[idx])
     buffer = max(atr_val * 0.1, entry * 0.0003)
 
+    hist = float(
+        compute_macd(
+            df["Close"],
+            fast=GLOBAL_MACD_FAST,
+            slow=GLOBAL_MACD_SLOW,
+            signal=GLOBAL_MACD_SIGNAL,
+        )["histogram"].iloc[idx]
+    )
+    prev_hist = float(
+        compute_macd(
+            df["Close"],
+            fast=GLOBAL_MACD_FAST,
+            slow=GLOBAL_MACD_SLOW,
+            signal=GLOBAL_MACD_SIGNAL,
+        )["histogram"].iloc[idx - 1]
+    )
+
     if side == "BUY":
-        stop = _round_px(float(bar["Low"]) - buffer, symbol)
+        stop = _round_px(min(float(bar["Low"]), ema21) - buffer, symbol)
         risk = entry - stop
         if risk <= 0:
             return None
         target = _round_px(entry + risk * GLOBAL_RR_RATIO, symbol)
+        cross = "EMA 9 crossed above EMA 21"
+        macd_tag = f"MACD histogram green ({prev_hist:.4f}→{hist:.4f})"
     else:
-        stop = _round_px(float(bar["High"]) + buffer, symbol)
+        stop = _round_px(max(float(bar["High"]), ema21) + buffer, symbol)
         risk = stop - entry
         if risk <= 0:
             return None
         target = _round_px(entry - risk * GLOBAL_RR_RATIO, symbol)
+        cross = "EMA 9 crossed below EMA 21"
+        macd_tag = f"MACD histogram red ({prev_hist:.4f}→{hist:.4f})"
 
     rr = GLOBAL_RR_RATIO
     if symbol in ("BTCUSD", "ETHUSD") and GLOBAL_CRYPTO_24H:
@@ -282,10 +211,11 @@ def _build_trade_at_idx(
         session = "London"
     else:
         session = "New York"
+
     analysis = (
-        f"H4 {'bullish' if side == 'BUY' else 'bearish'} bias (EMA20/50). "
-        f"M30 fractal {'low' if side == 'BUY' else 'high'} sweep @ {sweep_lvl:.2f} + engulfing close. "
-        f"Session: {session} UTC. TP fixed 1:{rr:.0f} R:R."
+        f"{cross} · {macd_tag} "
+        f"(MACD {GLOBAL_MACD_FAST}/{GLOBAL_MACD_SLOW}/{GLOBAL_MACD_SIGNAL}) · "
+        f"15m close · EMA21 ref {ema21:.2f} · Session: {session} UTC · TP 1:{rr:.0f} R:R"
     )
     return {
         "symbol": symbol,
@@ -295,17 +225,17 @@ def _build_trade_at_idx(
         "stop": stop,
         "target": target,
         "rr": rr,
-        "sweep": sweep_lvl,
+        "ema21": ema21,
+        "hist": hist,
         "analysis": analysis,
         "signal_time": ts.isoformat(),
     }
 
 
-def _build_trade(symbol: str, label: str, df_h4: pd.DataFrame, df_m30: pd.DataFrame) -> dict | None:
-    lookback = max(1, GLOBAL_M30_LOOKBACK_BARS)
+def _build_trade(symbol: str, label: str, df: pd.DataFrame) -> dict | None:
+    lookback = max(1, GLOBAL_LOOKBACK_BARS)
     for offset in range(2, 2 + lookback):
-        idx = -offset
-        plan = _build_trade_at_idx(symbol, label, df_h4, df_m30, idx)
+        plan = _build_trade_at_idx(symbol, label, df, -offset)
         if plan:
             return plan
     return None
@@ -321,19 +251,19 @@ def _format_message(plan: dict) -> str:
         [
             f"{emoji} <b>{sym} {plan['side']}</b> — {label}",
             f"<b>Strategy:</b> {_STRATEGY}",
-            f"<b>Timeframe:</b> H4 bias · M30 entry (closed candle)",
+            f"<b>Timeframe:</b> 15m · closed candle",
             f"<b>Entry:</b> {plan['entry']}",
-            f"<b>Stop Loss:</b> {plan['stop']} <i>(engulfing extreme)</i>",
+            f"<b>Stop Loss:</b> {plan['stop']}",
             f"<b>Target:</b> {plan['target']} <i>(1:{plan['rr']:.0f} R:R)</i>",
-            f"<b>Fractal sweep:</b> {plan['sweep']}",
+            f"<b>EMA 21:</b> {plan['ema21']:.4f} · <b>MACD hist:</b> {plan['hist']:.4f}",
             f"<b>Analysis:</b> {analysis}",
-            f"<i>Outside NSE hours · London/NY session · {ts}</i>",
+            f"<i>Outside NSE hours · {ts}</i>",
         ]
     )
 
 
 def run_global_assets_alerts() -> int:
-    """Scan BTC/ETH/XAU — H4 + M30 fractal sweep & engulfing."""
+    """Scan BTC/ETH/XAU — EMA 9/21 + MACD sync on 15m."""
     if not GLOBAL_ASSETS_ENABLED:
         return 0
     if not is_global_market_scan_allowed():
@@ -342,27 +272,19 @@ def run_global_assets_alerts() -> int:
 
     reconcile_global_positions()
     sent = 0
-    entry_iv = GLOBAL_ENTRY_INTERVAL if GLOBAL_ENTRY_INTERVAL in ("15m", "30m", "60m") else "30m"
-    htf_iv = GLOBAL_HTF_INTERVAL if GLOBAL_HTF_INTERVAL in ("1h", "4h") else "4h"
-    logger.info("Global assets scan starting (lookback=%s M30 bars)", GLOBAL_M30_LOOKBACK_BARS)
+    entry_iv = GLOBAL_ENTRY_INTERVAL if GLOBAL_ENTRY_INTERVAL in ("15m", "30m", "60m") else "15m"
+    logger.info("Global assets scan starting (15m EMA+MACD, lookback=%s bars)", GLOBAL_LOOKBACK_BARS)
 
     for symbol, meta in _ASSETS.items():
-        df_m30 = _fetch_asset_bars(meta, entry_iv, "60d")
-        df_h4 = _fetch_asset_bars(meta, htf_iv, "730d")
-        if df_m30 is None or df_h4 is None or df_m30.empty or df_h4.empty:
+        df = _fetch_asset_bars(meta, entry_iv, "60d")
+        if df is None or df.empty:
             tickers = meta.get("tickers") or [meta["ticker"]]
             logger.info("Global %s — no price data (%s)", symbol, ", ".join(tickers))
             continue
 
-        bias = _htf_bias_as_of(df_h4, df_m30.index[-2]) if len(df_h4) >= 55 else None
-        plan = _build_trade(symbol, meta["label"], df_h4, df_m30)
+        plan = _build_trade(symbol, meta["label"], df)
         if not plan:
-            logger.info(
-                "Global %s — no setup (H4 bias=%s, m30_bars=%d)",
-                symbol,
-                bias or "neutral",
-                len(df_m30),
-            )
+            logger.info("Global %s — no EMA+MACD setup (bars=%d)", symbol, len(df))
             continue
 
         block = global_signal_blocked(
@@ -392,7 +314,7 @@ def run_global_assets_alerts() -> int:
                 target=plan["target"],
             )
             sent += 1
-            logger.info("Global M30 signal sent: %s %s @ %s", symbol, plan["side"], plan["entry"])
+            logger.info("Global 15m EMA+MACD signal sent: %s %s @ %s", symbol, plan["side"], plan["entry"])
     if sent == 0:
         logger.info("Global assets scan complete — no new setups")
     return sent
