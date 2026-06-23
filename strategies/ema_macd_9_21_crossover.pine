@@ -1,0 +1,117 @@
+//@version=5
+strategy("EMA 9/21 + MACD Sync (CE/PE)", overlay=true, pyramiding=0,
+     default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ── Inputs ──────────────────────────────────────────────────────────────────
+grpEma   = "EMA Crossover"
+emaFast  = input.int(9,  "Fast EMA", group=grpEma)
+emaSlow  = input.int(21, "Slow EMA", group=grpEma)
+
+grpMacd  = "MACD"
+macdFast = input.int(34,  "MACD Fast", group=grpMacd)
+macdSlow = input.int(144, "MACD Slow", group=grpMacd)
+macdSig  = input.int(9,   "MACD Signal", group=grpMacd)
+
+grpCndl  = "Candle Confirmation"
+minBody  = input.float(0.45, "Min bullish body / range (CE)", minval=0.1, maxval=0.95, step=0.05, group=grpCndl)
+maxDoji  = input.float(0.22, "Max doji body / range", minval=0.05, maxval=0.5, step=0.01, group=grpCndl)
+
+grpFilt  = "Trend Filter"
+useST    = input.bool(true,  "SuperTrend filter", group=grpFilt)
+stLen    = input.int(1,     "ST ATR length (exit490 style)", minval=1, group=grpFilt)
+stMult   = input.float(3.0, "ST ATR multiplier", group=grpFilt)
+useHMA   = input.bool(false, "HMA alignment filter", group=grpFilt)
+hmaLen   = input.int(21, "HMA length", group=grpFilt)
+filterMode = input.string("supertrend", "Filter mode", options=["supertrend", "hma", "both", "none"], group=grpFilt)
+
+grpRR    = "Risk / Reward"
+slAtrMult = input.float(1.0, "SL = signal bar extreme + ATR ×", step=0.1, group=grpRR)
+rrRatio   = input.float(2.0, "Reward : Risk", minval=1.0, step=0.5, group=grpRR)
+
+// ── Indicators ──────────────────────────────────────────────────────────────
+fastEma = ta.ema(close, emaFast)
+slowEma = ta.ema(close, emaSlow)
+[macdLine, signalLine, hist] = ta.macd(close, macdFast, macdSlow, macdSig)
+
+bullCross = ta.crossover(fastEma, slowEma)
+bearCross = ta.crossunder(fastEma, slowEma)
+
+rng       = math.max(high - low, syminfo.mintick)
+body      = math.abs(close - open)
+bodyRatio = body / rng
+
+redCandle   = close < open
+greenCandle = close > open and bodyRatio >= minBody and bodyRatio > maxDoji
+
+histGreen = hist > 0
+histRed   = hist < 0
+
+// exit490-style SuperTrend (matches bot)
+atrVal = ta.atr(stLen) * stMult
+hl2    = (high + low) / 2.0
+var float longStop  = na
+var float shortStop = na
+longStop  := close[1] > nz(longStop[1], longStop)  ? math.max(hl2 - atrVal, nz(longStop[1], hl2 - atrVal))  : hl2 - atrVal
+shortStop := close[1] < nz(shortStop[1], shortStop) ? math.min(hl2 + atrVal, nz(shortStop[1], hl2 + atrVal)) : hl2 + atrVal
+var int stDir = 1
+stDir := stDir == -1 and close > shortStop[1] ? 1 : stDir == 1 and close < longStop[1] ? -1 : stDir
+stBull = stDir == 1
+stBear = stDir == -1
+
+hmaLine = ta.hma(close, hmaLen)
+hmaBull = close > hmaLine
+hmaBear = close < hmaLine
+
+stOkCall = not useST or filterMode == "none" or stBull
+stOkPut  = not useST or filterMode == "none" or stBear
+hmaOkCall = not useHMA or filterMode == "none" or hmaBull
+hmaOkPut  = not useHMA or filterMode == "none" or hmaBear
+
+trendCall = filterMode == "both" ? (stOkCall and hmaOkCall) :
+     filterMode == "hma" ? hmaOkCall :
+     filterMode == "none" ? true : stOkCall
+
+trendPut = filterMode == "both" ? (stOkPut and hmaOkPut) :
+     filterMode == "hma" ? hmaOkPut :
+     filterMode == "none" ? true : stOkPut
+
+// ── Entries (bar close only) ─────────────────────────────────────────────────
+ceSignal = bullCross and greenCandle and histGreen and trendCall
+peSignal = bearCross and redCandle and histRed and trendPut
+
+if ceSignal and barstate.isconfirmed
+    strategy.entry("CE", strategy.long)
+
+if peSignal and barstate.isconfirmed
+    strategy.entry("PE", strategy.short)
+
+// ── SL / Target on signal bar ───────────────────────────────────────────────
+atr14 = ta.atr(14)
+var float entryPx = na
+var float slPx    = na
+var float tpPx    = na
+
+if ceSignal and barstate.isconfirmed
+    entryPx := close
+    slPx    := math.min(low, slowEma) - atr14 * 0.1
+    tpPx    := entryPx + (entryPx - slPx) * rrRatio
+
+if peSignal and barstate.isconfirmed
+    entryPx := close
+    slPx    := math.max(high, slowEma) + atr14 * 0.1
+    tpPx    := entryPx - (slPx - entryPx) * rrRatio
+
+if strategy.position_size > 0 and not na(slPx)
+    strategy.exit("CE Exit", "CE", stop=slPx, limit=tpPx)
+if strategy.position_size < 0 and not na(slPx)
+    strategy.exit("PE Exit", "PE", stop=slPx, limit=tpPx)
+
+// ── Visuals ─────────────────────────────────────────────────────────────────
+plot(fastEma, "EMA 9",  color=color.new(color.green, 0), linewidth=2)
+plot(slowEma, "EMA 21", color=color.new(color.red, 0), linewidth=2)
+plotshape(ceSignal, title="CE", style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, text="CE")
+plotshape(peSignal, title="PE", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, text="PE")
+bgcolor(ceSignal ? color.new(color.green, 88) : peSignal ? color.new(color.red, 88) : na)
+
+alertcondition(ceSignal, "CE Entry", "NIFTY CE: EMA9>21 cross + green candle + MACD green")
+alertcondition(peSignal, "PE Entry", "NIFTY PE: EMA9<21 cross + red candle + MACD red")

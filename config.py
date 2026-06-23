@@ -285,7 +285,7 @@ SENSEX_OPTIONS_ENABLED = os.environ.get("SENSEX_OPTIONS_ENABLED", "true").lower(
     "true",
     "yes",
 )
-# EMA 9/21 crossover + MACD (34/144/9) on Heikin Ashi 3m — index options only
+# EMA 9/21 crossover + MACD (34/144/9) on 3m OHLC — index options only
 EMA_MACD_OPTIONS_ENABLED = os.environ.get("EMA_MACD_OPTIONS_ENABLED", "true").lower() in (
     "1",
     "true",
@@ -297,11 +297,20 @@ EMA_MACD_FAST_LENGTH = int(os.environ.get("EMA_MACD_FAST_LENGTH", "34"))
 EMA_MACD_SLOW_LENGTH = int(os.environ.get("EMA_MACD_SLOW_LENGTH", "144"))
 EMA_MACD_SIGNAL_LENGTH = int(os.environ.get("EMA_MACD_SIGNAL_LENGTH", "9"))
 EMA_MACD_INTERVAL = os.environ.get("EMA_MACD_INTERVAL", "3m")
-EMA_MACD_USE_HEIKIN = os.environ.get("EMA_MACD_USE_HEIKIN", "true").lower() in (
+# Regular OHLC candles for red/green body confirmation (matches TradingView screenshots)
+EMA_MACD_USE_HEIKIN = os.environ.get("EMA_MACD_USE_HEIKIN", "false").lower() in (
     "1",
     "true",
     "yes",
 )
+# CE: body must be >= this fraction of candle range (avoids doji / weak crosses)
+EMA_MACD_MIN_BULL_BODY_RATIO = float(os.environ.get("EMA_MACD_MIN_BULL_BODY_RATIO", "0.45"))
+EMA_MACD_MAX_DOJI_BODY_RATIO = float(os.environ.get("EMA_MACD_MAX_DOJI_BODY_RATIO", "0.22"))
+# Trend filter: supertrend | hma | both | none
+EMA_MACD_TREND_FILTER = os.environ.get("EMA_MACD_TREND_FILTER", "supertrend").strip().lower()
+EMA_MACD_ST_ATR_BARS = int(os.environ.get("EMA_MACD_ST_ATR_BARS", "1"))
+EMA_MACD_ST_ATR_MULT = float(os.environ.get("EMA_MACD_ST_ATR_MULT", "3.0"))
+EMA_MACD_HMA_LENGTH = int(os.environ.get("EMA_MACD_HMA_LENGTH", "21"))
 SENSEX_TICKER = os.environ.get("SENSEX_TICKER", "^BSESN")
 SENSEX_STRIKE_STEP = int(os.environ.get("SENSEX_STRIKE_STEP", "100"))
 NIFTY_ST_ATR_LENGTH = int(os.environ.get("NIFTY_ST_ATR_LENGTH", "10"))

@@ -30,6 +30,26 @@ def heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def hma(series: pd.Series, length: int) -> pd.Series:
+    """Hull Moving Average (TradingView ta.hma)."""
+    length = max(int(length), 2)
+    half = max(length // 2, 1)
+    sqrt_len = max(int(length**0.5), 1)
+
+    def _wma(s: pd.Series, n: int) -> pd.Series:
+        n = max(n, 1)
+        weights = pd.Series(range(1, n + 1), dtype=float)
+
+        def _apply(x: pd.Series) -> float:
+            w = weights.iloc[-len(x) :]
+            return float((x * w).sum() / w.sum())
+
+        return s.rolling(n).apply(_apply, raw=False)
+
+    raw = 2 * _wma(series, half) - _wma(series, length)
+    return _wma(raw, sqrt_len)
+
+
 def compute_macd(
     close: pd.Series,
     fast: int = 12,
