@@ -306,11 +306,19 @@ EMA_MACD_USE_HEIKIN = os.environ.get("EMA_MACD_USE_HEIKIN", "false").lower() in 
 # CE: body must be >= this fraction of candle range (avoids doji / weak crosses)
 EMA_MACD_MIN_BULL_BODY_RATIO = float(os.environ.get("EMA_MACD_MIN_BULL_BODY_RATIO", "0.45"))
 EMA_MACD_MAX_DOJI_BODY_RATIO = float(os.environ.get("EMA_MACD_MAX_DOJI_BODY_RATIO", "0.22"))
-# Trend filter: supertrend | hma | both | none
-EMA_MACD_TREND_FILTER = os.environ.get("EMA_MACD_TREND_FILTER", "supertrend").strip().lower()
+# Trend filter: supertrend | hma | both | none (none = EMA+MACD+candle only — matches TV entries)
+EMA_MACD_TREND_FILTER = os.environ.get("EMA_MACD_TREND_FILTER", "none").strip().lower()
 EMA_MACD_ST_ATR_BARS = int(os.environ.get("EMA_MACD_ST_ATR_BARS", "1"))
 EMA_MACD_ST_ATR_MULT = float(os.environ.get("EMA_MACD_ST_ATR_MULT", "3.0"))
 EMA_MACD_HMA_LENGTH = int(os.environ.get("EMA_MACD_HMA_LENGTH", "21"))
+# Scan last N closed bars (covers 3–5 min scan interval misses)
+EMA_MACD_LOOKBACK_BARS = max(1, int(os.environ.get("EMA_MACD_LOOKBACK_BARS", "8")))
+# Prefer Upstox native 3m candles (matches TradingView) over yfinance resample
+EMA_MACD_USE_UPSTOX_CANDLES = os.environ.get("EMA_MACD_USE_UPSTOX_CANDLES", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
 SENSEX_TICKER = os.environ.get("SENSEX_TICKER", "^BSESN")
 SENSEX_STRIKE_STEP = int(os.environ.get("SENSEX_STRIKE_STEP", "100"))
 NIFTY_ST_ATR_LENGTH = int(os.environ.get("NIFTY_ST_ATR_LENGTH", "10"))

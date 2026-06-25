@@ -508,3 +508,66 @@ def cancel_order_v3(order_id: str) -> bool:
         json_body={"order_id": order_id},
     )
     return body is not None
+
+
+def fetch_intraday_candles_v3(
+    instrument_key: str,
+    *,
+    unit: str = "minutes",
+    interval: int = 3,
+) -> list[list]:
+    """Upstox v3 intraday OHLC — supports minutes/3 for native 3m bars."""
+    from urllib.parse import quote
+
+    encoded = quote(instrument_key, safe="")
+    path = f"/historical-candle/intraday/{encoded}/{unit}/{interval}"
+    data = _request("GET", f"{UPSTOX_V3_BASE}{path}")
+    if isinstance(data, dict):
+        candles = data.get("candles")
+        if isinstance(candles, list):
+            return candles
+    if isinstance(data, list):
+        return data
+    return []
+
+
+def fetch_intraday_ohlc_df(
+    instrument_key: str,
+    *,
+    interval_minutes: int = 3,
+) -> "pd.DataFrame":
+    """Parse Upstox intraday candles into OHLC DataFrame (IST index)."""
+    import pandas as pd
+
+    from market_time import IST
+
+    rows = fetch_intraday_candles_v3(instrument_key, unit="minutes", interval=interval_minutes)
+    if not rows:
+        return pd.DataFrame()
+    parsed: list[dict] = []
+    for row in rows:
+        if not isinstance(row, (list, tuple)) or len(row) < 5:
+            continue
+        ts_raw = row[0]
+        try:
+            ts = pd.Timestamp(ts_raw)
+            if ts.tzinfo is None:
+                ts = ts.tz_localize(IST)
+            else:
+                ts = ts.tz_convert(IST)
+        except (TypeError, ValueError):
+            continue
+        parsed.append(
+            {
+                "Open": float(row[1]),
+                "High": float(row[2]),
+                "Low": float(row[3]),
+                "Close": float(row[4]),
+                "Volume": float(row[5]) if len(row) > 5 and row[5] is not None else 0.0,
+                "ts": ts,
+            }
+        )
+    if not parsed:
+        return pd.DataFrame()
+    df = pd.DataFrame(parsed).set_index("ts").sort_index()
+    return df

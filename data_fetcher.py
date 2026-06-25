@@ -158,6 +158,31 @@ def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
     return out
 
 
+def resample_ohlcv_ist_session(df: pd.DataFrame, rule: str = "3min") -> pd.DataFrame:
+    """Resample 1m bars to 3m aligned to NSE/BSE session open (9:15 IST)."""
+    if df.empty:
+        return df
+    from market_time import IST
+
+    work = df.copy()
+    if work.index.tz is None:
+        work.index = work.index.tz_localize("UTC")
+    work = work.tz_convert(IST)
+    agg: dict[str, str] = {
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+    }
+    if "Volume" in work.columns:
+        agg["Volume"] = "sum"
+    return (
+        work.resample(rule, origin="start_day", offset="9h15min")
+        .agg(agg)
+        .dropna(subset=["Close"])
+    )
+
+
 def fetch_index_history(
     ticker: str,
     interval: str,
