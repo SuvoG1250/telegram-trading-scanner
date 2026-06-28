@@ -66,14 +66,6 @@ def compute_macd(
     )
 
 
-def rsi(series: pd.Series, length: int = 14) -> pd.Series:
-    delta = series.diff()
-    gain = delta.clip(lower=0).rolling(length).mean()
-    loss = (-delta.clip(upper=0)).rolling(length).mean()
-    rs = gain / loss.replace(0, 1e-10)
-    return 100 - (100 / (1 + rs))
-
-
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int) -> pd.Series:
     prev_close = close.shift(1)
     tr = pd.concat(
@@ -85,6 +77,31 @@ def atr(high: pd.Series, low: pd.Series, close: pd.Series, length: int) -> pd.Se
         axis=1,
     ).max(axis=1)
     return tr.ewm(alpha=1 / length, adjust=False).mean()
+
+
+def volume_sma(volume: pd.Series, length: int = 20) -> pd.Series:
+    return volume.rolling(length, min_periods=max(1, length // 2)).mean()
+
+
+def session_vwap(df: pd.DataFrame, tz: str = "UTC") -> pd.Series:
+    """Session VWAP reset each calendar day in `tz`."""
+    typical = (df["High"].astype(float) + df["Low"].astype(float) + df["Close"].astype(float)) / 3.0
+    vol = df["Volume"].astype(float).fillna(0) if "Volume" in df.columns else pd.Series(1.0, index=df.index)
+    if float(vol.sum()) <= 0:
+        return typical.expanding(min_periods=1).mean()
+    day_key = df.index.tz_convert(tz).normalize()
+    pv = typical * vol
+    cum_pv = pv.groupby(day_key).cumsum()
+    cum_vol = vol.groupby(day_key).cumsum().replace(0, 1e-10)
+    return cum_pv / cum_vol
+
+
+def rsi(series: pd.Series, length: int = 14) -> pd.Series:
+    delta = series.diff()
+    gain = delta.clip(lower=0).rolling(length).mean()
+    loss = (-delta.clip(upper=0)).rolling(length).mean()
+    rs = gain / loss.replace(0, 1e-10)
+    return 100 - (100 / (1 + rs))
 
 
 def supertrend_direction(
