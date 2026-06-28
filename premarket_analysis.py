@@ -341,21 +341,21 @@ def _index_snapshot(label: str, spec: dict[str, Any], nse_map: dict[str, dict[st
             pass
     if label == "NIFTY":
         snap.view_lines = [
-            f"Above {_round_level(close * 1.002, step):,}: Bullish Bias",
-            f"Around {snap.max_call_oi or _round_level(close + step, step):,}: Call writer resistance zone",
-            f"Strongest Put Writing near {snap.max_put_oi or _round_level(close - step, step):,}",
-            "Expiry days: watch premium decay & writer traps",
+            f"{_round_level(close * 1.002, step):,} এর উপরে: বুলিশ bias",
+            f"Call writer resistance zone ~ {snap.max_call_oi or _round_level(close + step, step):,}",
+            f"শক্ত Put writing ~ {snap.max_put_oi or _round_level(close - step, step):,}",
+            "Expiry দিন: premium decay ও writer trap দেখুন",
         ]
     elif label == "BANK NIFTY":
         snap.view_lines = [
-            f"Above {resistances[0] if resistances else _round_level(close * 1.005, step):,}: Bullish continuation",
-            f"Below {int(ohlc['low']):,}: Selling pressure may increase",
-            "Sustainable rally needs Nifty + Bank Nifty both holding support",
+            f"{resistances[0] if resistances else _round_level(close * 1.005, step):,} এর উপরে: বুলিশ continuation",
+            f"{int(ohlc['low']):,} এর নিচে: selling pressure বাড়তে পারে",
+            "Sustainable rally-তে Nifty + Bank Nifty দুটোই support ধরে রাখা দরকার",
         ]
     else:
         snap.view_lines = [
-            f"Above {resistances[0] if resistances else _round_level(close * 1.004, step):,}: Positive momentum",
-            f"Below {supports[0] if supports else _round_level(close * 0.996, step):,}: Weakness can increase",
+            f"{resistances[0] if resistances else _round_level(close * 1.004, step):,} এর উপরে: positive momentum",
+            f"{supports[0] if supports else _round_level(close * 0.996, step):,} এর নিচে: weakness বাড়তে পারে",
         ]
     return snap
 
@@ -374,22 +374,22 @@ def _market_overview_lines(sentiment: dict, news_bias: str, gift_pts: float | No
     gap = sentiment.get("nifty_gap_pct", 0.0)
     lines: list[str] = []
     if gap > 0.4:
-        lines.append("Kal market ne gap-up opening di, session mein selective profit booking dikhi.")
+        lines.append("গতকাল বাজার gap-up opening দিয়েছিল, সেশনে selective profit booking দেখা গেছে।")
     elif gap < -0.4:
-        lines.append("Kal market weak close hua — global cues aur FII flow par focus rakho.")
+        lines.append("গতকাল বাজার দুর্বল close — global cue ও FII flow-এ focus রাখুন।")
     else:
-        lines.append("Kal ka session range-bound / mixed raha — breakout ke liye confirmation zaroori.")
+        lines.append("গতকালের সেশন range-bound / mixed — breakout-এর জন্য confirmation জরুরি।")
     if _is_expiry_day():
-        lines.append("Aaj Nifty expiry hai — option positioning, premium decay aur writers ka behaviour important rahega.")
+        lines.append("আজ Nifty expiry — option positioning, premium decay ও writers-এর behaviour গুরুত্বপূর্ণ।")
     if gift_pts is not None:
         if gift_pts > 20:
-            lines.append(f"Gift Nifty abhi ~{gift_pts:+.0f} pts premium par hai — positive opening bias.")
+            lines.append(f"Gift Nifty এখন ~{gift_pts:+.0f} pts premium-এ — positive opening bias।")
         elif gift_pts < -20:
-            lines.append(f"Gift Nifty ~{abs(gift_pts):.0f} pts discount par hai — cautious open possible.")
+            lines.append(f"Gift Nifty ~{abs(gift_pts):.0f} pts discount-এ — cautious open সম্ভব।")
     if news_bias == "bearish":
-        lines.append("Headline flow thoda risk-off hai — position sizing light rakho.")
+        lines.append("Headline flow একটু risk-off — position size ছোট রাখুন।")
     elif news_bias == "bullish" and bias == "bullish":
-        lines.append("Global + domestic sentiment align ho rahe hain — trend side ko priority.")
+        lines.append("Global + domestic sentiment align — trend side-কে priority দিন।")
     return lines[:4]
 
 
@@ -442,38 +442,38 @@ def format_premarket_update(data: dict[str, Any] | None = None) -> str:
     ts = now_ist().strftime("%H:%M IST")
 
     lines = [
-        f"<b>PRE MARKET UPDATE | {day}, {date_label}</b>",
+        f"<b>প্রি-মার্কেট আপডেট | {day}, {date_label}</b>",
         f"<i>{ts}</i>",
         "",
-        "<b>MARKET OVERVIEW</b>",
+        "<b>বাজার সারাংশ</b>",
     ]
-    for item in data.get("overview") or ["Scanning global and domestic cues for today&apos;s session."]:
+    for item in data.get("overview") or ["আজকের সেশনের জন্য global ও domestic cue scan করা হচ্ছে।"]:
         lines.append(f"• {item}")
 
     fii = data.get("fii") or {}
-    lines.extend(["", "<b>FII &amp; DII DATA</b>"])
+    lines.extend(["", "<b>FII ও DII ডেটা</b>"])
     if fii.get("fii_cash") or fii.get("dii_cash"):
         fii_line = f"• FII Cash: {fii.get('fii_cash', 'n/a')} | DII Cash: {fii.get('dii_cash', 'n/a')}"
         if fii.get("fii_date"):
             fii_line += f" <i>({fii['fii_date']})</i>"
         lines.append(fii_line)
-        lines.append("• FII Futures: check NSE participant data for Bank Nifty / Nifty / Midcap bias")
+        lines.append("• FII Futures: Bank Nifty / Nifty / Midcap bias-এর জন্য NSE participant data দেখুন")
     else:
-        lines.append("• FII/DII provisional data unavailable — check NSE India website")
+        lines.append("• FII/DII provisional data unavailable — NSE India website চেক করুন")
 
-    lines.extend(["", "<b>ECONOMIC CALENDAR</b>"])
-    for ev in data.get("economic") or ["No major events parsed — verify Investing.com calendar"]:
+    lines.extend(["", "<b>ইকোনমিক ক্যালেন্ডার</b>"])
+    for ev in data.get("economic") or ["Major event parse হয়নি — Investing.com calendar verify করুন"]:
         lines.append(f"• {ev}")
 
-    lines.extend(["", "<b>STOCKS IN FOCUS</b>"])
+    lines.extend(["", "<b>ফোকাস স্টক</b>"])
     stocks = data.get("stocks_focus") or []
     if stocks:
         for s in stocks:
             lines.append(f"• {s}")
     else:
-        lines.append("• No single-stock catalyst headlines in feed — watch Nifty heavyweights")
+        lines.append("• feed-এ single-stock catalyst headline নেই — Nifty heavyweights দেখুন")
 
-    lines.extend(["", "<b>GLOBAL MARKETS</b>"])
+    lines.extend(["", "<b>গ্লোবাল বাজার</b>"])
     for label, pts in (data.get("globals") or {}).items():
         lines.append(f"• {label}: {_fmt_pts(pts)}")
 
@@ -481,7 +481,7 @@ def format_premarket_update(data: dict[str, Any] | None = None) -> str:
         snap: IndexSnapshot | None = (data.get("indices") or {}).get(key)
         if not snap:
             continue
-        title = f"{key} LEVELS"
+        title = f"{key} লেভেল"
         lines.extend(["", f"<b>{title}</b>", f"• Close: {snap.close:,.0f}"])
         if key == "NIFTY" and snap.straddle_pts:
             atm = _round_level(snap.close, 50)
@@ -502,14 +502,14 @@ def format_premarket_update(data: dict[str, Any] | None = None) -> str:
 
     pos = data.get("positive") or []
     neg = data.get("negative") or []
-    lines.extend(["", "<b>OVERALL VIEW</b>"])
+    lines.extend(["", "<b>সামগ্রিক দৃষ্টিভঙ্গি</b>"])
     global_pos = sum(1 for v in (data.get("globals") or {}).values() if v is not None and v > 0)
     if global_pos >= 4:
-        lines.append("• Global sentiment largely positive hai.")
+        lines.append("• Global sentiment বেশিরভাগ ইতিবাচক।")
     elif global_pos <= 1:
-        lines.append("• Global cues mixed-to-negative hain — gap-down risk monitor karo.")
+        lines.append("• Global cue mixed-to-negative — gap-down risk monitor করুন।")
     else:
-        lines.append("• Global markets mixed hain — stock-specific action expect karo.")
+        lines.append("• Global markets mixed — stock-specific action বেশি হতে পারে।")
     if neg:
         lines.append(f"• Headline risk: {neg[0][:80]}")
     if pos:
@@ -517,12 +517,12 @@ def format_premarket_update(data: dict[str, Any] | None = None) -> str:
     nifty = (data.get("indices") or {}).get("NIFTY")
     if nifty and nifty.supports and nifty.resistances:
         lines.append(
-            f"• Nifty ke liye {nifty.supports[0]:,} - {nifty.resistances[-1]:,} important zone rahega."
+            f"• Nifty-র জন্য {nifty.supports[0]:,} - {nifty.resistances[-1]:,} গুরুত্বপূর্ণ zone থাকবে।"
         )
     if _is_expiry_day():
-        lines.append("• Expiry day par patience aur confirmation-based trading par focus rakho.")
+        lines.append("• Expiry দিন — patience ও confirmation-based trading-এ focus রাখুন।")
     else:
-        lines.append("• Opening range ke baad hi aggressive entries lena better hai.")
+        lines.append("• Opening range clear হওয়ার পর aggressive entry নেওয়া ভালো।")
 
     return "\n".join(lines)
 
@@ -531,10 +531,10 @@ def _llm_polish(raw_text: str, data: dict[str, Any]) -> str:
     if not llm_available():
         return raw_text
     prompt = (
-        "You are an Indian stock market pre-market analyst. Rewrite the following Telegram HTML "
-        "pre-market update in the same structure and sections. Keep ALL numbers exactly as given. "
-        "Use a mix of simple Hindi-English (Hinglish) like professional Telegram channels. "
-        "Keep HTML tags (<b>, <i>). Do not add new sections. Max 4500 chars.\n\n"
+        "You are an expert Indian stock market pre-market analyst. Rewrite the following Telegram HTML "
+        "pre-market update in SIMPLE, CLEAR BENGALI (Bangla Unicode script — NOT romanized Bengali, NOT Hinglish). "
+        "Keep ALL numbers, index levels, and stock names exactly as given. "
+        "Keep the same structure and sections. Keep HTML tags (<b>, <i>). Do not add new sections. Max 4500 chars.\n\n"
         f"DATA JSON (reference):\n{data.get('news_bias')} bias\n\n"
         f"DRAFT:\n{raw_text}"
     )

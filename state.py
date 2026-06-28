@@ -151,6 +151,7 @@ def _session_today() -> dict[str, Any]:
             "stock_btst_sent": False,
             "stock_btst_symbols": [],
             "premarket_summary_sent": False,
+            "bengali_news_sent": False,
             "daily_strategy_prompt_sent": False,
             "automation_session_announced": False,
         }
@@ -228,6 +229,16 @@ def premarket_summary_sent() -> bool:
 def mark_premarket_summary_sent() -> None:
     data = _session_today()
     data["premarket_summary_sent"] = True
+    _save_session(data)
+
+
+def bengali_news_sent() -> bool:
+    return bool(_session_today().get("bengali_news_sent"))
+
+
+def mark_bengali_news_sent() -> None:
+    data = _session_today()
+    data["bengali_news_sent"] = True
     _save_session(data)
 
 

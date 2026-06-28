@@ -6,12 +6,15 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote_plus
 from urllib.request import Request, urlopen
 
 import yfinance as yf
 
 from market_sentiment import NIFTY_TICKER
+from market_time import IST
 
 logger = logging.getLogger(__name__)
 
@@ -75,16 +78,41 @@ def _tag_headline(text: str, digest: NewsDigest) -> None:
     digest.bearish_hits += r
 
 
-def _fetch_rss(url: str, source: str, limit: int = 12) -> list[str]:
+def _fetch_rss(
+    url: str,
+    source: str,
+    limit: int = 12,
+    *,
+    max_age_hours: float | None = None,
+) -> list[str]:
     titles: list[str] = []
+    cutoff = None
+    if max_age_hours is not None:
+        cutoff = datetime.now(IST) - timedelta(hours=max_age_hours)
     try:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; NSE-Scanner/1.0)"})
         with urlopen(req, timeout=20) as resp:
             root = ET.fromstring(resp.read())
         for item in root.iter("item"):
             title_el = item.find("title")
-            if title_el is not None and title_el.text:
-                titles.append(title_el.text.strip())
+            if title_el is None or not title_el.text:
+                continue
+            title = title_el.text.strip()
+            if cutoff is not None:
+                pub_el = item.find("pubDate")
+                if pub_el is not None and pub_el.text:
+                    try:
+                        pub_dt = parsedate_to_datetime(pub_el.text)
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=IST)
+                        else:
+                            pub_dt = pub_dt.astimezone(IST)
+                        if pub_dt < cutoff:
+                            continue
+                    except (TypeError, ValueError, OverflowError):
+                        pass
+            if title and title not in titles:
+                titles.append(title)
             if len(titles) >= limit:
                 break
     except Exception:
@@ -104,6 +132,118 @@ def fetch_yfinance_nifty_news(limit: int = 8) -> list[str]:
         if title:
             out.append(title)
     return out
+
+
+# High-impact keywords for analyst ranking (macro + stock-specific).
+_IMPACT_KEYWORDS: tuple[tuple[str, int], ...] = (
+    ("rbi", 5),
+    ("fed", 5),
+    ("fii", 5),
+    ("dii", 4),
+    ("inflation", 5),
+    ("cpi", 4),
+    ("gdp", 4),
+    ("earnings", 5),
+    ("results", 4),
+    ("quarterly", 4),
+    ("nifty", 4),
+    ("sensex", 4),
+    ("nse", 3),
+    ("bse", 3),
+    ("crude", 4),
+    ("oil", 3),
+    ("rupee", 4),
+    ("dollar", 3),
+    ("tariff", 4),
+    ("trade war", 5),
+    ("rate cut", 5),
+    ("rate hike", 5),
+    ("repo rate", 5),
+    ("ipo", 4),
+    ("qip", 4),
+    ("merger", 4),
+    ("acquisition", 4),
+    ("downgrade", 4),
+    ("upgrade", 4),
+    ("selloff", 4),
+    ("rally", 3),
+    ("china", 3),
+    ("japan", 3),
+    ("nasdaq", 3),
+    ("s&p", 3),
+    ("wall street", 3),
+    ("geopolit", 4),
+    ("war", 4),
+    ("budget", 4),
+    ("gst", 3),
+    ("sebi", 3),
+    ("bank", 3),
+    ("it stocks", 3),
+    ("auto", 2),
+    ("pharma", 2),
+    ("reliance", 3),
+    ("hdfc", 3),
+    ("tcs", 3),
+    ("infosys", 3),
+)
+
+
+def score_headline_impact(title: str) -> int:
+    """Higher score = more likely to move NSE / macro today."""
+    t = title.lower()
+    score = 0
+    for kw, pts in _IMPACT_KEYWORDS:
+        if kw in t:
+            score += pts
+    return score
+
+
+def rank_headlines_by_impact(headlines: list[str], top_n: int = 10) -> list[tuple[str, int]]:
+    scored = [(title, score_headline_impact(title)) for title in headlines]
+    scored.sort(key=lambda x: (-x[1], x[0]))
+    return scored[:top_n]
+
+
+def build_24h_market_news_digest() -> NewsDigest:
+    """Global + Indian headlines from the past ~24 hours for analyst briefing."""
+    digest = NewsDigest()
+    queries = [
+        "India stock market news last 24 hours NSE BSE",
+        "NSE stock specific news earnings results today",
+        "RBI India economy inflation GDP macro news",
+        "FII DII India market flow news today",
+        "US Fed global markets Asia stock news today",
+        "crude oil dollar rupee India market impact",
+        "Nifty Sensex market news today India",
+        "Wall Street global stock market news today",
+    ]
+    for q in queries:
+        url = _GOOGLE_NEWS_RSS.format(query=quote_plus(q))
+        for title in _fetch_rss(url, f"google:{q[:20]}", limit=8, max_age_hours=24):
+            _tag_headline(title, digest)
+            digest.sources.append("google_news")
+
+    for title in fetch_yfinance_nifty_news(limit=10):
+        _tag_headline(title, digest)
+        digest.sources.append("yfinance")
+
+    seen: set[str] = set()
+    unique: list[str] = []
+    for h in digest.headlines:
+        key = h.lower()[:80]
+        if key not in seen:
+            seen.add(key)
+            unique.append(h)
+    digest.headlines = unique[:24]
+
+    sc = digest.score()
+    if sc >= 1.0:
+        digest.news_bias = "bullish"
+    elif sc <= -1.0:
+        digest.news_bias = "bearish"
+    else:
+        digest.news_bias = "neutral"
+    return digest
 
 
 def build_market_news_digest() -> NewsDigest:

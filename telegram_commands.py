@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import html
 import logging
 import os
 import sys
@@ -161,33 +162,40 @@ def _normalize_command(text: str) -> str:
 def _reply(chat_id: str, text: str, *, reply_markup: dict | None = None) -> bool:
     if not TELEGRAM_TOKEN:
         return False
-    payload: dict = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": False,
-    }
-    if reply_markup:
-        payload["reply_markup"] = reply_markup
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json=payload,
-            timeout=20,
-        )
-        body = resp.json() if resp.content else {}
-        if not resp.ok or not body.get("ok"):
-            logger.error(
-                "Telegram reply failed chat=%s status=%s body=%s",
-                chat_id,
-                resp.status_code,
-                body,
+    from telegram_client import _split_telegram_text
+
+    chunks = _split_telegram_text(text)
+    ok = False
+    for i, chunk in enumerate(chunks):
+        payload: dict = {
+            "chat_id": chat_id,
+            "text": chunk,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": False,
+        }
+        if reply_markup and i == 0:
+            payload["reply_markup"] = reply_markup
+        try:
+            resp = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+                json=payload,
+                timeout=30,
             )
-            return False
-        return True
-    except requests.RequestException:
-        logger.exception("Telegram command reply failed")
-        return False
+            body = resp.json() if resp.content else {}
+            if resp.ok and body.get("ok"):
+                ok = True
+            else:
+                logger.error(
+                    "Telegram reply failed chat=%s part=%s/%s status=%s body=%s",
+                    chat_id,
+                    i + 1,
+                    len(chunks),
+                    resp.status_code,
+                    body,
+                )
+        except requests.RequestException:
+            logger.exception("Telegram command reply failed part %s/%s", i + 1, len(chunks))
+    return ok
 
 
 def _answer_callback(callback_id: str, text: str = "", *, show_alert: bool = False) -> None:
@@ -309,7 +317,8 @@ def _help_text() -> str:
         "<b>/paper</b> — test mode (pick strategy + index, no real broker orders)\n"
         "<b>/strategy</b> — change today's auto-exec strategy\n"
         "<b>/stop</b> — disable Upstox orders\n"
-        "<b>/status</b> — mode + strategy + index + token\n\n"
+        "<b>/status</b> — mode + strategy + index + token\n"
+        "<b>/news</b> — 24h global + NSE news analysis (Bengali)\n\n"
         "<b>Daily setup</b> — ~8:30 AM IST: Strategy → Index (Nifty/Sensex)\n"
         "<b>GTT points:</b> Nifty SL 15 / Target 30 · Sensex SL 20 / Target 50\n\n"
         "<b>Upstox token (daily before 9:15 AM)</b>\n"
@@ -481,6 +490,18 @@ def _handle_command(chat_id: str, text: str) -> None:
             return
         set_lots(n)
         _reply(chat_id, f"✅ Lots set to <b>{get_lots()}</b>")
+        return
+
+    if cmd in ("/news", "/bengali_news", "/bengali"):
+        _reply(chat_id, "⏳ ২৪ ঘণ্টার বাজার খবর সংগ্রহ ও বিশ্লেষণ চলছে…")
+        try:
+            from market_news_analyst import format_bengali_market_news_analysis
+
+            body = format_bengali_market_news_analysis()
+            _reply(chat_id, body)
+        except Exception as exc:
+            logger.exception("Bengali news command failed")
+            _reply(chat_id, f"❌ News analysis failed: {html.escape(str(exc)[:200])}")
         return
 
 

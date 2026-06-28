@@ -172,6 +172,30 @@ def _maybe_daily_strategy_prompt(state: dict) -> None:
         _save_state(state)
 
 
+def _maybe_bengali_news(state: dict) -> None:
+    from config import BENGALI_NEWS_HOUR, BENGALI_NEWS_MINUTE, SEND_BENGALI_NEWS_ANALYSIS
+
+    if not SEND_BENGALI_NEWS_ANALYSIS:
+        return
+    weekday, hour, minute, _ = _now_parts()
+    if weekday >= 5:
+        return
+    if hour < BENGALI_NEWS_HOUR or (hour == BENGALI_NEWS_HOUR and minute < BENGALI_NEWS_MINUTE):
+        return
+    if hour > 8 or (hour == 8 and minute > 54):
+        return
+
+    key = f"bengali_news_{_today_key()}"
+    if state.get(key):
+        return
+
+    from market_news_analyst import send_bengali_market_news_analysis
+
+    if send_bengali_market_news_analysis(force=False):
+        state[key] = True
+        _save_state(state)
+
+
 def _maybe_premarket_summary(state: dict) -> None:
     weekday, hour, minute, _ = _now_parts()
     if weekday >= 5:
@@ -202,6 +226,7 @@ def _prune_old_state(state: dict) -> dict:
 
 def _scheduler_tick(state: dict) -> dict:
     _maybe_daily_strategy_prompt(state)
+    _maybe_bengali_news(state)
     _maybe_premarket_summary(state)
     _maybe_nse_session(state)
     _maybe_global_session(state)

@@ -1,4 +1,4 @@
-"""Pre-market market summary — full analysis or compact news + sentiment."""
+"""Pre-market market summary — full analysis or compact news + sentiment (Bengali)."""
 
 from __future__ import annotations
 
@@ -14,6 +14,18 @@ from telegram_client import send_plain
 logger = logging.getLogger(__name__)
 
 _BIAS_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "⚪", "positive": "🟢", "negative": "🔴", "mixed": "🟡"}
+
+_BIAS_BN = {
+    "bullish": "বুলিশ (ইতিবাচক)",
+    "bearish": "বিয়ারিশ (নেতিবাচক)",
+    "neutral": "নিরপেক্ষ",
+    "positive": "ইতিবাচক",
+    "negative": "নেতিবাচক",
+    "mixed": "মিশ্র",
+    "gap_up": "gap-up",
+    "gap_down": "gap-down",
+    "flat": "স্থির / flat",
+}
 
 
 def _overall_bias(sentiment: dict, news_bias: str) -> str:
@@ -38,39 +50,46 @@ def format_premarket_market_summary() -> str:
     ts = now_ist().strftime("%d %b %Y, %H:%M IST")
 
     lines = [
-        f"📰 <b>Pre-Market Summary</b> — {ts}",
+        f"📰 <b>প্রি-মার্কেট সারাংশ</b> — {ts}",
         "",
         (
-            f"{bias_emoji} <b>Today&apos;s bias:</b> {overall} "
-            f"| News: {news.news_bias} "
+            f"{bias_emoji} <b>আজকের bias:</b> {_BIAS_BN.get(overall, overall)} "
+            f"| খবর: {_BIAS_BN.get(news.news_bias, news.news_bias)} "
             f"| Nifty {sentiment.get('nifty_gap_pct', 0):+.2f}% "
-            f"| Global: {sentiment.get('global', 'mixed')}"
+            f"| Global: {_BIAS_BN.get(sentiment.get('global', 'mixed'), sentiment.get('global', 'mixed'))}"
         ),
         "",
-        "<b>✅ Positive</b>",
+        "<b>✅ ইতিবাচক খবর</b>",
     ]
     if positive:
         lines.extend(f"• {h}" for h in positive[:6])
     else:
-        lines.append("• No clearly positive headlines in feed")
+        lines.append("• feed-এ স্পষ্ট ইতিবাচক headline নেই")
 
-    lines.extend(["", "<b>❌ Negative / risks</b>"])
+    lines.extend(["", "<b>❌ নেতিবাচক / ঝুঁকি</b>"])
     if negative:
         lines.extend(f"• {h}" for h in negative[:6])
     else:
-        lines.append("• No clearly negative headlines in feed")
+        lines.append("• feed-এ স্পষ্ট নেতিবাচক headline নেই")
 
     if neutral:
-        lines.extend(["", "<b>➖ Mixed / neutral</b>"])
+        lines.extend(["", "<b>➖ মিশ্র / নিরপেক্ষ</b>"])
         lines.extend(f"• {h}" for h in neutral[:4])
 
+    nifty_gap = sentiment.get("nifty_gap", "flat")
+    global_m = sentiment.get("global", "mixed")
+    context = (
+        f"Nifty: {_BIAS_BN.get(nifty_gap, nifty_gap)} ({sentiment.get('nifty_gap_pct', 0):+.2f}%) | "
+        f"Global: {_BIAS_BN.get(global_m, global_m)} | Bias: {_BIAS_BN.get(overall, overall)}"
+    )
     lines.extend(
         [
             "",
-            "<b>📊 Market context</b>",
-            sentiment.get("summary", "").replace("\n", " "),
+            "<b>📊 বাজার context</b>",
+            context,
+            "<i>(FII/DII: NSE-তে manually verify করুন — free feed-এ নেই)</i>",
             "",
-            f"<i>{len(news.headlines)} headlines scanned · yfinance + Google News</i>",
+            f"<i>{len(news.headlines)} headline scan · yfinance + Google News</i>",
         ]
     )
     return "\n".join(lines)

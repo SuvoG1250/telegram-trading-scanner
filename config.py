@@ -76,6 +76,13 @@ SEND_PREMARKET_FULL_ANALYSIS = os.environ.get("SEND_PREMARKET_FULL_ANALYSIS", "t
     "true",
     "yes",
 )
+SEND_BENGALI_NEWS_ANALYSIS = os.environ.get("SEND_BENGALI_NEWS_ANALYSIS", "true").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+BENGALI_NEWS_HOUR = int(os.environ.get("BENGALI_NEWS_HOUR", "8"))
+BENGALI_NEWS_MINUTE = int(os.environ.get("BENGALI_NEWS_MINUTE", "40"))
 SEND_SESSION_ALERTS = os.environ.get("SEND_SESSION_ALERTS", "false").lower() in (
     "1",
     "true",
