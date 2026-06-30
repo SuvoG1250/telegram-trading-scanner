@@ -269,10 +269,15 @@ OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = os.environ.get(
     "OPENROUTER_MODEL", "openrouter/free"
 )
+# NVIDIA NIM — build.nvidia.com (OpenAI-compatible, free tier)
+NVIDIA_NIM_API_KEY = os.environ.get("NVIDIA_NIM_API_KEY", "")
+NVIDIA_NIM_MODEL = os.environ.get(
+    "NVIDIA_NIM_MODEL", "meta/llama-3.3-70b-instruct"
+)
 # Provider order for stock/BTST AI (comma-separated)
 LLM_PROVIDER_ORDER = os.environ.get(
     "LLM_PROVIDER_ORDER",
-    "cerebras,openrouter,github_models,groq,gemini",
+    "nvidia,cerebras,openrouter,github_models,groq,gemini",
 )
 # AI quality gate on equity alerts (fail-open if API down)
 AI_SIGNAL_VALIDATE = os.environ.get("AI_SIGNAL_VALIDATE", "true").lower() in (

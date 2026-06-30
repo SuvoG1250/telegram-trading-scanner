@@ -20,6 +20,7 @@ def chat_completion(
     temperature: float = 0.3,
     extra_headers: dict[str, str] | None = None,
     provider_label: str = "LLM",
+    timeout: float = 35,
 ) -> str:
     if not api_key or not models:
         return ""
@@ -41,7 +42,7 @@ def chat_completion(
         payload = json.dumps({**body_base, "model": model}).encode("utf-8")
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=35) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 data = json.loads(resp.read())
             text = (data["choices"][0]["message"].get("content") or "").strip()
             if text:

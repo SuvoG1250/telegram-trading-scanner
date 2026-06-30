@@ -12,6 +12,7 @@ from config import (
     CEREBRAS_API_KEY,
     GEMINI_API_KEY,
     GH_MODELS_TOKEN,
+    NVIDIA_NIM_API_KEY,
     OPENROUTER_API_KEY,
     GROQ_API_KEY,
     LLM_PROVIDER_ORDER,
@@ -25,6 +26,7 @@ from cerebras_client import cerebras_generate
 from gemini_client import _gemini_only_generate, llm_available
 from github_models_client import github_models_generate
 from groq_client import groq_generate
+from nvidia_nim_client import nvidia_nim_generate
 from openrouter_client import openrouter_generate
 from market_time import now_ist
 from state import health_check_sent, load_watchlist, mark_health_check_sent
@@ -95,6 +97,10 @@ def _check_openrouter() -> tuple[bool | None, str]:
     return _check_llm_ping(OPENROUTER_API_KEY, openrouter_generate)
 
 
+def _check_nvidia_nim() -> tuple[bool | None, str]:
+    return _check_llm_ping(NVIDIA_NIM_API_KEY, nvidia_nim_generate)
+
+
 def _check_broker(name: str, configured: bool, extra: str = "") -> tuple[bool | None, str]:
     if not configured:
         return None, "not configured"
@@ -112,6 +118,7 @@ def build_health_report() -> str:
     host = "GitHub Actions" if os.environ.get("GITHUB_ACTIONS") == "true" else "local"
 
     tg_ok, tg_detail = _check_telegram()
+    nv_ok, nv_detail = _check_nvidia_nim()
     cb_ok, cb_detail = _check_cerebras()
     or_ok, or_detail = _check_openrouter()
     gh_ok, gh_detail = _check_github_models()
@@ -133,6 +140,7 @@ def build_health_report() -> str:
         "",
         "<b>API status</b>",
         f"{_icon(tg_ok)} <b>Telegram</b> — {tg_detail}",
+        f"{_icon(nv_ok)} <b>NVIDIA NIM</b> — {nv_detail}",
         f"{_icon(cb_ok)} <b>Cerebras</b> — {cb_detail}",
         f"{_icon(or_ok)} <b>OpenRouter</b> — {or_detail}",
         f"{_icon(gh_ok)} <b>GitHub Models</b> — {gh_detail}",

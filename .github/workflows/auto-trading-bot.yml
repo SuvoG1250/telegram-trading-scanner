@@ -128,7 +128,9 @@ jobs:
       GH_MODELS_MODEL: meta-llama/llama-3.3-70b-instruct
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       OPENROUTER_MODEL: openrouter/free
-      LLM_PROVIDER_ORDER: cerebras,openrouter,github_models,groq,gemini
+      NVIDIA_NIM_API_KEY: ${{ secrets.NVIDIA_NIM_API_KEY }}
+      NVIDIA_NIM_MODEL: meta/llama-3.3-70b-instruct
+      LLM_PROVIDER_ORDER: nvidia,cerebras,openrouter,github_models,groq,gemini
       AI_SIGNAL_VALIDATE: "false"
       AI_MIN_CONFIDENCE: "5"
       SCAN_ALL_UNIVERSE_INTRADAY: "true"
